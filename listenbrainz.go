@@ -74,8 +74,12 @@ func getReccs(cfg Listenbrainz) []string{
 	if err != nil {
 		log.Fatal("Error making request")
 	}
-	json.Unmarshal(body, &reccs)
+	err = json.Unmarshal(body, &reccs)
 
+	if err != nil {
+		log.Fatalf("Error unmarshaling response: %s", err)
+	}
+	
 	for _, rec := range reccs.Payload.Mbids {
 		mbids = append(mbids, rec.RecordingMbid)
 	}
