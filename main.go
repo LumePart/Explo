@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"time"
-
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
@@ -31,29 +30,28 @@ type Youtube struct {
 	DownloadDir string `env:"DOWNLOAD_DIR"`
 }
 type Listenbrainz struct {
+	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
 }
 
 func readEnv() Config {
 	var cfg Config
 
-
-
-	err := cleanenv.ReadConfig("./local.env", &cfg)
+	err := cleanenv.ReadConfig("./local.env",&cfg)
 	if err != nil {
-		log.Fatalf("Failed to read env file: %s", err)
+		panic(err)
 	}
 	return cfg
 }
 
-func cleanUp(cfg Youtube, songs []string) {
+func cleanUp(cfg Youtube, songs []string) { // Remove downloaded webms
 
 	for _, song := range songs {
 		path := fmt.Sprintf("%s%s.webm", cfg.DownloadDir,song)
 		
 		err := os.Remove(path)
 		if err != nil {
-			log.Fatalf("Failed to remove %s, got %s", song, err)
+			log.Printf("Failed to remove file: %v", err)
 		}
 	}
 
@@ -64,21 +62,30 @@ func main() {
 	cfg := readEnv()
 	cfg.Subsonic = genToken(cfg.Subsonic)
 
-	mbids := getReccs(cfg.Listenbrainz)
-	tracks := getTracks(mbids)
+	var tracks Track
+
+	if cfg.Listenbrainz.Discovery == "playlist" {
+		id, err := getWeeklyExploration(cfg.Listenbrainz)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		tracks = parseWeeklyExploration(id)
+	} else {
+		mbids := getReccs(cfg.Listenbrainz)
+		tracks = getTracks(mbids)
+	}
 	var files []string
 	var songs []string
 	
-	for _, v := range tracks {
-		song, file := downloadAndFormat(v.Recording.Name, v.Release.AlbumArtistName, v.Release.Name, cfg.Youtube)
+	for _, track := range tracks {
+		song, file := downloadAndFormat(track.Title, track.Artist, track.Album, cfg.Youtube)
 		files = append(files, file)
 		songs = append(songs, song)
 	}
 
 	cleanUp(cfg.Youtube, files)
 	scan(cfg.Subsonic)
-	log.Printf("\nSleeping for %v minutes, to allow scan to complete..\n", cfg.Sleep)
+	log.Printf("Sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
 	time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 	createPlaylist(cfg.Subsonic, songs)
-
 }

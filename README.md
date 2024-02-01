@@ -1,6 +1,8 @@
 # Explo - Discover Weekly for Subsonic compatible systems
 
-**Explo** is a simple program for Subsonic-API compatible software, that aims to offer an alternative to Spotify's "Discover Weekly". It automates music discovery by downloading recommended songs based on your listening history. Using [ListenBrainz](https://listenbrainz.org/) as a discovery source and Youtube for downloading tracks.
+**Explo** is a program for Subsonic-API compatible software, that aims to offer an alternative to Spotify's "Discover Weekly". It automates music discovery by downloading recommended songs based on your listening history. Using [ListenBrainz](https://listenbrainz.org/) as a discovery source and Youtube for downloading tracks.
+
+Explo has 2 discovery modes, the preferred (and default) one gets songs from a playlist made by ListenBrainz, second one gets them through ListenBrainz API (weekly recommendations are quite poor). they are toggeable via the .env file
 
 ## Features
 
@@ -20,16 +22,17 @@
 
 ### Installation
 
-1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest)
+1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) (make sure it can be executed)
 2. Make an "local.env" file in the same directory and fill it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
 3. Add a Cron job that executes Explo weekly
 ```bash
 crontab -e
 ```
-Insert this to the last line to execute Explo every monday
+Insert this to the last line to execute Explo every monday at 00:15 (ListenBrainz usually updates its discovery db at 00:00-00:05)
 ```bash
-0 0 * * 1 cd /path/to/explo && ./explo-amd64-linux
+15 0 * * 1 cd /path/to/explo && ./explo-amd64-linux
 ```
+**PS!** If using playlist discovery, don't run the program more than obce per day (eats up youtube API credits). For testing, change LISTENBRAINZ_DISCOVERY variable to a random value
 
 ## Contributing
 

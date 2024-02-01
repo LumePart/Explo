@@ -16,21 +16,18 @@ import (
 )
 
 type Videos struct {
-	Items         []Items  `json:"items"`
+	Items      	[]struct {
+		ID      struct {
+			VideoID string `json:"videoId"`
+		}      `json:"id"`
+		Snippet struct {
+			Title string `json:"title"`
+		} `json:"snippet"`
+	}  `json:"items"`
 }
 
-type ID struct {
-	VideoID string `json:"videoId"`
-}
 
-type Snippet struct {
-	Title string `json:"title"`
-}
 
-type Items struct {
-	ID      ID      `json:"id"`
-	Snippet Snippet `json:"snippet"`
-}
 
 func queryYT(song string, artist string, cfg Youtube) Videos { // Queries youtube for the song
 
@@ -38,14 +35,21 @@ func queryYT(song string, artist string, cfg Youtube) Videos { // Queries youtub
 	
 	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
 	query := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
-	req, _ := http.NewRequest(http.MethodGet, query, nil)
+	req, err := http.NewRequest(http.MethodGet, query, nil)
+	if err != nil {
+		log.Fatalf("Failed to initialize request: %v", err)
+	}
 
 	var videos Videos
-	resp, _ := client.Do(req)
-	body, _ := io.ReadAll(resp.Body)
-	err := json.Unmarshal(body, &videos)
+	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error unmarshaling response: %s", err)
+		log.Fatalf("Failed to make request: %v", err)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	json.Unmarshal(body, &videos)
+	if err != nil {
+		log.Fatalf("Failed to read response body: %v", err)
 	}
 
 	return videos
@@ -75,33 +79,30 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 
 			stream, _, err := yt_client.GetStream(video, &formats[0])
 			if err != nil {
-				log.Fatalf("Error getting video stream: %s", err)
+				log.Printf("Failed to get video stream: %v", err)
+				break
 			}
 			defer stream.Close()
 
 			input := fmt.Sprintf("%s%s - %s.webm", cfg.DownloadDir,s, a)
 			file, err := os.Create(input)
 			if err != nil {
-				log.Fatalf("Error creating file: %s", err)
+				log.Fatalf("Failed to create song file: %v", err)
 			}
 			defer file.Close()
 
 			_, err = io.Copy(file, stream)
 			if err != nil {
-				log.Fatalf("Error copying the stream to file")
+				log.Printf("Failed to copy stream to file: %v", err)
 				break // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 			}
 
-			err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
+			ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
 				"q:a": 0,
 				"map": "a",
 				"metadata": []string{"artist="+artist,"title="+song,"album="+name},
 				"loglevel": "error",
 			}).OverWriteOutput().ErrorToStdOut().Run()
-
-			if err != nil {
-				log.Fatalf("Error while running ffmpeg: %s", err)
-			}
 
 			return fmt.Sprintf("%s %s %s", song, artist, name), fmt.Sprintf("%s - %s", s, a)
 		}
