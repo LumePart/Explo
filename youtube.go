@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
-	"log"
 
 	"github.com/kkdai/youtube/v2"
 	ffmpeg "github.com/u2takey/ffmpeg-go"

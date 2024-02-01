@@ -12,16 +12,16 @@ import (
 
 type Recommendations struct {
 	Payload struct {
-		Count          int     `json:"count"`
-		Entity         string  `json:"entity"`
-		LastUpdated    int     `json:"last_updated"`
-		Mbids []struct {
+		Count       int    `json:"count"`
+		Entity      string `json:"entity"`
+		LastUpdated int    `json:"last_updated"`
+		Mbids       []struct {
 			LatestListenedAt time.Time `json:"latest_listened_at"`
 			RecordingMbid    string    `json:"recording_mbid"`
 			Score            float64   `json:"score"`
-		}`json:"mbids"`
-		TotalMbidCount int     `json:"total_mbid_count"`
-		UserName       string  `json:"user_name"`
+		} `json:"mbids"`
+		TotalMbidCount int    `json:"total_mbid_count"`
+		UserName       string `json:"user_name"`
 	} `json:"payload"`
 }
 
@@ -48,15 +48,14 @@ type Metadata struct {
 	} `json:"release"`
 }
 
-
 type Recordings map[string]Metadata
 
 type Playlists struct {
 	Playlist []struct {
 		Data struct {
-			Date time.Time `json:"date"`
-			Identifier string `json:"identifier"`
-			Extension struct {
+			Date       time.Time `json:"date"`
+			Identifier string    `json:"identifier"`
+			Extension  struct {
 				HTTPSMusicbrainzOrgDocJspfPlaylist struct {
 					AdditionalMetadata struct {
 						AlgorithmMetadata struct {
@@ -74,11 +73,11 @@ type Exploration struct {
 		Annotation string    `json:"annotation"`
 		Creator    string    `json:"creator"`
 		Date       time.Time `json:"date"`
-		Identifier string `json:"identifier"`
-		Title      string `json:"title"`
-		Tracks      []struct {
-			Album     string `json:"album"`
-			Creator   string `json:"creator"`
+		Identifier string    `json:"identifier"`
+		Title      string    `json:"title"`
+		Tracks     []struct {
+			Album      string `json:"album"`
+			Creator    string `json:"creator"`
 			Identifier string `json:"identifier"`
 			Title      string `json:"title"`
 		} `json:"track"`
@@ -86,17 +85,17 @@ type Exploration struct {
 }
 
 type Track []struct {
-	Album string
+	Album  string
 	Artist string
-	Title string
+	Title  string
 }
 
-func getReccs(cfg Listenbrainz) []string{
+func getReccs(cfg Listenbrainz) []string {
 	var reccs Recommendations
 	var mbids []string
 
 	body := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", cfg.User))
-	
+
 	json.Unmarshal(body, &reccs)
 
 	for _, rec := range reccs.Payload.Mbids {
@@ -111,18 +110,22 @@ func getReccs(cfg Listenbrainz) []string{
 
 func getTracks(mbids []string) Track {
 	var tracks Track
-	var recordings Recordings 
+	var recordings Recordings
 	str_mbids := strings.Join(mbids, ",")
 
-	body := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release",str_mbids))
+	body := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release", str_mbids))
 
 	json.Unmarshal(body, &recordings)
 
 	for _, recording := range recordings {
-		tracks = append(tracks, struct{Album string; Artist string; Title string}{
-			Album: recording.Release.Name,
+		tracks = append(tracks, struct {
+			Album  string
+			Artist string
+			Title  string
+		}{
+			Album:  recording.Release.Name,
 			Artist: recording.Release.AlbumArtistName,
-			Title: recording.Recording.Name,
+			Title:  recording.Recording.Name,
 		})
 	}
 
@@ -134,19 +137,19 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 
 	var playlists Playlists
 
-	body := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor",cfg.User))
-	
+	body := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", cfg.User))
+
 	json.Unmarshal(body, &playlists)
 
-	for _ ,playlist := range playlists.Playlist {
+	for _, playlist := range playlists.Playlist {
 
 		_, currentWeek := time.Now().Local().ISOWeek()
 		_, creationWeek := playlist.Data.Date.ISOWeek()
 
 		if playlist.Data.Extension.HTTPSMusicbrainzOrgDocJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == "weekly-exploration" && currentWeek == creationWeek {
 			exploration := playlist.Data.Identifier
-			id := strings.Split(exploration,"/")
-			return id[len(id) - 1], nil
+			id := strings.Split(exploration, "/")
+			return id[len(id)-1], nil
 		}
 	}
 	return "", fmt.Errorf("failed to get exploration playlist")
@@ -163,10 +166,14 @@ func parseWeeklyExploration(identifier string) Track {
 	json.Unmarshal(body, &exploration)
 
 	for _, track := range exploration.Playlist.Tracks {
-		tracks = append(tracks, struct{Album string; Artist string; Title string}{
-			Album: track.Album,
+		tracks = append(tracks, struct {
+			Album  string
+			Artist string
+			Title  string
+		}{
+			Album:  track.Album,
 			Artist: track.Creator,
-			Title: track.Title,
+			Title:  track.Title,
 		})
 	}
 	return tracks

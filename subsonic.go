@@ -29,7 +29,7 @@ type Response struct {
 	} `json:"subsonic-response"`
 }
 
-func genToken(cfg Subsonic) Subsonic {
+func genToken(cfg Subsonic) Subsonic { // Generate token for subsonic authentication
 	var salt = make([]byte, 6)
 
 
