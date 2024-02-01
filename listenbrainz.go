@@ -118,7 +118,10 @@ func getTracks(mbids []string) Track {
 
 	body := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release", str_mbids))
 
-	json.Unmarshal(body, &recordings)
+	err := json.Unmarshal(body, &recordings)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
+	}
 
 	for _, recording := range recordings {
 		tracks = append(tracks, struct {
