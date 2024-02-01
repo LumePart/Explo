@@ -56,7 +56,10 @@ func searchTrack(cfg Subsonic, client http.Client, track string) string {
 	body := subsonicRequest(client, reqParam, cfg)
 	var resp Response
 
-	json.Unmarshal(body, &resp)
+	err := json.Unmarshal(body, &resp)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
+	}
 
 	return resp.SubsonicResponse.SearchResult3.Song[0].ID
 	

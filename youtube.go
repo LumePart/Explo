@@ -46,10 +46,13 @@ func queryYT(song string, artist string, cfg Youtube) Videos { // Queries youtub
 		log.Fatalf("Failed to make request: %v", err)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	json.Unmarshal(body, &videos)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Failed to read response body: %v", err)
+	}
+	err = json.Unmarshal(body, &videos)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
 	}
 
 	return videos
@@ -97,12 +100,16 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 				break // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 			}
 
-			ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
+			err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
 				"q:a": 0,
 				"map": "a",
 				"metadata": []string{"artist="+artist,"title="+song,"album="+name},
 				"loglevel": "error",
 			}).OverWriteOutput().ErrorToStdOut().Run()
+
+			if err != nil {
+				log.Fatalf("Failed to convert file via ffmpeg: %v", err)
+			}
 
 			return fmt.Sprintf("%s %s %s", song, artist, name), fmt.Sprintf("%s - %s", s, a)
 		}

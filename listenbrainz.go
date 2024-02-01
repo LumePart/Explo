@@ -96,7 +96,10 @@ func getReccs(cfg Listenbrainz) []string {
 
 	body := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", cfg.User))
 
-	json.Unmarshal(body, &reccs)
+	err := json.Unmarshal(body, &reccs)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
+	}
 
 	for _, rec := range reccs.Payload.Mbids {
 		mbids = append(mbids, rec.RecordingMbid)
@@ -139,7 +142,10 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 
 	body := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", cfg.User))
 
-	json.Unmarshal(body, &playlists)
+	err := json.Unmarshal(body, &playlists)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
+	}
 
 	for _, playlist := range playlists.Playlist {
 
@@ -163,7 +169,10 @@ func parseWeeklyExploration(identifier string) Track {
 
 	body := lbRequest(fmt.Sprintf("playlist/%s", identifier))
 
-	json.Unmarshal(body, &exploration)
+	err := json.Unmarshal(body, &exploration)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
+	}
 
 	for _, track := range exploration.Playlist.Tracks {
 		tracks = append(tracks, struct {
