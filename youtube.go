@@ -79,7 +79,10 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 
 			video, _ := yt_client.GetVideo(v.ID.VideoID)
 			formats := video.Formats.WithAudioChannels() // Get video with audio
-
+			if formats == nil {
+				log.Printf("video format is empty, skipping track")
+				break
+			}
 			stream, _, err := yt_client.GetStream(video, &formats[2])
 			if err != nil {
 				log.Printf("Failed to get video stream: %v", err)
