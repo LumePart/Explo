@@ -74,14 +74,14 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 
 			// Remove illegal characters for file naming
 			re := regexp.MustCompile("[^a-zA-Z0-9._]+")
-			s := re.ReplaceAllString(song, " ")
-			a := re.ReplaceAllString(artist, " ")
+			s := re.ReplaceAllString(song, "_")
+			a := re.ReplaceAllString(artist, "_")
 
 			video, _ := yt_client.GetVideo(v.ID.VideoID)
 			formats := video.Formats.WithAudioChannels() // Get video with audio
 			if formats == nil {
-				log.Printf("video format is empty, skipping track")
-				break
+				log.Println("video format is empty, getting next one...")
+				continue
 			}
 			stream, _, err := yt_client.GetStream(video, &formats[2])
 			if err != nil {
