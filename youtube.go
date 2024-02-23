@@ -61,6 +61,8 @@ func queryYT(song string, artist string, cfg Youtube) Videos { // Queries youtub
 
 func downloadAndFormat(song string, artist string, name string, cfg Youtube) (string, string) {
 
+	var format youtube.Format
+
 	videos := queryYT(song, artist, cfg)
 
 	
@@ -74,8 +76,8 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 
 			// Remove illegal characters for file naming
 			re := regexp.MustCompile("[^a-zA-Z0-9._]+")
-			s := re.ReplaceAllString(song, "_")
-			a := re.ReplaceAllString(artist, "_")
+			s := re.ReplaceAllString(song, " ")
+			a := re.ReplaceAllString(artist, " ")
 
 			video, _ := yt_client.GetVideo(v.ID.VideoID)
 			formats := video.Formats.WithAudioChannels() // Get video with audio
@@ -83,7 +85,14 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 				log.Println("video format is empty, getting next one...")
 				continue
 			}
-			stream, _, err := yt_client.GetStream(video, &formats[2])
+
+			if len(formats) >= 2 { // if video has audio only format use that (to save temporary space)
+				format = formats[2]
+			} else {
+				format = formats[0]
+			}
+
+			stream, _, err := yt_client.GetStream(video, &format)
 			if err != nil {
 				log.Printf("Failed to get video stream: %v", err)
 				break
