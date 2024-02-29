@@ -86,10 +86,14 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 				continue
 			}
 
-			if len(formats) >= 2 { // if video has audio only format use that (to save temporary space)
-				format = formats[2]
-			} else {
+			switch len(formats) {
+			case 0:
+				log.Println("format list is empty, getting next video...")
+				continue
+			case 1, 2:
 				format = formats[0]
+			default: // if video has audio only format use that (to save space)
+				format = formats[2]
 			}
 
 			stream, _, err := yt_client.GetStream(video, &format)
