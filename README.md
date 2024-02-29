@@ -28,9 +28,9 @@ Explo has 2 discovery modes, the preferred (and default) one gets songs from a p
 ```bash
 crontab -e
 ```
-Insert this to the last line to execute Explo every monday at 00:15 (ListenBrainz usually updates its discovery db at 00:00-00:05)
+Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrainz updates its discovery db at monday)
 ```bash
-15 0 * * 1 cd /path/to/explo && ./explo-amd64-linux
+15 0 * * 2 cd /path/to/explo && ./explo-amd64-linux
 ```
 **PS!** If using playlist discovery, don't run the program more than once per day (eats up youtube API credits). For testing, change LISTENBRAINZ_DISCOVERY variable to a random value
 
