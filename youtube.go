@@ -79,7 +79,12 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 			s := re.ReplaceAllString(song, " ")
 			a := re.ReplaceAllString(artist, " ")
 
-			video, _ := yt_client.GetVideo(v.ID.VideoID)
+			video, err := yt_client.GetVideo(v.ID.VideoID)
+			if err != nil {
+				log.Println("could not get video, trying next one")
+				continue
+			}
+
 			formats := video.Formats.WithAudioChannels() // Get video with audio
 			if formats == nil {
 				log.Println("video format is empty, getting next one...")
