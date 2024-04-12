@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"strings"
 
 	"crypto/md5"
 	"crypto/rand"
@@ -29,13 +30,13 @@ type Response struct {
 	} `json:"subsonic-response"`
 }
 
-func genToken(cfg Subsonic) Subsonic { // Generate token for subsonic authentication
+func genToken(cfg Subsonic) Subsonic {
 	var salt = make([]byte, 6)
 
 
 	_, err := rand.Read(salt[:])
 	if err != nil {
-		log.Fatalf("Failed to read salt: %v", err)
+		log.Fatalf("failed to read salt: %v", err)
 	}
 
 	saltStr := base64.StdEncoding.EncodeToString(salt)
@@ -49,59 +50,69 @@ func genToken(cfg Subsonic) Subsonic { // Generate token for subsonic authentica
 	return cfg
 }
 
-func searchTrack(cfg Subsonic, client http.Client, track string) string {
-	cleanedTrack := url.QueryEscape(track)
-
-	reqParam := fmt.Sprintf("search3?query=%s&f=json",cleanedTrack)
-	body := subsonicRequest(client, reqParam, cfg)
-	var resp Response
-
-	err := json.Unmarshal(body, &resp)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %v", err)
-	}
-
-	return resp.SubsonicResponse.SearchResult3.Song[0].ID
-	
+func searchTrack(cfg Subsonic, track string) (string, error) {
+    cleanedTrack := url.QueryEscape(track)
+    
+    reqParam := fmt.Sprintf("search3?query=%s&f=json", cleanedTrack)
+    body, err := subsonicRequest(reqParam, cfg)
+    if err != nil {
+        return "", err
+    }
+    
+    var resp Response
+    if err := json.Unmarshal(body, &resp); err != nil {
+        return "", err
+    }
+    
+    if len(resp.SubsonicResponse.SearchResult3.Song) < 1 {
+        return "", nil
+    }
+    return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
 
-func createPlaylist(cfg Subsonic, tracks []string) {
-	client := http.Client{}
+func createPlaylist(cfg Subsonic, tracks []string) error {
+	var trackIDs strings.Builder
 
-	var trackIDs string
 	for _, track := range tracks { // Get track IDs from app and format them
-		ID := searchTrack(cfg, client, track)
-		trackIDs += "&songId="+ID
+		ID, err := searchTrack(cfg, track)
+		if err != nil {
+            return err
+        }
+        if ID == "" { // If no ID is found, ignore track
+            continue
+        }
+        trackIDs.WriteString("&songId=" + ID)
 	}
 	year, week := time.Now().ISOWeek()
-	reqParam := fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v&%s", year, week, trackIDs)
-	subsonicRequest(client, reqParam, cfg)
+	reqParam := fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v&%s", year, week, trackIDs.String())
+	_, err := subsonicRequest(reqParam, cfg)
+	return err
 }
 
 func scan(cfg Subsonic) {
-	client := http.Client{}
 
 	reqParam := "startScan?f=json"
-	subsonicRequest(client, reqParam, cfg)
+	subsonicRequest(reqParam, cfg)
 }
 
-func subsonicRequest(client http.Client, reqParams string, cfg Subsonic) []byte { // Handle subsonic API requests
+func subsonicRequest(reqParams string, cfg Subsonic) ([]byte, error) {
 	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.User, cfg.Token, cfg.Salt, cfg.Version, cfg.ID)
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
-		log.Fatalf("Failed to initialize request: %v", err)
+		return nil, fmt.Errorf("failed to initialize request: %v", err)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to make request: %v", err)
+		return nil, fmt.Errorf("failed to make request: %v", err)
 	}
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	return body
+	return body, nil
 }

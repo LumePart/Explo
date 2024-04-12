@@ -51,7 +51,7 @@ func cleanUp(cfg Youtube, songs []string) { // Remove downloaded webms
 		
 		err := os.Remove(path)
 		if err != nil {
-			log.Printf("Failed to remove file: %v", err)
+			log.Printf("Failed to remove file: %v", err.Error())
 		}
 	}
 
@@ -70,7 +70,7 @@ func main() {
 			log.Fatal(err.Error())
 		}
 		tracks = parseWeeklyExploration(id)
-	} else {
+	} else { // use reccommendations from API
 		mbids := getReccs(cfg.Listenbrainz)
 		tracks = getTracks(mbids)
 	}
@@ -87,5 +87,9 @@ func main() {
 	scan(cfg.Subsonic)
 	log.Printf("Sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
 	time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
-	createPlaylist(cfg.Subsonic, songs)
+	err := createPlaylist(cfg.Subsonic, songs)
+
+	if err != nil {
+		log.Fatalf("failed to create playlist: %s", err.Error())
+	}
 }
