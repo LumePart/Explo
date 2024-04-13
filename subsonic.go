@@ -36,7 +36,7 @@ func genToken(cfg Subsonic) Subsonic {
 
 	_, err := rand.Read(salt[:])
 	if err != nil {
-		log.Fatalf("failed to read salt: %v", err)
+		log.Fatalf("failed to read salt: %s", err.Error())
 	}
 
 	saltStr := base64.StdEncoding.EncodeToString(salt)

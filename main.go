@@ -70,7 +70,7 @@ func main() {
 			log.Fatal(err.Error())
 		}
 		tracks = parseWeeklyExploration(id)
-	} else { // use reccommendations from API
+	} else { // use recommendations from API
 		mbids := getReccs(cfg.Listenbrainz)
 		tracks = getTracks(mbids)
 	}

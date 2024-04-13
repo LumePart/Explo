@@ -98,7 +98,7 @@ func getReccs(cfg Listenbrainz) []string {
 
 	err := json.Unmarshal(body, &reccs)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %v", err)
+		log.Fatalf("Failed to unmarshal body: %s", err.Error())
 	}
 
 	for _, rec := range reccs.Payload.Mbids {
@@ -120,7 +120,7 @@ func getTracks(mbids []string) Track {
 
 	err := json.Unmarshal(body, &recordings)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %v", err)
+		log.Fatalf("Failed to unmarshal body: %s", err.Error())
 	}
 
 	for _, recording := range recordings {
@@ -147,7 +147,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 
 	err := json.Unmarshal(body, &playlists)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %v", err)
+		log.Fatalf("Failed to unmarshal body: %s", err.Error())
 	}
 
 	for _, playlist := range playlists.Playlist {
@@ -174,7 +174,7 @@ func parseWeeklyExploration(identifier string) Track {
 
 	err := json.Unmarshal(body, &exploration)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %v", err)
+		log.Fatalf("Failed to unmarshal body: %s", err.Error())
 	}
 
 	for _, track := range exploration.Playlist.Tracks {
@@ -199,17 +199,17 @@ func lbRequest(path string) []byte { // Handle ListenBrainz API requests
 	reqString := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)
 	req, err := http.NewRequest(http.MethodGet, reqString, nil)
 	if err != nil {
-		log.Fatalf("Failed to initialize request: %v", err)
+		log.Fatalf("Failed to initialize request: %s", err.Error())
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to make request: %v", err)
+		log.Fatalf("Failed to make request: %s", err.Error())
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
+		log.Fatalf("Failed to read response body: %s", err.Error())
 	}
 	return body
 }

@@ -29,30 +29,35 @@ type Videos struct {
 
 
 
-func queryYT(song string, artist string, cfg Youtube) Videos { // Queries youtube for the song
+func queryYT(song, artist, album string, cfg Youtube) Videos { // Queries youtube for the song
 
+	var escQuery string
 	client := http.Client{}
+	if song == artist || song == album { // append "song" to search query, if album or artist has an self-titled track
+		escQuery = url.PathEscape(fmt.Sprintf("%s - %s song", song, artist))
+	} else {
+		escQuery = url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
+	}
 	
-	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
 	query := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
 	req, err := http.NewRequest(http.MethodGet, query, nil)
 	if err != nil {
-		log.Fatalf("Failed to initialize request: %v", err)
+		log.Fatalf("Failed to initialize request: %s", err.Error())
 	}
 
 	var videos Videos
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to make request: %v", err)
+		log.Fatalf("Failed to make request: %s", err.Error())
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
+		log.Fatalf("Failed to read response body: %s", err.Error())
 	}
 	err = json.Unmarshal(body, &videos)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %v", err)
+		log.Fatalf("Failed to unmarshal body: %s", err.Error())
 	}
 
 	return videos
@@ -63,7 +68,7 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 
 	var format youtube.Format
 
-	videos := queryYT(song, artist, cfg)
+	videos := queryYT(song, artist, name, cfg)
 
 	
 	yt_client := youtube.Client{}
@@ -103,7 +108,7 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 
 			stream, _, err := yt_client.GetStream(video, &format)
 			if err != nil {
-				log.Printf("Failed to get video stream: %v", err)
+				log.Printf("Failed to get video stream: %s", err.Error())
 				break
 			}
 			defer stream.Close()
@@ -111,13 +116,13 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 			input := fmt.Sprintf("%s%s - %s.webm", cfg.DownloadDir,s, a)
 			file, err := os.Create(input)
 			if err != nil {
-				log.Fatalf("Failed to create song file: %v", err)
+				log.Fatalf("Failed to create song file: %s", err.Error())
 			}
 			defer file.Close()
 
 			_, err = io.Copy(file, stream)
 			if err != nil {
-				log.Printf("Failed to copy stream to file: %v", err)
+				log.Printf("Failed to copy stream to file: %s", err.Error())
 				break // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 			}
 
@@ -129,7 +134,7 @@ func downloadAndFormat(song string, artist string, name string, cfg Youtube) (st
 			}).OverWriteOutput().ErrorToStdOut().Run()
 
 			if err != nil {
-				log.Fatalf("Failed to convert file via ffmpeg: %v", err)
+				log.Fatalf("Failed to convert file via ffmpeg: %s", err.Error())
 			}
 
 			return fmt.Sprintf("%s %s %s", song, artist, name), fmt.Sprintf("%s - %s", s, a)
