@@ -79,20 +79,25 @@ func createPlaylist(cfg Subsonic, tracks []string) error {
             return err
         }
         if ID == "" { // If no ID is found, ignore track
+			log.Printf("can't find ID for %s", track)
             continue
         }
         trackIDs.WriteString("&songId=" + ID)
 	}
 	year, week := time.Now().ISOWeek()
-	reqParam := fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v&%s", year, week, trackIDs.String())
+	reqParam := fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v%s", year, week, trackIDs.String())
 	_, err := subsonicRequest(reqParam, cfg)
+
 	return err
 }
 
 func scan(cfg Subsonic) {
 
 	reqParam := "startScan?f=json"
-	subsonicRequest(reqParam, cfg)
+	_, err := subsonicRequest(reqParam, cfg)
+	if err != nil {
+		log.Println("failed to initialize music folder scan")
+	}
 }
 
 func subsonicRequest(reqParams string, cfg Subsonic) ([]byte, error) {
