@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"path"
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
@@ -13,6 +14,7 @@ type Config struct {
 	Youtube Youtube
 	Listenbrainz Listenbrainz
 	Sleep int `env:"SLEEP" env-default:"1"`
+	Persist bool `env:"PERSIST" env-default:"true"`
 }
 
 type Subsonic struct {
@@ -37,7 +39,7 @@ type Listenbrainz struct {
 func readEnv() Config {
 	var cfg Config
 
-	err := cleanenv.ReadConfig("./local.env",&cfg)
+	err := cleanenv.ReadConfig("./local.env", &cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -57,10 +59,36 @@ func cleanUp(cfg Youtube, songs []string) { // Remove downloaded webms
 
 }
 
+func deleteSongs(cfg Youtube) { // Deletes all songs if persist equals false
+	entries, err := os.ReadDir(cfg.DownloadDir)
+	if err != nil {
+		log.Printf("failed to read directory: %v", err)
+	}
+	for _, entry := range entries {
+		if !(entry.IsDir()) {
+			err := os.Remove(path.Join(cfg.DownloadDir, entry.Name()))
+			if err != nil {
+				log.Printf("failed to delete file: %v", err)
+			}
+		}
+	}
+}
+
 
 func main() {
 	cfg := readEnv()
 	cfg.Subsonic = genToken(cfg.Subsonic)
+	
+	if !(cfg.Persist) {
+		deleteSongs(cfg.Youtube)
+		playlists, err := getDiscoveryPlaylist(cfg.Subsonic)
+		
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		delPlaylists(playlists, cfg.Subsonic)
+	}
+	
 
 	var tracks Track
 
@@ -87,7 +115,7 @@ func main() {
 	scan(cfg.Subsonic)
 	log.Printf("Sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
 	time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
-	err := createPlaylist(cfg.Subsonic, songs)
+	err := createPlaylist(cfg.Subsonic, songs, cfg.Persist)
 
 	if err != nil {
 		log.Fatalf("failed to create playlist: %s", err.Error())
