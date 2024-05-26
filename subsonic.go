@@ -147,7 +147,10 @@ func delPlaylists(playlists []string, cfg Subsonic) {
 
 	for _, id := range playlists {
 		reqParam := fmt.Sprintf("deletePlaylist?id=%s", id)
-		subsonicRequest(reqParam, cfg)
+		_, err := subsonicRequest(reqParam, cfg)
+		if err != nil {
+			log.Println("failed to delete playlist")
+		}
 	}
 }
 
