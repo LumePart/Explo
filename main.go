@@ -84,7 +84,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-		delPlaylists(playlists, cfg.Subsonic)
+		err = delPlaylists(playlists, cfg.Subsonic)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
 	}
 
 	 var tracks Track
@@ -109,8 +112,16 @@ func main() {
 	}
 
 	cleanUp(cfg, files)
-	scan(cfg.Subsonic)
+	err := scan(cfg.Subsonic)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	
 	log.Printf("sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
 	time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
-	createPlaylist(cfg.Subsonic, songs, cfg.Persist)
+
+	err = createPlaylist(cfg.Subsonic, songs, cfg.Persist)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
