@@ -44,13 +44,15 @@ type Response struct {
 	} `json:"subsonic-response"`
 }
 
+
 func genToken(cfg Subsonic) Subsonic {
+	
 	var salt = make([]byte, 6)
 
 
 	_, err := rand.Read(salt[:])
 	if err != nil {
-		log.Fatalf("failed to read salt: %s", err.Error())
+		log.Fatalf("failed to read salt: %v", err)
 	}
 
 	saltStr := base64.StdEncoding.EncodeToString(salt)
@@ -65,6 +67,7 @@ func genToken(cfg Subsonic) Subsonic {
 }
 
 func searchTrack(cfg Subsonic, track string) (string, error) {
+
     cleanedTrack := url.QueryEscape(track)
     
     reqParam := fmt.Sprintf("search3?query=%s&f=json", cleanedTrack)
@@ -83,48 +86,40 @@ func searchTrack(cfg Subsonic, track string) (string, error) {
     }
     return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
+func createPlaylist(cfg Subsonic, tracks []string, persist bool) {
 
-func createPlaylist(cfg Subsonic, tracks []string, persist bool) error {
-	var trackIDs strings.Builder
+	var trackIDs string
 	var reqParam string
 
 	for _, track := range tracks { // Get track IDs from app and format them
 		ID, err := searchTrack(cfg, track)
-		if err != nil {
-            return err
-        }
-        if ID == "" { // If no ID is found, ignore track
-			log.Printf("can't find ID for %s", track)
-            continue
-        }
-        trackIDs.WriteString("&songId=" + ID)
+		if ID  == "" || err != nil  { // if ID is empty, skip song
+			continue
+		}
+		trackIDs += "&songId="+ID
 	}
 	if persist {
 		year, week := time.Now().ISOWeek()
-		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v&%s", year, week, trackIDs.String())
+		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v&%s", year, week, trackIDs)
 	} else {
-		// TODO: Delete/update playlist
-		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly&%s", trackIDs.String())
+		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly&%s", trackIDs)
 	}
-
-	_, err := subsonicRequest(reqParam, cfg)
-
-	return err
+	subsonicRequest(reqParam, cfg)
 }
 
 func scan(cfg Subsonic) {
 
 	reqParam := "startScan?f=json"
-	_, err := subsonicRequest(reqParam, cfg)
-	if err != nil {
-		log.Println("failed to initialize music folder scan")
-	}
+	
+	subsonicRequest(reqParam, cfg)
 }
 
 func getDiscoveryPlaylist(cfg Subsonic) ([]string, error) {
-	reqParam := "getPlaylists?f=json"
+
 	var resp Response
 	var playlists []string
+	reqParam := "getPlaylists?f=json"
+
 	body, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
 		return nil, err
@@ -147,14 +142,12 @@ func delPlaylists(playlists []string, cfg Subsonic) {
 
 	for _, id := range playlists {
 		reqParam := fmt.Sprintf("deletePlaylist?id=%s", id)
-		_, err := subsonicRequest(reqParam, cfg)
-		if err != nil {
-			log.Println("failed to delete playlist")
-		}
+		subsonicRequest(reqParam, cfg)
 	}
 }
 
 func subsonicRequest(reqParams string, cfg Subsonic) ([]byte, error) {
+
 	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.User, cfg.Token, cfg.Salt, cfg.Version, cfg.ID)
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)

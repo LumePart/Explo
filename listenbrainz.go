@@ -55,15 +55,7 @@ type Playlists struct {
 		Data struct {
 			Date       time.Time `json:"date"`
 			Identifier string    `json:"identifier"`
-			Extension  struct {
-				HTTPSMusicbrainzOrgDocJspfPlaylist struct {
-					AdditionalMetadata struct {
-						AlgorithmMetadata struct {
-							SourcePatch string `json:"source_patch"`
-						} `json:"algorithm_metadata"`
-					} `json:"additional_metadata"`
-				} `json:"https://musicbrainz.org/doc/jspf#playlist"`
-			} `json:"extension"`
+			Title      string    `json:"title"`
 		} `json:"playlist"`
 	} `json:"playlists"`
 }
@@ -78,7 +70,7 @@ type Exploration struct {
 		Tracks     []struct {
 			Album      string `json:"album"`
 			Creator    string `json:"creator"`
-			Identifier string `json:"identifier"`
+			Identifier []string `json:"identifier"`
 			Title      string `json:"title"`
 		} `json:"track"`
 	} `json:"playlist"`
@@ -96,10 +88,7 @@ func getReccs(cfg Listenbrainz) []string {
 
 	body := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", cfg.User))
 
-	err := json.Unmarshal(body, &reccs)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %s", err.Error())
-	}
+	json.Unmarshal(body, &reccs)
 
 	for _, rec := range reccs.Payload.Mbids {
 		mbids = append(mbids, rec.RecordingMbid)
@@ -120,9 +109,8 @@ func getTracks(mbids []string) Track {
 
 	err := json.Unmarshal(body, &recordings)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
-
 	for _, recording := range recordings {
 		tracks = append(tracks, struct {
 			Album  string
@@ -147,7 +135,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 
 	err := json.Unmarshal(body, &playlists)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 
 	for _, playlist := range playlists.Playlist {
@@ -155,13 +143,12 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 		_, currentWeek := time.Now().Local().ISOWeek()
 		_, creationWeek := playlist.Data.Date.ISOWeek()
 
-		if playlist.Data.Extension.HTTPSMusicbrainzOrgDocJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == "weekly-exploration" && currentWeek == creationWeek {
-			exploration := playlist.Data.Identifier
-			id := strings.Split(exploration, "/")
+		if strings.Contains(playlist.Data.Title, "Weekly Exploration") && currentWeek == creationWeek {
+			id := strings.Split(playlist.Data.Identifier, "/")
 			return id[len(id)-1], nil
 		}
 	}
-	return "", fmt.Errorf("failed to get exploration playlist")
+	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one")
 }
 
 func parseWeeklyExploration(identifier string) Track {
@@ -174,7 +161,7 @@ func parseWeeklyExploration(identifier string) Track {
 
 	err := json.Unmarshal(body, &exploration)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 
 	for _, track := range exploration.Playlist.Tracks {
@@ -199,17 +186,17 @@ func lbRequest(path string) []byte { // Handle ListenBrainz API requests
 	reqString := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)
 	req, err := http.NewRequest(http.MethodGet, reqString, nil)
 	if err != nil {
-		log.Fatalf("Failed to initialize request: %s", err.Error())
+		log.Fatalf("Failed to initialize request: %v", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to make request: %s", err.Error())
+		log.Fatalf("Failed to make request: %v", err)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Failed to read response body: %s", err.Error())
+		log.Fatalf("Failed to read response body: %v", err)
 	}
 	return body
 }

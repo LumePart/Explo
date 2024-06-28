@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 	"path"
+	"time"
+
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
@@ -39,21 +40,21 @@ type Listenbrainz struct {
 func readEnv() Config {
 	var cfg Config
 
-	err := cleanenv.ReadConfig("./local.env", &cfg)
+	err := cleanenv.ReadConfig("./local.env",&cfg)
 	if err != nil {
 		panic(err)
 	}
 	return cfg
 }
 
-func cleanUp(cfg Youtube, songs []string) { // Remove downloaded webms
+func cleanUp(cfg Config, songs []string) { // Remove downloaded webms
 
 	for _, song := range songs {
-		path := fmt.Sprintf("%s%s.webm", cfg.DownloadDir,song)
+		path := fmt.Sprintf("%s%s.webm", cfg.Youtube.DownloadDir,song)
 		
 		err := os.Remove(path)
 		if err != nil {
-			log.Printf("Failed to remove file: %v", err.Error())
+			log.Printf("failed to remove file: %v", err)
 		}
 	}
 
@@ -66,10 +67,7 @@ func deleteSongs(cfg Youtube) { // Deletes all songs if persist equals false
 	}
 	for _, entry := range entries {
 		if !(entry.IsDir()) {
-			err := os.Remove(path.Join(cfg.DownloadDir, entry.Name()))
-			if err != nil {
-				log.Printf("failed to delete file: %v", err)
-			}
+			os.Remove(path.Join(cfg.DownloadDir, entry.Name()))
 		}
 	}
 }
@@ -78,19 +76,18 @@ func deleteSongs(cfg Youtube) { // Deletes all songs if persist equals false
 func main() {
 	cfg := readEnv()
 	cfg.Subsonic = genToken(cfg.Subsonic)
-	
+
 	if !(cfg.Persist) {
+
 		deleteSongs(cfg.Youtube)
 		playlists, err := getDiscoveryPlaylist(cfg.Subsonic)
-		
 		if err != nil {
 			log.Fatal(err.Error())
 		}
 		delPlaylists(playlists, cfg.Subsonic)
 	}
-	
 
-	var tracks Track
+	 var tracks Track
 
 	if cfg.Listenbrainz.Discovery == "playlist" {
 		id, err := getWeeklyExploration(cfg.Listenbrainz)
@@ -98,7 +95,7 @@ func main() {
 			log.Fatal(err.Error())
 		}
 		tracks = parseWeeklyExploration(id)
-	} else { // use recommendations from API
+	} else {
 		mbids := getReccs(cfg.Listenbrainz)
 		tracks = getTracks(mbids)
 	}
@@ -106,18 +103,14 @@ func main() {
 	var songs []string
 	
 	for _, track := range tracks {
-		song, file := downloadAndFormat(track.Title, track.Artist, track.Album, cfg.Youtube)
+		song, file := gatherVideo(cfg.Youtube, track.Title, track.Artist, track.Album)
 		files = append(files, file)
 		songs = append(songs, song)
 	}
 
-	cleanUp(cfg.Youtube, files)
+	cleanUp(cfg, files)
 	scan(cfg.Subsonic)
-	log.Printf("Sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
+	log.Printf("sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
 	time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
-	err := createPlaylist(cfg.Subsonic, songs, cfg.Persist)
-
-	if err != nil {
-		log.Fatalf("failed to create playlist: %s", err.Error())
-	}
+	createPlaylist(cfg.Subsonic, songs, cfg.Persist)
 }

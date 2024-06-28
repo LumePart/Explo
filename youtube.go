@@ -16,135 +16,177 @@ import (
 )
 
 type Videos struct {
-	Items      	[]struct {
-		ID      struct {
-			VideoID string `json:"videoId"`
-		}      `json:"id"`
-		Snippet struct {
-			Title string `json:"title"`
-		} `json:"snippet"`
-	}  `json:"items"`
+	Items   []Item `json:"items"`
+}
+
+type ID struct {
+	VideoID string `json:"videoId"`
+}
+
+type Snippet struct {
+	Title                string     `json:"title"`
+	ChannelTitle         string     `json:"channelTitle"`
+}
+
+type Item struct {
+	ID      ID      `json:"id"`
+	Snippet Snippet `json:"snippet"`
 }
 
 
 
 
-func queryYT(song, artist, album string, cfg Youtube) Videos { // Queries youtube for the song
+func queryYT(cfg Youtube, song, artist string) Videos { // Queries youtube for the song
 
-	var escQuery string
 	client := http.Client{}
-	if song == artist || song == album { // append "song" to search query, if album or artist has an self-titled track
-		escQuery = url.PathEscape(fmt.Sprintf("%s - %s song", song, artist))
-	} else {
-		escQuery = url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
-	}
 	
+	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
 	query := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
 	req, err := http.NewRequest(http.MethodGet, query, nil)
 	if err != nil {
-		log.Fatalf("Failed to initialize request: %s", err.Error())
+		log.Fatalf("Failed to initialize request: %v", err)
 	}
 
 	var videos Videos
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to make request: %s", err.Error())
+		log.Fatalf("Failed to make request: %v", err)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
+	json.Unmarshal(body, &videos)
 	if err != nil {
-		log.Fatalf("Failed to read response body: %s", err.Error())
-	}
-	err = json.Unmarshal(body, &videos)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal body: %s", err.Error())
+		log.Fatalf("Failed to read response body: %v", err)
 	}
 
 	return videos
 
 }
 
-func downloadAndFormat(song string, artist string, name string, cfg Youtube) (string, string) {
-
-	var format youtube.Format
-
-	videos := queryYT(song, artist, name, cfg)
-
+func getTopic(videos Videos, song, artist string) string { // gets song under artist topic or personal channel
 	
-	yt_client := youtube.Client{}
-
 	for _, v := range videos.Items {
-		if (!filter(song,"live") && !filter(artist,"live") && filter(v.Snippet.Title, "live")) || // ignore artist lives or song remixes
-		(!filter(song,"remix") && !filter(artist,"remix") && filter(v.Snippet.Title, "remix")) {
-			continue
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == artist) && filter(song, artist, v.Snippet.Title) {
+			return v.ID.VideoID
 		} else {
-
-			// Remove illegal characters for file naming
-			re := regexp.MustCompile("[^a-zA-Z0-9._]+")
-			s := re.ReplaceAllString(song, " ")
-			a := re.ReplaceAllString(artist, " ")
-
-			video, err := yt_client.GetVideo(v.ID.VideoID)
-			if err != nil {
-				log.Println("could not get video, trying next one")
-				continue
-			}
-
-			formats := video.Formats.WithAudioChannels() // Get video with audio
-			if formats == nil {
-				log.Println("video format is empty, getting next one...")
-				continue
-			}
-
-			switch len(formats) {
-			case 0:
-				log.Println("format list is empty, getting next video...")
-				continue
-			case 1, 2:
-				format = formats[0]
-			default: // if video has audio only format use that (to save space)
-				format = formats[2]
-			}
-
-			stream, _, err := yt_client.GetStream(video, &format)
-			if err != nil {
-				log.Printf("Failed to get video stream: %s", err.Error())
-				break
-			}
-			defer stream.Close()
-
-			input := fmt.Sprintf("%s%s - %s.webm", cfg.DownloadDir,s, a)
-			file, err := os.Create(input)
-			if err != nil {
-				log.Fatalf("Failed to create song file: %s", err.Error())
-			}
-			defer file.Close()
-
-			_, err = io.Copy(file, stream)
-			if err != nil {
-				log.Printf("Failed to copy stream to file: %s", err.Error())
-				break // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
-			}
-
-			err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
-				"q:a": 0,
-				"map": "a",
-				"metadata": []string{"artist="+artist,"title="+song,"album="+name},
-				"loglevel": "error",
-			}).OverWriteOutput().ErrorToStdOut().Run()
-
-			if err != nil {
-				log.Fatalf("Failed to convert file via ffmpeg: %s", err.Error())
-			}
-
-			return fmt.Sprintf("%s %s %s", song, artist, name), fmt.Sprintf("%s - %s", s, a)
+			continue
 		}
 	}
-
-	return "", ""
+	return ""
 }
 
-func filter(str string, substr string) bool {
+func getVideo(videoID string) (io.ReadCloser, error) { // gets song from first available video (used if getTopic returns false)
+
+	yt_client := youtube.Client{}
+	var format youtube.Format
+	
+	video, err := yt_client.GetVideo(videoID)
+	if err != nil {
+		log.Println("could not get video, trying next one")
+	}
+	formats := video.Formats.WithAudioChannels() // Get video with audio
+
+	switch len(formats) {
+	case 0:
+		log.Println("format list is empty, getting next video...")
+		return nil, err
+	case 1, 2:
+		format = formats[0]
+	default: // if video has audio only format use that (to save temp space)
+		format = formats[2]
+	}
+
+	stream, _, err := yt_client.GetStream(video, &format)
+
+	if err != nil {
+		log.Printf("Failed to get video stream: %s", err.Error())
+		return nil, err
+	}
+	return stream, nil
+			
+}
+
+func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (string, string) {
+
+	defer stream.Close()
+	// Remove illegal characters for file naming
+	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
+	s := re.ReplaceAllString(song, " ")
+	a := re.ReplaceAllString(artist, " ")
+
+	input := fmt.Sprintf("%s%s - %s.webm", cfg.DownloadDir,s, a)
+	file, err := os.Create(input)
+	if err != nil {
+		log.Fatalf("Failed to create song file: %s", err.Error())
+		return "", ""
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, stream)
+	if err != nil {
+		log.Printf("Failed to copy stream to file: %s", err.Error())
+		return "", "" // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
+	}
+
+	err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
+			"map": "0:a",
+			"metadata": []string{"artist="+artist,"title="+song,"album="+album},
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut().Run()
+	if err != nil {
+		log.Printf("Failed to convert audio: %s", err.Error())
+		return "", ""
+	}
+		
+		return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s - %s", s, a)
+	
+}
+
+func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
+
+	videos := queryYT(cfg, song, artist)
+	id := getTopic(videos, song, artist)
+
+	if id != "" {
+		stream, err := getVideo(id)
+		if stream != nil {
+			song, file := saveVideo(cfg, song, artist, album, stream)
+			return song, file
+		} else {
+			log.Printf("failed getting stream: %s", err.Error())
+		}
+	}
+	// if getting song from topic channel fails, try getting from first available channel
+	for _, video := range videos.Items {
+		if filter(song, artist, video.Snippet.Title) {
+		stream, err := getVideo(video.ID.VideoID)
+		if stream != nil {
+			song, file := saveVideo(cfg, song, artist, album, stream)
+			return song, file
+		} else {
+			log.Printf("failed getting stream: %s", err.Error())
+			continue
+		}
+	}
+}
+	return "", ""
+
+}
+
+func filter(song, artist, videoTitle string) bool { // ignore artist lives or song remixes
+	
+	if (!contains(song,"live") && !contains(artist,"live") && contains(videoTitle, "live")) {
+		return false
+	}
+
+	if (!contains(song,"remix") && !contains(artist,"remix") && contains(videoTitle, "remix")) {
+			return false
+	}
+
+	return true
+}
+
+func contains(str string, substr string) bool {
 
 	return strings.Contains(
         strings.ToLower(str),
