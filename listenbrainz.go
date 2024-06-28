@@ -88,7 +88,10 @@ func getReccs(cfg Listenbrainz) []string {
 
 	body := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", cfg.User))
 
-	json.Unmarshal(body, &reccs)
+	err := json.Unmarshal(body, &reccs)
+	if err != nil {
+		log.Fatalf("failed to unmarshal body: %s", err.Error())
+	}
 
 	for _, rec := range reccs.Payload.Mbids {
 		mbids = append(mbids, rec.RecordingMbid)

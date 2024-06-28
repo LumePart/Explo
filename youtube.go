@@ -53,10 +53,14 @@ func queryYT(cfg Youtube, song, artist string) Videos { // Queries youtube for t
 		log.Fatalf("Failed to make request: %v", err)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	json.Unmarshal(body, &videos)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Failed to read response body: %v", err)
+	}
+
+	err = json.Unmarshal(body, &videos)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal body: %v", err)
 	}
 
 	return videos
@@ -138,7 +142,7 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 		return "", ""
 	}
 		
-		return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s - %s", s, a)
+	return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s - %s", s, a)
 	
 }
 
@@ -149,7 +153,7 @@ func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
 
 	if id != "" {
 		stream, err := getVideo(id)
-		if stream != nil {
+		if stream != nil && err == nil {
 			song, file := saveVideo(cfg, song, artist, album, stream)
 			return song, file
 		} else {
@@ -160,7 +164,7 @@ func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
 	for _, video := range videos.Items {
 		if filter(song, artist, video.Snippet.Title) {
 		stream, err := getVideo(video.ID.VideoID)
-		if stream != nil {
+		if stream != nil && err == nil {
 			song, file := saveVideo(cfg, song, artist, album, stream)
 			return song, file
 		} else {
@@ -174,7 +178,7 @@ func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
 }
 
 func filter(song, artist, videoTitle string) bool { // ignore artist lives or song remixes
-	
+
 	if (!contains(song,"live") && !contains(artist,"live") && contains(videoTitle, "live")) {
 		return false
 	}
