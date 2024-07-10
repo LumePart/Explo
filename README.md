@@ -9,6 +9,7 @@ Explo has 2 discovery modes, the preferred (and default) one gets songs from a p
 - Automatically gets and downloads music recommendations.
 - Adds metadata (title, artist, album) to the downloaded tracks
 - Creates "Discover Weekly" playlist with downloaded songs.
+- By default keeps past Discover Weekly playlists
 - Compatible with Subsonic-API systems.
 
 ## Getting Started
