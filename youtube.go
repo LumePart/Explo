@@ -79,7 +79,7 @@ func getTopic(videos Videos, song, artist string) string { // gets song under ar
 	return ""
 }
 
-func getVideo(videoID string) (io.ReadCloser, error) { // gets song from first available video (used if getTopic returns false)
+func getVideo(videoID string) (io.ReadCloser, error) { // gets video stream using kddai's youtube package
 
 	yt_client := youtube.Client{}
 	var format youtube.Format
