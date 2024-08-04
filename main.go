@@ -108,7 +108,9 @@ func main() {
 	for _, track := range tracks {
 		song, file := gatherVideo(cfg.Youtube, track.Title, track.Artist, track.Album)
 		files = append(files, file)
-		songs = append(songs, song)
+		if song != "" {
+			songs = append(songs, song)
+		}
 	}
 
 	cleanUp(cfg, files)
