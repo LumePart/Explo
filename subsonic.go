@@ -100,9 +100,9 @@ func createPlaylist(cfg Subsonic, tracks []string, persist bool) error {
 	}
 	if persist {
 		year, week := time.Now().ISOWeek()
-		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v&%s", year, week, trackIDs)
+		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v%s", year, week, trackIDs)
 	} else {
-		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly&%s", trackIDs)
+		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly%s", trackIDs)
 	}
 	_, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
