@@ -115,14 +115,13 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 	defer stream.Close()
 	// Remove illegal characters for file naming
 	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
-	s := re.ReplaceAllString(song, " ")
-	a := re.ReplaceAllString(artist, " ")
+	s := re.ReplaceAllString(song, cfg.Separator)
+	a := re.ReplaceAllString(artist, cfg.Separator)
 
-	input := fmt.Sprintf("%s%s - %s.webm", cfg.DownloadDir,s, a)
+	input := fmt.Sprintf("%s%s-%s.webm", cfg.DownloadDir,s, a)
 	file, err := os.Create(input)
 	if err != nil {
 		log.Fatalf("Failed to create song file: %s", err.Error())
-		return "", ""
 	}
 	defer file.Close()
 
@@ -132,7 +131,7 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 		return "", "" // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
-	err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s - %s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
+	err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
 			"map": "0:a",
 			"metadata": []string{"artist="+artist,"title="+song,"album="+album},
 			"loglevel": "error",
@@ -142,7 +141,7 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 		return "", ""
 	}
 		
-	return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s - %s", s, a)
+	return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s-%s", s, a)
 	
 }
 

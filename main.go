@@ -31,6 +31,7 @@ type Subsonic struct {
 type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
 	DownloadDir string `env:"DOWNLOAD_DIR"`
+	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
 }
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
