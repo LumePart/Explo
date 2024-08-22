@@ -32,6 +32,7 @@ type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
 	DownloadDir string `env:"DOWNLOAD_DIR"`
 	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
+	FfmpegPath string `env:"FFMPEG_PATH"`
 }
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`

@@ -131,11 +131,17 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 		return "", "" // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
-	err = ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
 			"map": "0:a",
 			"metadata": []string{"artist="+artist,"title="+song,"album="+album},
 			"loglevel": "error",
-		}).OverWriteOutput().ErrorToStdOut().Run()
+		}).OverWriteOutput().ErrorToStdOut()
+
+	if cfg.FfmpegPath != "" {
+		cmd.SetFfmpegPath(cfg.FfmpegPath)
+	}
+	
+	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
 		return "", ""
