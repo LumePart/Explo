@@ -86,24 +86,20 @@ func searchTrack(cfg Subsonic, track string) (string, error) {
     }
     return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
-func createPlaylist(cfg Subsonic, tracks []string, persist bool) error {
+func subsonicPlaylist(cfg Subsonic, songs []string, playlistName string) error {
 
 	var trackIDs string
 	var reqParam string
 
-	for _, track := range tracks { // Get track IDs from app and format them
-		ID, err := searchTrack(cfg, track)
+	for _, song := range songs { // Get track IDs from app and format them
+		ID, err := searchTrack(cfg, song)
 		if ID  == "" || err != nil  { // if ID is empty, skip song
 			continue
 		}
 		trackIDs += "&songId="+ID
 	}
-	if persist {
-		year, week := time.Now().ISOWeek()
-		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly-%v-Week%v%s", year, week, trackIDs)
-	} else {
-		reqParam = fmt.Sprintf("createPlaylist?name=Discover-Weekly%s", trackIDs)
-	}
+	reqParam = fmt.Sprintf("createPlaylist?name=%s%s", playlistName, trackIDs)
+	
 	_, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
 		return err

@@ -15,6 +15,7 @@ type Config struct {
 	Youtube Youtube
 	Listenbrainz Listenbrainz
 	Sleep int `env:"SLEEP" env-default:"1"`
+	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
 }
 
@@ -62,7 +63,7 @@ func cleanUp(cfg Config, songs []string) { // Remove downloaded webms
 
 }
 
-func deleteSongs(cfg Youtube) { // Deletes all songs if persist equals false
+func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	entries, err := os.ReadDir(cfg.DownloadDir)
 	if err != nil {
 		log.Printf("failed to read directory: %v", err)
@@ -74,25 +75,30 @@ func deleteSongs(cfg Youtube) { // Deletes all songs if persist equals false
 	}
 }
 
+func detectSystem(cfg Config) string { // if more systems are added, then API detection would be good
+	fmt.Println(cfg.Subsonic.User)
+	if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
+		log.Println("using Subsonic")
+		time.Sleep(10 * time.Minute)
+		return "subsonic"
+
+	} else if cfg.PlaylistDir != "" {
+		log.Println("using Music Player Daemon")
+		return "mpd"
+
+	} else {
+		log.Fatal("unable to detect system, check if PLAYLIST_DIR or SUBSONIC_USER fields exist")
+		return ""
+	}
+}
+
 
 func main() {
 	cfg := readEnv()
+	system := detectSystem(cfg)
 	cfg.Subsonic = genToken(cfg.Subsonic)
 
-	if !(cfg.Persist) {
-
-		deleteSongs(cfg.Youtube)
-		playlists, err := getDiscoveryPlaylist(cfg.Subsonic)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-		err = delPlaylists(playlists, cfg.Subsonic)
-		if err != nil {
-			log.Fatal(err.Error())
-		}
-	}
-
-	 var tracks Track
+	var tracks Track
 
 	if cfg.Listenbrainz.Discovery == "playlist" {
 		id, err := getWeeklyExploration(cfg.Listenbrainz)
@@ -116,15 +122,8 @@ func main() {
 	}
 
 	cleanUp(cfg, files)
-	err := scan(cfg.Subsonic)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
 	
-	log.Printf("sleeping for %v minutes, to allow scan to complete..", cfg.Sleep)
-	time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
-
-	err = createPlaylist(cfg.Subsonic, songs, cfg.Persist)
+	err := createPlaylist(cfg, songs, files, system)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

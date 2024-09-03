@@ -140,7 +140,7 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 	if cfg.FfmpegPath != "" {
 		cmd.SetFfmpegPath(cfg.FfmpegPath)
 	}
-	
+
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
