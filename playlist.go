@@ -24,13 +24,13 @@ func createM3U(cfg Config, name string, files []string) error {
 	return nil
 }
 
-func getPlaylistName(persist bool) string {
+func (cfg *Config) getPlaylistName(persist bool) {
 	playlistName := "Discover-Weekly"
 	if persist {
 		year, week := time.Now().ISOWeek()
 		playlistName = fmt.Sprintf("%s-%v-Week%v", playlistName, year, week)
 	}
-	return playlistName
+	cfg.PlaylistName = playlistName
 }
 
 func createPlaylist(cfg Config, songs, files []string, system string) error {
@@ -39,7 +39,6 @@ func createPlaylist(cfg Config, songs, files []string, system string) error {
 		return fmt.Errorf("unsupported music system: %s", system)
 	}
 	
-	playlistName := getPlaylistName(cfg.Persist)
 
 	if !cfg.Persist {
 		if err := handlePlaylistDeletion(cfg, system); err != nil {
@@ -51,14 +50,14 @@ func createPlaylist(cfg Config, songs, files []string, system string) error {
 	case "subsonic":
 
 		scan(cfg.Subsonic)
-		if err := subsonicPlaylist(cfg.Subsonic, songs, playlistName); err != nil {
+		if err := subsonicPlaylist(cfg.Subsonic, songs, cfg.PlaylistName); err != nil {
 			return fmt.Errorf("failed to create subsonic playlist: %w", err)
 		}
 		return nil
 	
 	case "mpd": 
 
-		if err := createM3U(cfg, playlistName, files); err != nil {
+		if err := createM3U(cfg, cfg.PlaylistName, files); err != nil {
 			return fmt.Errorf("failed to create M3U playlist: %w", err)
 		}
 		return nil

@@ -17,6 +17,7 @@ type Config struct {
 	Sleep int `env:"SLEEP" env-default:"1"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
+	PlaylistName string
 }
 
 type Subsonic struct {
@@ -112,6 +113,7 @@ func main() {
 	system := detectSystem(cfg)
 	cfg.verifyDir(system)
 	cfg.Subsonic.genToken()
+	cfg.getPlaylistName(cfg.Persist)
 
 	var tracks Track
 
