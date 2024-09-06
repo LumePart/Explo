@@ -7,12 +7,6 @@ import (
 	"time"
 )
 
-/* func verifyDir(dir string) string { // verify if dir variables have suffix
-	if strings.HasSuffix(dir,"/") {
-		return dir
-	}
-	return dir+"/"
-} */
 
 func createM3U(cfg Config, name string, files []string) error {
 	f, err := os.OpenFile(cfg.PlaylistDir+name+".m3u", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)

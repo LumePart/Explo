@@ -50,7 +50,7 @@ func genToken(cfg Subsonic) Subsonic {
 	var salt = make([]byte, 6)
 
 
-	_, err := rand.Read(salt[:])
+	_, err := rand.Read(salt)
 	if err != nil {
 		log.Fatalf("failed to read salt: %v", err)
 	}

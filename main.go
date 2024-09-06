@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"path"
-	"time"
+	"strings"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -50,6 +50,22 @@ func readEnv() Config {
 	return cfg
 }
 
+func (cfg *Config) verifyDir(system string) { // verify if dir variables have suffix
+
+	if system == "mpd" {
+		cfg.PlaylistDir = fixDir(cfg.PlaylistDir)
+	}
+	
+	cfg.Youtube.DownloadDir = fixDir(cfg.PlaylistDir)
+}
+
+func fixDir(dir string) string {
+	if !strings.HasSuffix(dir, "/") {
+		return dir + "/"
+	}
+	return dir
+}
+
 func cleanUp(cfg Config, songs []string) { // Remove downloaded webms
 
 	for _, song := range songs {
@@ -79,23 +95,22 @@ func detectSystem(cfg Config) string { // if more systems are added, then API de
 	fmt.Println(cfg.Subsonic.User)
 	if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
 		log.Println("using Subsonic")
-		time.Sleep(10 * time.Minute)
 		return "subsonic"
 
 	} else if cfg.PlaylistDir != "" {
 		log.Println("using Music Player Daemon")
 		return "mpd"
 
-	} else {
-		log.Fatal("unable to detect system, check if PLAYLIST_DIR or SUBSONIC_USER fields exist")
-		return ""
 	}
+	log.Fatal("unable to detect system, check if PLAYLIST_DIR or SUBSONIC_USER fields exist")
+	return ""
 }
 
 
 func main() {
 	cfg := readEnv()
 	system := detectSystem(cfg)
+	cfg.verifyDir(system)
 	cfg.Subsonic = genToken(cfg.Subsonic)
 
 	var tracks Track
