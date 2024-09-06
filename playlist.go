@@ -81,7 +81,7 @@ func handlePlaylistDeletion(cfg Config, system string) error {
 			return nil
 			
 		case "mpd":
-			// Way to delete .m3u file
+			os.Remove(cfg.PlaylistDir+cfg.PlaylistName)
 		}
 	return nil
 }
