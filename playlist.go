@@ -76,7 +76,7 @@ func handlePlaylistDeletion(cfg Config, system string) error {
 					return err
 				}
 
-				if err := delPlaylists(playlists, cfg.Subsonic); err != nil {
+				if err := delSubsonicPlaylists(playlists, cfg.Subsonic); err != nil {
 					return err
 			}
 			return nil

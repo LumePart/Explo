@@ -141,7 +141,7 @@ func getDiscoveryPlaylist(cfg Subsonic) ([]string, error) {
 	return playlists, nil
 }
 
-func delPlaylists(playlists []string, cfg Subsonic) error {
+func delSubsonicPlaylists(playlists []string, cfg Subsonic) error {
 
 	for _, id := range playlists {
 		reqParam := fmt.Sprintf("deletePlaylist?id=%s", id)
