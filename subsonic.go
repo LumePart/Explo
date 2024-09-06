@@ -45,7 +45,7 @@ type Response struct {
 }
 
 
-func genToken(cfg Subsonic) Subsonic {
+func (cfg *Subsonic) genToken() {
 	
 	var salt = make([]byte, 6)
 
@@ -63,7 +63,6 @@ func genToken(cfg Subsonic) Subsonic {
 	cfg.Token = url.PathEscape(token)
 	cfg.Salt = url.PathEscape(saltStr)
 
-	return cfg
 }
 
 func searchTrack(cfg Subsonic, track string) (string, error) {

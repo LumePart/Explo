@@ -111,7 +111,7 @@ func main() {
 	cfg := readEnv()
 	system := detectSystem(cfg)
 	cfg.verifyDir(system)
-	cfg.Subsonic = genToken(cfg.Subsonic)
+	cfg.Subsonic.genToken()
 
 	var tracks Track
 
