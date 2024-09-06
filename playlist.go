@@ -15,8 +15,8 @@ func createM3U(cfg Config, name string, files []string) error {
 	}
 
 	for _, file := range files {
-		full_file := fmt.Sprintf("%s%s.mp3\n",cfg.Youtube.DownloadDir, file)
-		_, err := f.Write([]byte(full_file))
+		fullFile := fmt.Sprintf("%s%s.mp3\n",cfg.Youtube.DownloadDir, file)
+		_, err := f.Write([]byte(fullFile))
 		if err != nil {
 			log.Printf("Failed to write song to file: %s", err.Error())
 		}
