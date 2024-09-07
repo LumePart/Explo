@@ -87,7 +87,10 @@ func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	}
 	for _, entry := range entries {
 		if !(entry.IsDir()) {
-			os.Remove(path.Join(cfg.DownloadDir, entry.Name()))
+			err = os.Remove(path.Join(cfg.DownloadDir, entry.Name()))
+			if err != nil {
+				log.Printf("failed to remove file: %v", err)
+			}
 		}
 	}
 }
