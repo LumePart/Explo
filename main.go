@@ -57,7 +57,7 @@ func (cfg *Config) verifyDir(system string) { // verify if dir variables have su
 		cfg.PlaylistDir = fixDir(cfg.PlaylistDir)
 	}
 	
-	cfg.Youtube.DownloadDir = fixDir(cfg.PlaylistDir)
+	cfg.Youtube.DownloadDir = fixDir(cfg.Youtube.DownloadDir)
 }
 
 func fixDir(dir string) string {
