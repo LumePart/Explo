@@ -74,7 +74,9 @@ func handlePlaylistDeletion(cfg Config, system string) error {
 			return nil
 			
 		case "mpd":
-			os.Remove(cfg.PlaylistDir+cfg.PlaylistName)
+			if err := os.Remove(cfg.PlaylistDir+cfg.PlaylistName): err != nil {
+				return err
+			}
 		}
 	return nil
 }
