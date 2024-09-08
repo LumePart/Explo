@@ -130,6 +130,13 @@ func main() {
 		mbids := getReccs(cfg.Listenbrainz)
 		tracks = getTracks(mbids)
 	}
+
+	if !cfg.Persist { // delete songs and playlist before downloading new ones
+		if err := handlePlaylistDeletion(cfg, system); err != nil {
+			log.Printf("failed to delete playlist: %s", err.Error())
+		}
+	}
+
 	var files []string
 	var songs []string
 	

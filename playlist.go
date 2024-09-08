@@ -39,13 +39,6 @@ func createPlaylist(cfg Config, songs, files []string, system string) error {
 		return fmt.Errorf("unsupported music system: %s", system)
 	}
 	
-
-	if !cfg.Persist {
-		if err := handlePlaylistDeletion(cfg, system); err != nil {
-			return fmt.Errorf("failed to delete playlist: %w", err)
-		}
-	}
-
 	switch system {
 	case "subsonic":
 
