@@ -144,7 +144,7 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
-		return "", ""
+		return "", fmt.Sprintf("%s-%s", s, a)
 	}
 		
 	return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s-%s", s, a)
