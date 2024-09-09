@@ -165,7 +165,7 @@ func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
 			log.Printf("failed getting stream: %s", err.Error())
 		}
 	}
-	// if getting song from topic channel fails, try getting from first available channel
+	// if getting song from official channel fails, try getting from first available channel
 	for _, video := range videos.Items {
 		if filter(song, artist, video.Snippet.Title) {
 		stream, err := getVideo(video.ID.VideoID)

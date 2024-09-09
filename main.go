@@ -139,18 +139,20 @@ func main() {
 
 	var files []string
 	var songs []string
+	var m3usongs []string
 	
 	for _, track := range tracks {
 		song, file := gatherVideo(cfg.Youtube, track.Title, track.Artist, track.Album)
-		files = append(files, file)
-		if song != "" {
+		files = append(files, file) // used for deleting .webms
+		if song != "" { // used for creating playlists
+			m3usongs = append(m3usongs, file)
 			songs = append(songs, song)
 		}
 	}
 
 	cleanUp(cfg, files)
 	
-	err := createPlaylist(cfg, songs, files, system)
+	err := createPlaylist(cfg, songs, m3usongs, system)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
