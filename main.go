@@ -12,12 +12,18 @@ import (
 
 type Config struct {
 	Subsonic Subsonic
+	Jellyfin Jellyfin
 	Youtube Youtube
 	Listenbrainz Listenbrainz
 	Sleep int `env:"SLEEP" env-default:"1"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
 	PlaylistName string
+}
+
+type Jellyfin struct {
+	Client string `env:"JELLYFIN_CLIENT" env-default:"explo"`
+	APIKey string `env:"JELLYFIN_API"`
 }
 
 type Subsonic struct {
@@ -100,6 +106,10 @@ func detectSystem(cfg Config) string { // if more systems are added, then API de
 	if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
 		log.Println("using Subsonic")
 		return "subsonic"
+
+	} else if cfg.Jellyfin.APIKey != "" {
+		log.Println("using Jellyfin")
+		return "jellyfin"
 
 	} else if cfg.PlaylistDir != "" {
 		log.Println("using Music Player Daemon")
