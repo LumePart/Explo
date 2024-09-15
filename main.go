@@ -22,13 +22,14 @@ type Config struct {
 }
 
 type Jellyfin struct {
-	Client string `env:"JELLYFIN_CLIENT" env-default:"explo"`
-	APIKey string `env:"JELLYFIN_API"`
+	URL string `env:"JELLYFIN_URL" env-default:"http://127.0.0.1:8096"`
+	APIKey string `env:"JELLYFIN_API_KEY"`
+	Client string `env:"CLIENT" env-default:"explo"`
 }
 
 type Subsonic struct {
 	Version	string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
-	ID string `env:"SUBSONIC_ID" env-default:"explo"`
+	ID string `env:"CLIENT" env-default:"explo"`
 	URL	string `env:"SUBSONIC_URL" env-default:"http://127.0.0.1:4533"`
 	User string `env:"SUBSONIC_USER"`
 	Password string `env:"SUBSONIC_PASSWORD"`
@@ -116,7 +117,7 @@ func detectSystem(cfg Config) string { // if more systems are added, then API de
 		return "mpd"
 
 	}
-	log.Fatal("unable to detect system, check if PLAYLIST_DIR or SUBSONIC_USER fields exist")
+	log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
 	return ""
 }
 
