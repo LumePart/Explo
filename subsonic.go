@@ -63,6 +63,10 @@ func (cfg *Subsonic) genToken() {
 
 }
 
+func subsonicConnection(cfg Config) (
+	
+)
+
 func searchTrack(cfg Subsonic, track string) (string, error) {
 
     cleanedTrack := url.QueryEscape(track)
@@ -104,7 +108,7 @@ func subsonicPlaylist(cfg Subsonic, songs []string, playlistName string) error {
 	return nil
 }
 
-func scan(cfg Subsonic) error {
+func subsonicScan(cfg Subsonic) error {
 
 	reqParam := "startScan?f=json"
 	

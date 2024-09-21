@@ -16,9 +16,14 @@ type Config struct {
 	Jellyfin Jellyfin
 	Youtube Youtube
 	Listenbrainz Listenbrainz
+	APIKey string `env:"API_KEY"`
+	URL string `env:"SERVER_URL"`
+	User string `env:"USER"`
+	Password string `env:"PASSWORD"`
 	Sleep int `env:"SLEEP" env-default:"1"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
+	Client string `env:"CLIENT" env-default:"explo"`
 	PlaylistName string
 }
 
@@ -50,10 +55,14 @@ type Listenbrainz struct {
 	User string `env:"LISTENBRAINZ_USER"`
 }
 
+func (cfg *Config) handleDeprecation(system string) {
+
+}
+
 func readEnv() Config {
 	var cfg Config
 
-	err := cleanenv.ReadConfig("./local.env",&cfg)
+	err := cleanenv.ReadConfig("./local.env", &cfg)
 	if err != nil {
 		panic(err)
 	}
