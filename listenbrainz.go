@@ -200,7 +200,7 @@ func lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API request
 	body, err := makeRequest("GET", reqURL, nil, nil)
 	
 	if err != nil {
-		return nil, fmt.Errorf("Failed to make request %v", err)
+		return nil, err
 	}
 	return body, nil
 }
