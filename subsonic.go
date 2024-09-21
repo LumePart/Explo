@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"time"
 	"strings"
 
@@ -157,20 +155,9 @@ func subsonicRequest(reqParams string, cfg Subsonic) ([]byte, error) {
 
 	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.User, cfg.Token, cfg.Salt, cfg.Version, cfg.ID)
 
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	body, err := makeRequest("GET", reqURL, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize request: %v", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to make request %v", err)
 	}
 
 	return body, nil

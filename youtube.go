@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -37,27 +36,15 @@ type Item struct {
 
 
 func queryYT(cfg Youtube, song, artist string) Videos { // Queries youtube for the song
-
-	client := http.Client{}
 	
 	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
-	query := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
-	req, err := http.NewRequest(http.MethodGet, query, nil)
-	if err != nil {
-		log.Fatalf("Failed to initialize request: %v", err)
-	}
+	queryURL := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
 
+	body, err := makeRequest("GET", queryURL, nil, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 	var videos Videos
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Failed to make request: %v", err)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Failed to read response body: %v", err)
-	}
-
 	err = json.Unmarshal(body, &videos)
 	if err != nil {
 		log.Fatalf("Failed to unmarshal body: %v", err)

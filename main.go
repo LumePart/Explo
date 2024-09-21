@@ -6,8 +6,9 @@ import (
 	"os"
 	"path"
 	"strings"
-
+	"io"
 	"github.com/ilyakaznacheev/cleanenv"
+	"net/http"
 )
 
 type Config struct {
@@ -22,6 +23,7 @@ type Config struct {
 }
 
 type Jellyfin struct {
+	Source string `env:"JELLYFIN_SOURCE"`
 	URL string `env:"JELLYFIN_URL" env-default:"http://127.0.0.1:8096"`
 	APIKey string `env:"JELLYFIN_API_KEY"`
 	Client string `env:"CLIENT" env-default:"explo"`
@@ -102,8 +104,7 @@ func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	}
 }
 
-func detectSystem(cfg Config) string { // if more systems are added, then API detection would be good
-	fmt.Println(cfg.Subsonic.User)
+func detectSystem(cfg Config) string {
 	if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
 		log.Println("using Subsonic")
 		return "subsonic"
@@ -119,6 +120,30 @@ func detectSystem(cfg Config) string { // if more systems are added, then API de
 	}
 	log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
 	return ""
+}
+
+func makeRequest(method, url string, payload io.Reader, headers map[string]string) ([]byte, error) {
+	req, err := http.NewRequest(method, url, payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize request: %v", err)
+	}
+
+	for key, value := range headers {
+		req.Header.Add(key,value)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	return body, nil
 }
 
 
