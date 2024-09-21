@@ -42,7 +42,7 @@ func createPlaylist(cfg Config, songs, files []string, system string) error {
 	switch system {
 	case "subsonic":
 
-		if err := scan(cfg.Subsonic); err != nil {
+		if err := subsonicScan(cfg.Subsonic); err != nil {
 			return fmt.Errorf("failed to schedule a library scan")
 		}
 		if err := subsonicPlaylist(cfg.Subsonic, songs, cfg.PlaylistName); err != nil {
