@@ -63,9 +63,9 @@ func (cfg *Subsonic) genToken() {
 
 }
 
-func subsonicConnection(cfg Config) (
+func subsonicConnection(cfg Config) {
 	
-)
+}
 
 func searchTrack(cfg Subsonic, track string) (string, error) {
 
