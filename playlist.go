@@ -33,13 +33,13 @@ func (cfg *Config) getPlaylistName(persist bool) {
 	cfg.PlaylistName = playlistName
 }
 
-func createPlaylist(cfg Config, songs, files []string, system string) error {
+func createPlaylist(cfg Config, songs, files []string) error {
 
-	if system != "subsonic" && system != "mpd" {
-		return fmt.Errorf("unsupported music system: %s", system)
+	if cfg.System == "" {
+		return fmt.Errorf("could not get music system")
 	}
 	
-	switch system {
+	switch cfg.System {
 	case "subsonic":
 
 		if err := subsonicScan(cfg.Subsonic); err != nil {
@@ -60,10 +60,10 @@ func createPlaylist(cfg Config, songs, files []string, system string) error {
 	return fmt.Errorf("something very strange happened")
 }
 
-func handlePlaylistDeletion(cfg Config, system string) error {
+func handlePlaylistDeletion(cfg Config) error {
 		deleteSongs(cfg.Youtube)
 		
-		switch system {
+		switch cfg.System {
 		case "subsonic":
 				playlists, err := getDiscoveryPlaylist(cfg.Subsonic)
 				if err != nil {

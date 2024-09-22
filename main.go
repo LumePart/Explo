@@ -24,6 +24,7 @@ type Config struct {
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
 	Client string `env:"CLIENT" env-default:"explo"`
+	System string `env:"SYSTEM"`
 	PlaylistName string
 }
 
@@ -55,7 +56,7 @@ type Listenbrainz struct {
 	User string `env:"LISTENBRAINZ_USER"`
 }
 
-func (cfg *Config) handleDeprecation(system string) {
+func (cfg *Config) handleDeprecation() { // If env has deprecated
 
 }
 
@@ -113,22 +114,22 @@ func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	}
 }
 
-func detectSystem(cfg Config) string {
+func (cfg *Config) detectSystem() {
 	if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
 		log.Println("using Subsonic")
-		return "subsonic"
+		cfg.System = "subsonic"
 
 	} else if cfg.Jellyfin.APIKey != "" {
 		log.Println("using Jellyfin")
-		return "jellyfin"
+		cfg.System = "jellyfin"
 
 	} else if cfg.PlaylistDir != "" {
 		log.Println("using Music Player Daemon")
-		return "mpd"
+		cfg.System = "mpd"
 
 	}
 	log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
-	return ""
+	cfg.System = ""
 }
 
 func makeRequest(method, url string, payload io.Reader, headers map[string]string) ([]byte, error) {
@@ -158,8 +159,8 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 
 func main() {
 	cfg := readEnv()
-	system := detectSystem(cfg)
-	cfg.verifyDir(system)
+	cfg.detectSystem()
+	cfg.verifyDir(cfg.System)
 	cfg.Subsonic.genToken()
 	cfg.getPlaylistName(cfg.Persist)
 
@@ -177,7 +178,7 @@ func main() {
 	}
 
 	if !cfg.Persist { // delete songs and playlist before downloading new ones
-		if err := handlePlaylistDeletion(cfg, system); err != nil {
+		if err := handlePlaylistDeletion(cfg); err != nil {
 			log.Printf("failed to delete playlist: %s", err.Error())
 		}
 	}
@@ -197,7 +198,7 @@ func main() {
 
 	cleanUp(cfg, files)
 	
-	err := createPlaylist(cfg, songs, m3usongs, system)
+	err := createPlaylist(cfg, songs, m3usongs)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
