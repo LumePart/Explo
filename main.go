@@ -36,7 +36,6 @@ type Credentials struct {
 
 
 type Jellyfin struct {
-	Creds Credentials
 	Source string `env:"JELLYFIN_SOURCE"`
 }
 
@@ -44,7 +43,6 @@ type Subsonic struct {
 	Version	string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
 	ID string `env:"CLIENT" env-default:"explo"`
 	URL	string `env:"SUBSONIC_URL" env-default:"http://127.0.0.1:4533"`
-	Creds Credentials
 	User string `env:"SUBSONIC_USER"`
 	Password string `env:"SUBSONIC_PASSWORD"`
 }
@@ -62,13 +60,13 @@ type Listenbrainz struct {
 
 func (cfg *Config) handleDeprecation() { // assign deprecared env vars to new ones
 	// Deprecated since v0.6.0
-	if cfg.Subsonic.User != "" && cfg.Subsonic.Creds.User == "" {
+	if cfg.Subsonic.User != "" && cfg.Creds.User == "" {
 		log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'USER' instead.")
-		cfg.Subsonic.Creds.User = cfg.Subsonic.User
+		cfg.Creds.User = cfg.Subsonic.User
 	}
-	if cfg.Subsonic.Password != "" && cfg.Subsonic.Creds.Password == "" {
+	if cfg.Subsonic.Password != "" && cfg.Creds.Password == "" {
 		log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'PASSWORD' instead.")
-		cfg.Subsonic.Creds.Password = cfg.Subsonic.Password
+		cfg.Creds.Password = cfg.Subsonic.Password
 	}
 	if cfg.Subsonic.URL != "" && cfg.URL == "" {
 		log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'URL' instead.")

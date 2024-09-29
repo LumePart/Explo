@@ -42,10 +42,10 @@ func createPlaylist(cfg Config, songs, files []string) error {
 	switch cfg.System {
 	case "subsonic":
 
-		if err := subsonicScan(cfg.Subsonic); err != nil {
+		if err := subsonicScan(cfg); err != nil {
 			return fmt.Errorf("failed to schedule a library scan")
 		}
-		if err := subsonicPlaylist(cfg.Subsonic, songs, cfg.PlaylistName); err != nil {
+		if err := subsonicPlaylist(cfg, songs, cfg.PlaylistName); err != nil {
 			return fmt.Errorf("failed to create subsonic playlist: %w", err)
 		}
 		return nil
@@ -65,12 +65,12 @@ func handlePlaylistDeletion(cfg Config) error {
 		
 		switch cfg.System {
 		case "subsonic":
-				playlists, err := getDiscoveryPlaylist(cfg.Subsonic)
+				playlists, err := getDiscoveryPlaylist(cfg)
 				if err != nil {
 					return err
 				}
 
-				if err := delSubsonicPlaylists(playlists, cfg.Subsonic); err != nil {
+				if err := delSubsonicPlaylists(playlists, cfg); err != nil {
 					return err
 			}
 			return nil

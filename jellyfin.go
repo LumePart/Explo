@@ -6,6 +6,6 @@ import (
 
 
 
-func JellyfinScan(cfg Jellyfin, ) {
+func jellyfinAddPath(cfg Config, ) {
 	
 }

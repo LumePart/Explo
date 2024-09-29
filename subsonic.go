@@ -63,7 +63,7 @@ func (cfg *Credentials) genToken() {
 
 }
 
-func searchTrack(cfg Subsonic, track string) (string, error) {
+func searchTrack(cfg Config, track string) (string, error) {
 
     cleanedTrack := url.QueryEscape(track)
     
@@ -83,7 +83,8 @@ func searchTrack(cfg Subsonic, track string) (string, error) {
     }
     return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
-func subsonicPlaylist(cfg Subsonic, songs []string, playlistName string) error {
+
+func subsonicPlaylist(cfg Config, songs []string, playlistName string) error {
 
 	var trackIDs string
 	var reqParam string
@@ -104,7 +105,7 @@ func subsonicPlaylist(cfg Subsonic, songs []string, playlistName string) error {
 	return nil
 }
 
-func subsonicScan(cfg Subsonic) error {
+func subsonicScan(cfg Config) error {
 
 	reqParam := "startScan?f=json"
 	
@@ -115,7 +116,7 @@ func subsonicScan(cfg Subsonic) error {
 	return nil
 }
 
-func getDiscoveryPlaylist(cfg Subsonic) ([]string, error) {
+func getDiscoveryPlaylist(cfg Config) ([]string, error) {
 
 	var resp SubResponse
 	var playlists []string
@@ -139,7 +140,7 @@ func getDiscoveryPlaylist(cfg Subsonic) ([]string, error) {
 	return playlists, nil
 }
 
-func delSubsonicPlaylists(playlists []string, cfg Subsonic) error {
+func delSubsonicPlaylists(playlists []string, cfg Config) error {
 
 	for _, id := range playlists {
 		reqParam := fmt.Sprintf("deletePlaylist?id=%s", id)
@@ -151,9 +152,9 @@ func delSubsonicPlaylists(playlists []string, cfg Subsonic) error {
 	return nil
 }
 
-func subsonicRequest(reqParams string, cfg Subsonic) ([]byte, error) {
+func subsonicRequest(reqParams string, cfg Config) ([]byte, error) {
 
-	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.User, cfg.Creds.Token, cfg.Creds.Salt, cfg.Version, cfg.ID)
+	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.Creds.User, cfg.Creds.Token, cfg.Creds.Salt, cfg.Subsonic.Version, cfg.Subsonic.ID)
 
 	body, err := makeRequest("GET", reqURL, nil, nil)
 	if err != nil {
