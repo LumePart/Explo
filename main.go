@@ -16,10 +16,8 @@ type Config struct {
 	Jellyfin Jellyfin
 	Youtube Youtube
 	Listenbrainz Listenbrainz
-	APIKey string `env:"API_KEY"`
+	Creds Credentials
 	URL string `env:"SERVER_URL"`
-	User string `env:"USER"`
-	Password string `env:"PASSWORD"`
 	Sleep int `env:"SLEEP" env-default:"1"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
@@ -28,21 +26,27 @@ type Config struct {
 	PlaylistName string
 }
 
+type Credentials struct {
+	APIKey string `env:"API_KEY"`
+	User string `env:"USER"`
+	Password string `env:"PASSWORD"`
+	Token string
+	Salt string
+}
+
+
 type Jellyfin struct {
+	Creds Credentials
 	Source string `env:"JELLYFIN_SOURCE"`
-	URL string `env:"JELLYFIN_URL" env-default:"http://127.0.0.1:8096"`
-	APIKey string `env:"JELLYFIN_API_KEY"`
-	Client string `env:"CLIENT" env-default:"explo"`
 }
 
 type Subsonic struct {
 	Version	string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
 	ID string `env:"CLIENT" env-default:"explo"`
 	URL	string `env:"SUBSONIC_URL" env-default:"http://127.0.0.1:4533"`
+	Creds Credentials
 	User string `env:"SUBSONIC_USER"`
 	Password string `env:"SUBSONIC_PASSWORD"`
-	Token string
-	Salt string
 }
 
 type Youtube struct {
@@ -56,8 +60,20 @@ type Listenbrainz struct {
 	User string `env:"LISTENBRAINZ_USER"`
 }
 
-func (cfg *Config) handleDeprecation() { // If env has deprecated
-
+func (cfg *Config) handleDeprecation() { // assign deprecared env vars to new ones
+	// Deprecated since v0.6.0
+	if cfg.Subsonic.User != "" && cfg.Subsonic.Creds.User == "" {
+		log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'USER' instead.")
+		cfg.Subsonic.Creds.User = cfg.Subsonic.User
+	}
+	if cfg.Subsonic.Password != "" && cfg.Subsonic.Creds.Password == "" {
+		log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'PASSWORD' instead.")
+		cfg.Subsonic.Creds.Password = cfg.Subsonic.Password
+	}
+	if cfg.Subsonic.URL != "" && cfg.URL == "" {
+		log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'URL' instead.")
+		cfg.URL = cfg.Subsonic.URL
+	}
 }
 
 func readEnv() Config {
@@ -114,22 +130,52 @@ func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	}
 }
 
+
 func (cfg *Config) detectSystem() {
-	if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
-		log.Println("using Subsonic")
-		cfg.System = "subsonic"
+	if cfg.System == "" {
+		log.Printf("Warning: no SYSTEM variable set, trying to detect automatically..")
+		if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
+			log.Println("using Subsonic")
+			cfg.System = "subsonic"
+			return
 
-	} else if cfg.Jellyfin.APIKey != "" {
-		log.Println("using Jellyfin")
-		cfg.System = "jellyfin"
+		} else if cfg.Creds.APIKey != "" {
+			log.Println("using Jellyfin")
+			cfg.System = "jellyfin"
+			return
 
-	} else if cfg.PlaylistDir != "" {
-		log.Println("using Music Player Daemon")
-		cfg.System = "mpd"
+		} else if cfg.PlaylistDir != "" {
+			log.Println("using Music Player Daemon")
+			cfg.System = "mpd"
+			return
 
-	}
-	log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
-	cfg.System = ""
+		}
+		log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
+}
+log.Printf("using %s", cfg.System)
+}
+
+func verifyVars(cfg Config) {
+
+	switch cfg.System {
+
+	case "subsonic":
+		if (cfg.Creds.User == "" && cfg.Creds.Password == "") {
+			log.Fatal("USER and/or PASSWORD variable not set, exiting")
+		}
+	case "jellyfin":
+
+		if cfg.Creds.APIKey == "" {
+			log.Fatal("API_KEY variable not set")
+		}
+	case "mpd":
+
+		if cfg.PlaylistDir == "" {
+			log.Fatal("PLAYLIST_DIR variable not set")
+		}
+	default:
+		log.Fatalf("system: %s not known, please use a supported system", cfg.System)
+}
 }
 
 func makeRequest(method, url string, payload io.Reader, headers map[string]string) ([]byte, error) {
@@ -161,7 +207,8 @@ func main() {
 	cfg := readEnv()
 	cfg.detectSystem()
 	cfg.verifyDir(cfg.System)
-	cfg.Subsonic.genToken()
+	verifyVars(cfg)
+	cfg.handleDeprecation()
 	cfg.getPlaylistName(cfg.Persist)
 
 	var tracks Track

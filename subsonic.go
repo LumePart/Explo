@@ -13,7 +13,7 @@ import (
 	"net/url"
 )
 
-type Response struct {
+type SubResponse struct {
 	SubsonicResponse struct {
 		Status        string        `json:"status"`
 		Version       string        `json:"version"`
@@ -39,11 +39,15 @@ type Response struct {
 				CoverArt  string    `json:"coverArt"`
 			} `json:"playlist"`
 		} `json:"playlists,omitempty"`
+		Error         struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
 	} `json:"subsonic-response"`
 }
 
 
-func (cfg *Subsonic) genToken() {
+func (cfg *Credentials) genToken() {
 	
 	var salt = make([]byte, 6)
 
@@ -63,10 +67,6 @@ func (cfg *Subsonic) genToken() {
 
 }
 
-func subsonicConnection(cfg Config) {
-	
-}
-
 func searchTrack(cfg Subsonic, track string) (string, error) {
 
     cleanedTrack := url.QueryEscape(track)
@@ -77,7 +77,7 @@ func searchTrack(cfg Subsonic, track string) (string, error) {
         return "", err
     }
     
-    var resp Response
+    var resp SubResponse
     if err := json.Unmarshal(body, &resp); err != nil {
         return "", err
     }
@@ -121,7 +121,7 @@ func subsonicScan(cfg Subsonic) error {
 
 func getDiscoveryPlaylist(cfg Subsonic) ([]string, error) {
 
-	var resp Response
+	var resp SubResponse
 	var playlists []string
 	reqParam := "getPlaylists?f=json"
 
@@ -157,7 +157,7 @@ func delSubsonicPlaylists(playlists []string, cfg Subsonic) error {
 
 func subsonicRequest(reqParams string, cfg Subsonic) ([]byte, error) {
 
-	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.User, cfg.Token, cfg.Salt, cfg.Version, cfg.ID)
+	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", cfg.URL, reqParams, cfg.User, cfg.Creds.Token, cfg.Creds.Salt, cfg.Version, cfg.ID)
 
 	body, err := makeRequest("GET", reqURL, nil, nil)
 	if err != nil {
