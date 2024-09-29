@@ -163,6 +163,7 @@ func verifyVars(cfg Config) {
 		if (cfg.Creds.User == "" && cfg.Creds.Password == "") {
 			log.Fatal("USER and/or PASSWORD variable not set, exiting")
 		}
+		cfg.Creds.genToken()
 	case "jellyfin":
 
 		if cfg.Creds.APIKey == "" {

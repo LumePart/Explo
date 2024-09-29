@@ -39,10 +39,6 @@ type SubResponse struct {
 				CoverArt  string    `json:"coverArt"`
 			} `json:"playlist"`
 		} `json:"playlists,omitempty"`
-		Error         struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
 	} `json:"subsonic-response"`
 }
 
