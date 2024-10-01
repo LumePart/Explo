@@ -17,11 +17,10 @@ type Config struct {
 	Youtube Youtube
 	Listenbrainz Listenbrainz
 	Creds Credentials
-	URL string `env:"SERVER_URL"`
+	URL string `env:"SYSTEM_URL"`
 	Sleep int `env:"SLEEP" env-default:"1"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
-	Client string `env:"CLIENT" env-default:"explo"`
 	System string `env:"SYSTEM"`
 	PlaylistName string
 }
@@ -30,6 +29,7 @@ type Credentials struct {
 	APIKey string `env:"API_KEY"`
 	User string `env:"USER"`
 	Password string `env:"PASSWORD"`
+	Headers map[string]string
 	Token string
 	Salt string
 }
@@ -37,6 +37,7 @@ type Credentials struct {
 
 type Jellyfin struct {
 	Source string `env:"JELLYFIN_SOURCE"`
+	LibraryName string `env:"LIBRARY_NAME" env-default:"Explo"`
 }
 
 type Subsonic struct {
@@ -60,17 +61,22 @@ type Listenbrainz struct {
 
 func (cfg *Config) handleDeprecation() { // assign deprecared env vars to new ones
 	// Deprecated since v0.6.0
-	if cfg.Subsonic.User != "" && cfg.Creds.User == "" {
-		log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'USER' instead.")
-		cfg.Creds.User = cfg.Subsonic.User
-	}
-	if cfg.Subsonic.Password != "" && cfg.Creds.Password == "" {
-		log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'PASSWORD' instead.")
-		cfg.Creds.Password = cfg.Subsonic.Password
-	}
-	if cfg.Subsonic.URL != "" && cfg.URL == "" {
-		log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'URL' instead.")
-		cfg.URL = cfg.Subsonic.URL
+	switch cfg.System {
+	case "subsonic":
+		if cfg.Subsonic.User != "" && cfg.Creds.User == "" {
+			log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'USER' instead.")
+			cfg.Creds.User = cfg.Subsonic.User
+		}
+		if cfg.Subsonic.Password != "" && cfg.Creds.Password == "" {
+			log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'PASSWORD' instead.")
+			cfg.Creds.Password = cfg.Subsonic.Password
+		}
+		if cfg.Subsonic.URL != "" && cfg.URL == "" {
+			log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'URL' instead.")
+			cfg.URL = cfg.Subsonic.URL
+		}
+	default:
+		return
 	}
 }
 
@@ -153,7 +159,7 @@ func (cfg *Config) detectSystem() {
 log.Printf("using %s", cfg.System)
 }
 
-func verifyVars(cfg Config) {
+func (cfg *Config) verifyVars() { // Verifies variables and does setup
 
 	switch cfg.System {
 
@@ -163,12 +169,11 @@ func verifyVars(cfg Config) {
 		}
 		cfg.Creds.genToken()
 	case "jellyfin":
-
 		if cfg.Creds.APIKey == "" {
 			log.Fatal("API_KEY variable not set")
 		}
+		cfg.Creds.JellyfinHeader() // Adds auth header
 	case "mpd":
-
 		if cfg.PlaylistDir == "" {
 			log.Fatal("PLAYLIST_DIR variable not set")
 		}
@@ -197,6 +202,10 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
+	
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
+	}
 
 	return body, nil
 }
@@ -206,7 +215,7 @@ func main() {
 	cfg := readEnv()
 	cfg.detectSystem()
 	cfg.verifyDir(cfg.System)
-	verifyVars(cfg)
+	cfg.verifyVars()
 	cfg.handleDeprecation()
 	cfg.getPlaylistName(cfg.Persist)
 
