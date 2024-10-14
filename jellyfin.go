@@ -107,7 +107,7 @@ func findJfSong(cfg Config, song Song) (string, error) {
 				return result.ID, nil
 			}
 		}
-	} else if results.TotalRecordCount == 0 {
+	} else {
 		log.Printf("did not find any result for %s, does it exist in library?", song.Title)
 		return "", nil
 	}
