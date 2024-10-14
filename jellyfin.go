@@ -133,7 +133,7 @@ func findJfPlaylist(cfg Config) (string, error) {
 
 func createJfPlaylist(cfg Config, songs []Song) error {
 	var songIDs []string
-	
+
 	for _, song := range songs {
 		ID, err := findJfSong(cfg, song)
 		if err != nil {

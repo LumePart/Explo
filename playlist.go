@@ -46,6 +46,8 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		if err := subsonicScan(cfg); err != nil {
 			return fmt.Errorf("failed to schedule a library scan")
 		}
+		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
+		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 		if err := subsonicPlaylist(cfg, songs); err != nil {
 			return fmt.Errorf("failed to create subsonic playlist: %w", err)
 		}
@@ -56,6 +58,8 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		if err := refreshJfLibrary(cfg); err != nil {
 			return fmt.Errorf("failed to refresh library")
 		}
+		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
+		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 		if err := createJfPlaylist(cfg, songs); err != nil {
 			return fmt.Errorf("failed to create playlist")
 		}
