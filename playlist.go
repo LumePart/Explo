@@ -51,6 +51,14 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		}
 		return nil
 	
+	case "jellyfin":
+
+		if err := refreshJfLibrary(cfg); err != nil {
+			return fmt.Errorf("failed to refresh library")
+		}
+		if err := createJfPlaylist(cfg, songs); err != nil {
+			return fmt.Errorf("failed to create playlist")
+		}
 	case "mpd": 
 
 		if err := createM3U(cfg, cfg.PlaylistName, files); err != nil {
@@ -75,7 +83,15 @@ func handlePlaylistDeletion(cfg Config) error {
 					return err
 			}
 			return nil
-			
+		case "jellyfin":
+			ID, err := findJfPlaylist(cfg)
+			if err != nil {
+				return err
+			}
+			if err := deleteJfPlaylist(cfg, ID); err != nil {
+				return err
+			}
+			return nil
 		case "mpd":
 			if err := os.Remove(cfg.PlaylistDir+cfg.PlaylistName+".m3u"); err != nil {
 				return err
