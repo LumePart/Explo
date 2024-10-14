@@ -48,25 +48,27 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		}
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+
 		if err := subsonicPlaylist(cfg, songs); err != nil {
-			return fmt.Errorf("failed to create subsonic playlist: %w", err)
+			return fmt.Errorf("failed to create subsonic playlist: %s", err.Error())
 		}
 		return nil
 	
 	case "jellyfin":
 
 		if err := refreshJfLibrary(cfg); err != nil {
-			return fmt.Errorf("failed to refresh library")
+			return fmt.Errorf("failed to refresh library: %s", err.Error())
 		}
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+
 		if err := createJfPlaylist(cfg, songs); err != nil {
-			return fmt.Errorf("failed to create playlist")
+			return fmt.Errorf("failed to create playlist: %s", err.Error())
 		}
 	case "mpd": 
 
 		if err := createM3U(cfg, cfg.PlaylistName, files); err != nil {
-			return fmt.Errorf("failed to create M3U playlist: %w", err)
+			return fmt.Errorf("failed to create M3U playlist: %s", err.Error())
 		}
 		return nil
 	}
