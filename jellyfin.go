@@ -131,7 +131,18 @@ func findJfPlaylist(cfg Config) (string, error) {
 	return results.SearchHints[0].ID, nil
 }
 
-func createJfPlaylist(cfg Config, songIDs []string) error {
+func createJfPlaylist(cfg Config, songs []Song) error {
+	var songIDs []string
+	
+	for _, song := range songs {
+		ID, err := findJfSong(cfg, song)
+		if err != nil {
+			return err
+		}
+
+		songIDs = append(songIDs, ID)
+	}
+	
 	params := "/Playlists"
 
 	IDs, err := json.Marshal(songIDs)
