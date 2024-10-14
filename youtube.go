@@ -97,7 +97,7 @@ func getVideo(videoID string) (io.ReadCloser, error) { // gets video stream usin
 			
 }
 
-func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (string, string) {
+func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (Song, string) {
 
 	defer stream.Close()
 	// Remove illegal characters for file naming
@@ -115,7 +115,7 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 	_, err = io.Copy(file, stream)
 	if err != nil {
 		log.Printf("Failed to copy stream to file: %s", err.Error())
-		return "", fmt.Sprintf("%s-%s", s, a) // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
+		return Song{}, fmt.Sprintf("%s-%s", s, a) // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
@@ -131,14 +131,13 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (s
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
-		return "", fmt.Sprintf("%s-%s", s, a)
+		return Song{}, fmt.Sprintf("%s-%s", s, a)
 	}
-		
-	return fmt.Sprintf("%s %s %s", song, artist, album), fmt.Sprintf("%s-%s", s, a)
+	return Song{Title: song, Artist: artist, Album: album}, fmt.Sprintf("%s-%s", s, a)
 	
 }
 
-func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
+func gatherVideo(cfg Youtube, song, artist, album string) (Song, string) {
 
 	videos := queryYT(cfg, song, artist)
 	id := getTopic(videos, song, artist)
@@ -165,8 +164,7 @@ func gatherVideo(cfg Youtube, song, artist, album string) (string, string) {
 		}
 	}
 }
-	return "", ""
-
+	return Song{}, ""
 }
 
 func filter(song, artist, videoTitle string) bool { // ignore artist lives or song remixes

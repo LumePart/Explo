@@ -24,16 +24,17 @@ func createM3U(cfg Config, name string, files []string) error {
 	return nil
 }
 
-func (cfg *Config) getPlaylistName(persist bool) {
+func (cfg *Config) getPlaylistName() {
 	playlistName := "Discover-Weekly"
-	if persist {
+	
+	if cfg.Persist {
 		year, week := time.Now().ISOWeek()
 		playlistName = fmt.Sprintf("%s-%v-Week%v", playlistName, year, week)
 	}
 	cfg.PlaylistName = playlistName
 }
 
-func createPlaylist(cfg Config, songs, files []string) error {
+func createPlaylist(cfg Config, songs []Song, files []string) error {
 
 	if cfg.System == "" {
 		return fmt.Errorf("could not get music system")

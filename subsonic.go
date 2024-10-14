@@ -68,6 +68,7 @@ func searchTrack(cfg Config, track string) (string, error) {
     cleanedTrack := url.QueryEscape(track)
     
     reqParam := fmt.Sprintf("search3?query=%s&f=json", cleanedTrack)
+	
     body, err := subsonicRequest(reqParam, cfg)
     if err != nil {
         return "", err
@@ -84,13 +85,13 @@ func searchTrack(cfg Config, track string) (string, error) {
     return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
 
-func subsonicPlaylist(cfg Config, songs []string, playlistName string) error {
+func subsonicPlaylist(cfg Config, songs []Song, playlistName string) error {
 
 	var trackIDs string
 	var reqParam string
 
 	for _, song := range songs { // Get track IDs from app and format them
-		ID, err := searchTrack(cfg, song)
+		ID, err := searchTrack(cfg, fmt.Sprintf("%s %s %s", song.Title, song.Artist, song.Album))
 		if ID  == "" || err != nil  { // if ID is empty, skip song
 			continue
 		}
@@ -106,7 +107,6 @@ func subsonicPlaylist(cfg Config, songs []string, playlistName string) error {
 }
 
 func subsonicScan(cfg Config) error {
-
 	reqParam := "startScan?f=json"
 	
 	_, err := subsonicRequest(reqParam, cfg)

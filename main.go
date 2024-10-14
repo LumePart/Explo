@@ -38,6 +38,7 @@ type Credentials struct {
 type Jellyfin struct {
 	Source string `env:"JELLYFIN_SOURCE"`
 	LibraryName string `env:"LIBRARY_NAME" env-default:"Explo"`
+	LibraryID string `env:"LIBRARY_ID"`
 }
 
 type Subsonic struct {
@@ -57,6 +58,12 @@ type Youtube struct {
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
+}
+
+type Song struct {
+	Title string
+	Artist string
+	Album string
 }
 
 func (cfg *Config) handleDeprecation() { // assign deprecared env vars to new ones
@@ -159,7 +166,7 @@ func (cfg *Config) detectSystem() {
 log.Printf("using %s", cfg.System)
 }
 
-func (cfg *Config) verifyVars() { // Verifies variables and does setup
+func (cfg *Config) systemSetup() { // Verifies variables and does setup
 
 	switch cfg.System {
 
@@ -170,12 +177,18 @@ func (cfg *Config) verifyVars() { // Verifies variables and does setup
 		cfg.Creds.genToken()
 	case "jellyfin":
 		if cfg.Creds.APIKey == "" {
-			log.Fatal("API_KEY variable not set")
+			log.Fatal("API_KEY variable not set, exiting")
 		}
-		cfg.Creds.JellyfinHeader() // Adds auth header
+		cfg.Creds.jfHeader() // Adds auth header
+		cfg.getJfPath()
+
+		if cfg.Jellyfin.LibraryID == "" {
+			jfAddPath(*cfg)
+			cfg.getJfPath()
+		}
 	case "mpd":
 		if cfg.PlaylistDir == "" {
-			log.Fatal("PLAYLIST_DIR variable not set")
+			log.Fatal("PLAYLIST_DIR variable not set, exiting")
 		}
 	default:
 		log.Fatalf("system: %s not known, please use a supported system", cfg.System)
@@ -187,6 +200,7 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize request: %v", err)
 	}
+	req.Header.Add("Content-Type","application/json")
 
 	for key, value := range headers {
 		req.Header.Add(key,value)
@@ -215,9 +229,9 @@ func main() {
 	cfg := readEnv()
 	cfg.detectSystem()
 	cfg.verifyDir(cfg.System)
-	cfg.verifyVars()
 	cfg.handleDeprecation()
-	cfg.getPlaylistName(cfg.Persist)
+	cfg.systemSetup()
+	cfg.getPlaylistName()
 
 	var tracks Track
 
@@ -239,13 +253,13 @@ func main() {
 	}
 
 	var files []string
-	var songs []string
+	var songs []Song
 	var m3usongs []string
 	
 	for _, track := range tracks {
 		song, file := gatherVideo(cfg.Youtube, track.Title, track.Artist, track.Album)
 		files = append(files, file) // used for deleting .webms
-		if song != "" { // used for creating playlists
+		if (song != Song{}) { // used for creating playlists
 			m3usongs = append(m3usongs, file)
 			songs = append(songs, song)
 		}
