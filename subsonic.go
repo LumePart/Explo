@@ -85,7 +85,7 @@ func searchTrack(cfg Config, track string) (string, error) {
     return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
 
-func subsonicPlaylist(cfg Config, songs []Song, playlistName string) error {
+func subsonicPlaylist(cfg Config, songs []Song) error {
 
 	var trackIDs string
 	var reqParam string
@@ -97,7 +97,7 @@ func subsonicPlaylist(cfg Config, songs []Song, playlistName string) error {
 		}
 		trackIDs += "&songId="+ID
 	}
-	reqParam = fmt.Sprintf("createPlaylist?name=%s%s", playlistName, trackIDs)
+	reqParam = fmt.Sprintf("createPlaylist?name=%s%s", cfg.PlaylistName, trackIDs)
 	
 	_, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
