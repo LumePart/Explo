@@ -62,7 +62,7 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 
-		if err := createJfPlaylist(cfg, songs); err != nil {
+		if err := createJfPlaylist(cfg, files); err != nil {
 			return fmt.Errorf("failed to create playlist: %s", err.Error())
 		}
 	case "mpd": 

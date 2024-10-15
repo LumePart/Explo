@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/url"
 )
 
 type Paths []struct {
@@ -27,6 +26,22 @@ type SearchHints struct {
 	Album                   string    `json:"Album"`
 	AlbumID                 string    `json:"AlbumId"`
 	AlbumArtist             string    `json:"AlbumArtist"`
+}
+
+type Audios struct {
+	Items            []Items `json:"Items"`
+	TotalRecordCount int     `json:"TotalRecordCount"`
+	StartIndex       int     `json:"StartIndex"`
+}
+
+type Items struct {
+	Name              string          `json:"Name"`
+	ServerID          string          `json:"ServerId"`
+	ID                string          `json:"Id"`
+	Path			  string		  `json:"Path"`
+	Album             string          `json:"Album,omitempty"`
+	AlbumArtist       string          `json:"AlbumArtist,omitempty"`
+
 }
 
 func (cfg *Credentials) jfHeader() {
@@ -86,32 +101,31 @@ func refreshJfLibrary(cfg Config) error {
 	return nil
 }
 
-func findJfSong(cfg Config, song Song) (string, error) {
-	frmtSong := url.QueryEscape(song.Title)
-	params := fmt.Sprintf("/Search/Hints?searchTerm=%s&mediaTypes=Audio", frmtSong)
+func getJfSongs(cfg Config, files []string) ([]string, error) { // Gets all files in Explo library and filters out new ones
+	params := fmt.Sprintf("/Items?parentId=%s&fields=Path", cfg.Youtube.DownloadDir)
+	var songIDs []string
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("failed to find song: %s", err.Error())
+		return songIDs, fmt.Errorf("failed to find song: %s", err.Error())
 	}
 
-	var results Search
+	var results Audios
 
 	err = json.Unmarshal(body, &results)
 	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal body: %s", err.Error())
+		return songIDs, fmt.Errorf("failed to unmarshal body: %s", err.Error())
 	}
-	if results.TotalRecordCount > 0 {
-		for _, result := range results.SearchHints {
-			if result.Name == song.Title && result.Album == song.Album && result.AlbumArtist == song.Artist {
-				return result.ID, nil
+
+
+	for _, file := range files {
+		for _, item := range results.Items {
+			if fmt.Sprintf("%s%s.mp3", cfg.Youtube.DownloadDir, file) == item.Path {
+				songIDs = append(songIDs, item.ID)
 			}
 		}
-	} else {
-		log.Printf("did not find any result for %s, does it exist in library?", song.Title)
-		return "", nil
 	}
-	return "", fmt.Errorf("failed to find song")
+	return songIDs, nil
 }
 
 func findJfPlaylist(cfg Config) (string, error) {
@@ -131,16 +145,11 @@ func findJfPlaylist(cfg Config) (string, error) {
 	return results.SearchHints[0].ID, nil
 }
 
-func createJfPlaylist(cfg Config, songs []Song) error {
-	var songIDs []string
-
-	for _, song := range songs {
-		ID, err := findJfSong(cfg, song)
-		if err != nil {
-			return err
-		}
-
-		songIDs = append(songIDs, ID)
+func createJfPlaylist(cfg Config, files []string) error {
+	
+	songIDs, err := getJfSongs(cfg, files)
+	if err != nil {
+		return err
 	}
 	
 	params := "/Playlists"
