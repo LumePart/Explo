@@ -65,6 +65,7 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		if err := createJfPlaylist(cfg, files); err != nil {
 			return fmt.Errorf("failed to create playlist: %s", err.Error())
 		}
+		return nil
 	case "mpd": 
 
 		if err := createM3U(cfg, cfg.PlaylistName, files); err != nil {
