@@ -102,7 +102,7 @@ func refreshJfLibrary(cfg Config) error {
 }
 
 func getJfSongs(cfg Config, files []string) ([]string, error) { // Gets all files in Explo library and filters out new ones
-	params := fmt.Sprintf("/Items?parentId=%s&fields=Path", cfg.Youtube.DownloadDir)
+	params := fmt.Sprintf("/Items?parentId=%s&fields=Path", cfg.Jellyfin.LibraryID)
 	var songIDs []string
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
