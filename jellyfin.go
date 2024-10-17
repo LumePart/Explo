@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 )
 
 type Paths []struct {
@@ -79,11 +80,15 @@ func (cfg *Config) getJfPath()  { // Gets Librarys ID
 }
 
 func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
-	params := "/Library/VirtualFolders/Paths"
-	payload := []byte(fmt.Sprintf(`{
-		"Name": "%s",
-		"Path": "%s"
-		}`, cfg.Jellyfin.LibraryName, cfg.Youtube.DownloadDir))
+	cleanPath := url.PathEscape(cfg.Youtube.DownloadDir)
+	params := fmt.Sprintf("/Library/VirtualFolders?name=%s&paths=%s&collectionType=music&refreshLibrary=true", cfg.Jellyfin.LibraryName, cleanPath)
+	payload := []byte(`{
+		"LibraryOptions": {
+		  "Enabled": true,
+		  "EnableRealtimeMonitor": true,
+		  "EnableLUFSScan": false
+		}
+	  }`)
 
 	_, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
 	if err != nil {
