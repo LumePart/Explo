@@ -120,7 +120,7 @@ func cleanUp(cfg Config, songs []string) { // Remove downloaded webms
 		
 		err := os.Remove(path)
 		if err != nil {
-			log.Printf("failed to remove file: %v", err)
+			log.Printf("failed to remove file: %s", err.Error())
 		}
 	}
 
@@ -129,13 +129,13 @@ func cleanUp(cfg Config, songs []string) { // Remove downloaded webms
 func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	entries, err := os.ReadDir(cfg.DownloadDir)
 	if err != nil {
-		log.Printf("failed to read directory: %v", err)
+		log.Printf("failed to read directory: %s", err.Error())
 	}
 	for _, entry := range entries {
 		if !(entry.IsDir()) {
 			err = os.Remove(path.Join(cfg.DownloadDir, entry.Name()))
 			if err != nil {
-				log.Printf("failed to remove file: %v", err)
+				log.Printf("failed to remove file: %s", err.Error())
 			}
 		}
 	}
@@ -198,7 +198,7 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 func makeRequest(method, url string, payload io.Reader, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest(method, url, payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize request: %v", err)
+		return nil, fmt.Errorf("failed to initialize request: %s", err.Error())
 	}
 	req.Header.Add("Content-Type","application/json")
 
@@ -208,13 +208,13 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %v", err)
+		return nil, fmt.Errorf("failed to make request: %s", err.Error())
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %s", err.Error())
 	}
 	
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

@@ -60,7 +60,7 @@ func (cfg *Credentials) genToken() {
 
 	_, err := rand.Read(salt)
 	if err != nil {
-		log.Fatalf("failed to read salt: %v", err)
+		log.Fatalf("failed to read salt: %s", err.Error())
 	}
 
 	saltStr := base64.StdEncoding.EncodeToString(salt)
@@ -168,14 +168,14 @@ func subsonicRequest(reqParams string, cfg Config) ([]byte, error) {
 
 	body, err := makeRequest("GET", reqURL, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request %v", err)
+		return nil, fmt.Errorf("failed to make request %s", err.Error())
 	}
 
 	var checkResp FailedResp
 
 	err = json.Unmarshal(body, &checkResp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal request %v", err)
+		return nil, fmt.Errorf("failed to unmarshal request %s", err.Error())
 	} else if checkResp.SubsonicResponse.Status == "failed" {
 		return nil, fmt.Errorf("%s", checkResp.SubsonicResponse.Error.Message)
 	}

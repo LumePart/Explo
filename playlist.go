@@ -44,7 +44,7 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 	case "subsonic":
 
 		if err := subsonicScan(cfg); err != nil {
-			return fmt.Errorf("failed to schedule a library scan")
+			return fmt.Errorf("failed to schedule a library scan: %s", err.Error())
 		}
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
