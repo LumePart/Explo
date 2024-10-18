@@ -4,8 +4,8 @@
 
 Explo offers two discovery modes:
 
-    1. Playlist Discovery (default): Retrieves songs from a ListenBrainz-generated playlist.
-    2. API Discovery: Uses the ListenBrainz API for recommendations (Note: API recommendations don't update often).
+1. Playlist Discovery (default): Retrieves songs from a ListenBrainz-generated playlist.
+2. API Discovery: Uses the ListenBrainz API for recommendations (Note: API recommendations don't update often).
 
 ## Features
 
