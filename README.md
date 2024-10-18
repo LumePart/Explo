@@ -1,41 +1,42 @@
-# Explo - Discover Weekly for selfhosted music systems
+# Explo - Discover Weekly for Self-Hosted Music Systems
 
-**Explo** is a program for that aims to offer an alternative to Spotify's "Discover Weekly". It automates music discovery by downloading recommended songs based on your listening history. Using [ListenBrainz](https://listenbrainz.org/) as a discovery source and Youtube for downloading tracks.
+**Explo** is an alternative to Spotify's "Discover Weekly". It automates music discovery by downloading recommended tracks based on your listening history. Using [ListenBrainz](https://listenbrainz.org/) for recommendations and Youtube for downloading.
 
-Explo has 2 discovery modes, the preferred (and default) one gets songs from a playlist made by ListenBrainz, second one gets them through ListenBrainz API (weekly recommendations are quite poor). they are toggeable via the .env file
+Explo offers two discovery modes:
+
+    1. Playlist Discovery (default): Retrieves songs from a ListenBrainz-generated playlist.
+    2. API Discovery: Uses the ListenBrainz API for recommendations (Note: API recommendations don't update often).
 
 ## Features
 
-- Compatible with **MPD** and **Subsonic-API systems**.
-- Automatically gets and downloads music recommendations.
-- Adds metadata (title, artist, album) to the downloaded tracks
-- Creates "Discover Weekly" playlist with downloaded songs.
-- By default keeps past Discover Weekly playlists
+- Supports **Jellyfin**, **MPD** and **Subsonic-API-based systems**.
+- Automatically fetches recommendations and downloads the tracks.
+- Adds metadata (title, artist, album) to the downloaded files.
+- Creates a "Discover Weekly" playlist with the latest songs.
+- Keeps past playlists by default for easy access.
 
 ## Getting Started
 
 ### Prerequisites
 
-- MPD (Music Player Daemon) or a Subsonic-API compatible system (e.g., Navidrome, Airsonic).
+- A self-hosted music system like Jellyfin, MPD, or any Subsonic-API compatible system (e.g., Navidrome, Airsonic).
 - ffmpeg installed on server
-- [YouTube Data API](https://developers.google.com/youtube/v3/getting-started) key.
-- [Scrobbling to ListenBrainz](https://listenbrainz.org/add-data/) setup
+- A [YouTube Data API](https://developers.google.com/youtube/v3/getting-started) key.
+- [ListenBrainz scrobbling](https://listenbrainz.org/add-data/) set up
 
 ### Installation
 
-1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) (make sure it can be executed)
-2. Make an "local.env" file in the same directory and fill it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
-3. Add a Cron job that executes Explo weekly
+1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) and ensure it's executable
+2. Make a ``local.env`` file in the same directory and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
+3. Add a Cron job to run Explo weekly:
 ```bash
 crontab -e
 ```
-Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrainz updates its discovery db at monday)
+Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrainz updates its discovery database on Mondays)
 ```bash
 15 0 * * 2 cd /path/to/explo && ./explo-amd64-linux
 ```
-**PS!** If using playlist discovery, don't run the program more than once per day (eats up youtube API credits). For testing, change LISTENBRAINZ_DISCOVERY variable to a random value
-
-**Note for MPD users:** Comment out subsonic variables in local.env, and make sure you define PLAYLIST_DIR
+**PS!** If using playlist discovery, avoid running Explo more than once per day (eats up youtube API credits). For testing, change LISTENBRAINZ_DISCOVERY variable to a different value
 
 ## Contributing
 
