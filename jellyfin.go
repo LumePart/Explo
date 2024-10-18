@@ -61,7 +61,10 @@ func jfAllPaths(cfg Config) (Paths, error) {
 	}
 
 	var paths Paths
-	json.Unmarshal(body, &paths)
+	err = json.Unmarshal(body, &paths)
+	if err != nil {
+		return nil, err
+	}
 
 	return paths, nil
 }
