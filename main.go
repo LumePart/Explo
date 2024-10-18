@@ -21,14 +21,14 @@ type Config struct {
 	Sleep int `env:"SLEEP" env-default:"1"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
-	System string `env:"SYSTEM"`
+	System string `env:"EXPLO_SYSTEM"`
 	PlaylistName string
 }
 
 type Credentials struct {
 	APIKey string `env:"API_KEY"`
-	User string `env:"USER"`
-	Password string `env:"PASSWORD"`
+	User string `env:"SYSTEM_USERNAME"`
+	Password string `env:"SYSTEM_PASSWORD"`
 	Headers map[string]string
 	Token string
 	Salt string
@@ -191,7 +191,7 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 			log.Fatal("PLAYLIST_DIR variable not set, exiting")
 		}
 	default:
-		log.Fatalf("system: %s not known, please use a supported system", cfg.System)
+		log.Fatalf("system: %s not known, please use a supported system (jellyfin, mpd or subsonic)", cfg.System)
 }
 }
 
