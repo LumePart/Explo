@@ -63,7 +63,7 @@ func (cfg *Credentials) genToken() {
 		log.Fatalf("failed to read salt: %s", err.Error())
 	}
 
-	saltStr := base64.StdEncoding.EncodeToString(salt)
+	saltStr := base64.RawURLEncoding.EncodeToString(salt)
 	passSalt := fmt.Sprintf("%s%s", cfg.Password, saltStr)
 
 	token := fmt.Sprintf("%x", md5.Sum([]byte(passSalt)))
