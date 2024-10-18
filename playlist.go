@@ -29,7 +29,7 @@ func (cfg *Config) getPlaylistName() {
 	
 	if cfg.Persist {
 		year, week := time.Now().ISOWeek()
-		playlistName = fmt.Sprintf("%s-%v-Week%v", playlistName, year, week)
+		playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
 	}
 	cfg.PlaylistName = playlistName
 }
