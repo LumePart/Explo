@@ -144,7 +144,7 @@ func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 
 func (cfg *Config) detectSystem() {
 	if cfg.System == "" {
-		log.Printf("Warning: no SYSTEM variable set, trying to detect automatically..")
+		log.Printf("Warning: no EXPLO_SYSTEM variable set, trying to detect automatically..")
 		if cfg.Subsonic.User != "" && cfg.Subsonic.Password != "" {
 			log.Println("using Subsonic")
 			cfg.System = "subsonic"
