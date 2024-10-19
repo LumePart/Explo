@@ -107,7 +107,7 @@ func subsonicPlaylist(cfg Config, songs []Song) error {
 		}
 		trackIDs += "&songId="+ID
 	}
-	reqParam = fmt.Sprintf("createPlaylist?name=%s%s", cfg.PlaylistName, trackIDs)
+	reqParam = fmt.Sprintf("createPlaylist?name=%s%s&f=json", cfg.PlaylistName, trackIDs)
 	
 	_, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
@@ -153,7 +153,7 @@ func getDiscoveryPlaylist(cfg Config) ([]string, error) {
 func delSubsonicPlaylists(playlists []string, cfg Config) error {
 
 	for _, id := range playlists {
-		reqParam := fmt.Sprintf("deletePlaylist?id=%s", id)
+		reqParam := fmt.Sprintf("deletePlaylist?id=%s&f=json", id)
 		_, err := subsonicRequest(reqParam, cfg)
 		if err != nil {
 			return err
