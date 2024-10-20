@@ -36,7 +36,7 @@ Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrai
 ```bash
 15 0 * * 2 cd /path/to/explo && ./explo-amd64-linux
 ```
-**PS!** If using playlist discovery, avoid running Explo more than once per day (eats up youtube API credits). For testing, change LISTENBRAINZ_DISCOVERY variable to a different value
+**PS!** To test if everything is correct change ``LISTENBRAINZ_DISCOVERY`` to ``test`` and run the program manually
 
 ## Contributing
 
