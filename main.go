@@ -263,6 +263,10 @@ func main() {
 			m3usongs = append(m3usongs, file)
 			songs = append(songs, song)
 		}
+		if cfg.Listenbrainz.Discovery == "test" && (song != Song{}) {
+			log.Println("using 'test' discovery method. Downloaded 1 song.")
+			break
+		}
 	}
 
 	cleanUp(cfg, files)
