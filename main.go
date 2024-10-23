@@ -9,6 +9,7 @@ import (
 	"io"
 	"github.com/ilyakaznacheev/cleanenv"
 	"net/http"
+	"explo/debug"
 )
 
 type Config struct {
@@ -23,6 +24,7 @@ type Config struct {
 	Persist bool `env:"PERSIST" env-default:"true"`
 	System string `env:"EXPLO_SYSTEM"`
 	PlaylistName string
+	Debug bool `env:"DEBUG" env-default:"false"`
 }
 
 type Credentials struct {
@@ -232,6 +234,7 @@ func main() {
 	cfg.handleDeprecation()
 	cfg.systemSetup()
 	cfg.getPlaylistName()
+	debug.Init(cfg.Debug)
 
 	var tracks Track
 

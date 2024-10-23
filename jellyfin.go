@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"explo/debug"
 )
 
 type Paths []struct {
@@ -63,6 +64,7 @@ func jfAllPaths(cfg Config) (Paths, error) {
 	var paths Paths
 	err = json.Unmarshal(body, &paths)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		return nil, err
 	}
 
@@ -93,8 +95,9 @@ func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
 		}
 	  }`)
 
-	_, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
+	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		log.Fatalf("failed to add path: %s", err.Error())
 	}
 }
@@ -122,6 +125,7 @@ func getJfSongs(cfg Config, files []string) ([]string, error) { // Gets all file
 
 	err = json.Unmarshal(body, &results)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		return songIDs, fmt.Errorf("failed to unmarshal body: %s", err.Error())
 	}
 
@@ -148,6 +152,7 @@ func findJfPlaylist(cfg Config) (string, error) {
 
 	err = json.Unmarshal(body, &results)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		return "", fmt.Errorf("failed to unmarshal body: %s", err.Error())
 	}
 	return results.SearchHints[0].ID, nil
@@ -164,6 +169,7 @@ func createJfPlaylist(cfg Config, files []string) error {
 
 	IDs, err := json.Marshal(songIDs)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("songIDs: %v", songIDs))
 		return fmt.Errorf("failed to marshal songIDs: %s", err.Error())
 	}
 

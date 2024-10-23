@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/url"
+	"explo/debug"
 )
 
 type FailedResp struct {
@@ -86,6 +87,7 @@ func searchTrack(cfg Config, track string) (string, error) {
     
     var resp SubResponse
     if err := json.Unmarshal(body, &resp); err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
         return "", err
     }
     
@@ -137,6 +139,7 @@ func getDiscoveryPlaylist(cfg Config) ([]string, error) {
 		return nil, err
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
         return nil, err
     }
 
@@ -175,6 +178,7 @@ func subsonicRequest(reqParams string, cfg Config) ([]byte, error) {
 
 	err = json.Unmarshal(body, &checkResp)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		return nil, fmt.Errorf("failed to unmarshal request %s", err.Error())
 	} else if checkResp.SubsonicResponse.Status == "failed" {
 		return nil, fmt.Errorf("%s", checkResp.SubsonicResponse.Error.Message)

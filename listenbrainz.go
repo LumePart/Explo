@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"explo/debug"
 )
 
 type Recommendations struct {
@@ -91,6 +92,7 @@ func getReccs(cfg Listenbrainz) []string {
 
 	err = json.Unmarshal(body, &reccs)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 
@@ -116,6 +118,7 @@ func getTracks(mbids []string) Track {
 
 	err = json.Unmarshal(body, &recordings)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 	for _, recording := range recordings {
@@ -145,6 +148,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 
 	err = json.Unmarshal(body, &playlists)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 
@@ -174,6 +178,7 @@ func parseWeeklyExploration(identifier string) Track {
 
 	err = json.Unmarshal(body, &exploration)
 	if err != nil {
+		debug.Debug(fmt.Sprintf("response: %s", body))
 		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 

@@ -1,4 +1,4 @@
-module Explo
+module explo
 
 go 1.21
 
