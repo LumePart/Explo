@@ -162,7 +162,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 			return id[len(id)-1], nil
 		}
 	}
-	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one")
+	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
 func parseWeeklyExploration(identifier string) Track {
