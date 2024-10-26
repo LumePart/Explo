@@ -1,8 +1,5 @@
 FROM golang:1.21-alpine AS builder
 
-# Install any required packages
-RUN apk add --no-cache libc6-compat ffmpeg
-
 # Set the working directory
 WORKDIR /app
 
@@ -14,6 +11,8 @@ ARG TARGETARCH
 RUN GOOS=linux GOARCH=${TARGETARCH} go build -o explo ./src/
 
 FROM alpine
+
+RUN apk add --no-cache libc6-compat ffmpeg
 
 WORKDIR /opt/explo/
 COPY ./docker/start.sh /start.sh
