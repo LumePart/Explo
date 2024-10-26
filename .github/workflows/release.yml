@@ -85,6 +85,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: make repo name lower case
+        run: |
+          echo "REPO_LC=${REPO,,}" >>${GITHUB_ENV}
+        env:
+          REPO: '${{ github.repository }}'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -95,8 +101,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.event.release.tag_name }}
+            ghcr.io/${{ REPO_LC }}:latest
+            ghcr.io/${{ REPO_LC }}:${{ github.event.release.tag_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/386
