@@ -70,6 +70,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    if: "!contains(github.ref, 'dev')" # skip building container for dev
     needs: release
 
     steps:
