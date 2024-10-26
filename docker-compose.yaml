@@ -1,0 +1,9 @@
+services:
+  explo:
+    image: ghcr.io/lumepart/explo:latest
+    container_name: explo
+    volumes:
+      - /path/to/local.env:/opt/explo/local.env
+      - /path/to/musiclibrary/explo:/download/dir # should be in the same path you have your music system pointed to, download/dir same as in local.env
+    environment:
+      - CRON_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight
