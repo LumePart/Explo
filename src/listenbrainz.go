@@ -115,14 +115,14 @@ func getReccs(cfg Listenbrainz) []string {
 	err = json.Unmarshal(body, &reccs)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal getReccs body: %s", err.Error())
 	}
 
 	for _, rec := range reccs.Payload.Mbids {
 		mbids = append(mbids, rec.RecordingMbid)
 	}
 
-	if mbids == nil {
+	if len(mbids) == 0 {
 		log.Fatal("no recommendations found, exiting...")
 	}
 	return mbids
@@ -141,7 +141,7 @@ func getTracks(mbids []string, artistSeparator string) []Track {
 	err = json.Unmarshal(body, &recordings)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal getTracks body: %s", err.Error())
 	}
 	for _, recording := range recordings {
 		var metadataArtists []string
@@ -176,7 +176,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 	err = json.Unmarshal(body, &playlists)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal getWeeklyExploration body: %s", err.Error())
 	}
 
 	for _, playlist := range playlists.Playlist {
@@ -204,7 +204,7 @@ func parseWeeklyExploration(identifier, artistSeparator string) []Track {
 	err = json.Unmarshal(body, &exploration)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to unmarshal body: %s", err.Error())
+		log.Fatalf("failed to unmarshal parseWeeklyExploration body: %s", err.Error())
 	}
 
 	for _, track := range exploration.Playlist.Tracks {

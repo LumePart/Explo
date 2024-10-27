@@ -49,7 +49,7 @@ func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 	err = json.Unmarshal(body, &videos)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("Failed to unmarshal body: %s", err.Error())
+		log.Fatalf("Failed to unmarshal queryYT body: %s", err.Error())
 	}
 
 	return videos

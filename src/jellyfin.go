@@ -74,7 +74,7 @@ func jfAllPaths(cfg Config) (Paths, error) {
 func (cfg *Config) getJfPath()  { // Gets Librarys ID
 	paths, err := jfAllPaths(*cfg)
 	if err != nil {
-		log.Fatalf("failed to get paths: %s", err.Error())
+		log.Fatalf("failed to get Jellyfin paths: %s", err.Error())
 	}
 
 	for _, path := range paths {
@@ -98,7 +98,7 @@ func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
 	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to add path: %s", err.Error())
+		log.Fatalf("failed to add path to Jellyfin: %s", err.Error())
 	}
 }
 
