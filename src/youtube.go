@@ -179,6 +179,10 @@ func filter(track Track, videoTitle string) bool { // ignore artist lives or son
 			return false
 	}
 
+	if (!contains(track.Title,"instrumental") && !contains(track.MetadataArtist,"instrumental") && contains(videoTitle, "instrumental")) {
+		return false
+}
+
 	return true
 }
 
