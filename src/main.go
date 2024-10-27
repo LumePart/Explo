@@ -276,5 +276,7 @@ func main() {
 	err := createPlaylist(cfg, tracks, m3usongs)
 	if err != nil {
 		log.Fatal(err.Error())
+	} else {
+		log.Printf("%s playlist created", cfg.PlaylistName)
 	}
 }

@@ -145,9 +145,13 @@ func getTracks(mbids []string, artistSeparator string) []Track {
 	}
 	for _, recording := range recordings {
 		var metadataArtists []string
-		for _, artist := range recording.Artist.Artists {
-			metadataArtists = append(metadataArtists, artist.Name)
-		}
+		if artistSeparator != "" { // if artist separator is empty, only append the first artist
+			for _, artist := range recording.Artist.Artists {
+				metadataArtists = append(metadataArtists, artist.Name)
+			}
+	} else {
+		metadataArtists = append(metadataArtists, recording.Artist.Artists[0].Name)
+	}
 
 		tracks = append(tracks, Track{
 			Album:  recording.Release.Name,
@@ -205,9 +209,13 @@ func parseWeeklyExploration(identifier, artistSeparator string) []Track {
 
 	for _, track := range exploration.Playlist.Tracks {
 		var metadataArtists []string
+		if artistSeparator != "" { // if artist separator is empty, only append the first artist
 		for _, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists {
 			metadataArtists = append(metadataArtists, artist.ArtistCreditName)
 		}
+	} else {
+		metadataArtists = append(metadataArtists, track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName)
+	}
 		
 		tracks = append(tracks, Track{
 			Album:  track.Album,
