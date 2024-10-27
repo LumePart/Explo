@@ -133,7 +133,7 @@ func getTracks(mbids []string, artistSeparator string) []Track {
 	var recordings Recordings
 	str_mbids := strings.Join(mbids, ",")
 
-	body, err := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release", str_mbids))
+	body, err := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist", str_mbids))
 	if err != nil {
 		log.Fatal(err.Error())
 	}
