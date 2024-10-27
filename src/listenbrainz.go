@@ -24,13 +24,18 @@ type Recommendations struct {
 	} `json:"payload"`
 }
 
-type Recording struct {
-	Length int    `json:"length"`
-	Name   string `json:"name"`
-	Rels   []any  `json:"rels"`
-}
-
 type Metadata struct {
+	Artist struct {
+		ArtistCreditID int `json:"artist_credit_id"`
+		Artists        []struct {
+			ArtistMbid string `json:"artist_mbid"`
+			BeginYear  int    `json:"begin_year"`
+			EndYear    int    `json:"end_year,omitempty"`
+			JoinPhrase string `json:"join_phrase"`
+			Name       string `json:"name"`
+		} `json:"artists"`
+		Name string `json:"name"`
+	} `json:"artist"`
 	Recording struct {
 		Length int    `json:"length"`
 		Name   string `json:"name"`
@@ -69,15 +74,32 @@ type Exploration struct {
 		Tracks     []struct {
 			Album      string `json:"album"`
 			Creator    string `json:"creator"`
+			Extension struct {
+				HTTPSMusicbrainzOrgDocJspfTrack struct {
+					AddedAt            time.Time `json:"added_at"`
+					AddedBy            string    `json:"added_by"`
+					AdditionalMetadata struct {
+						Artists []struct {
+							ArtistCreditName string `json:"artist_credit_name"`
+							ArtistMbid       string `json:"artist_mbid"`
+							JoinPhrase       string `json:"join_phrase"`
+						} `json:"artists"`
+						CaaID          int64  `json:"caa_id"`
+						CaaReleaseMbid string `json:"caa_release_mbid"`
+					} `json:"additional_metadata"`
+					ArtistIdentifiers []string `json:"artist_identifiers"`
+				} `json:"https://musicbrainz.org/doc/jspf#track"`
+			} `json:"extension"`
 			Identifier []string `json:"identifier"`
 			Title      string `json:"title"`
 		} `json:"track"`
 	} `json:"playlist"`
 }
 
-type Track []struct {
+type Track struct {
 	Album  string
-	Artist string
+	SearchArtist string // used for searching in youtube
+	MetadataArtist string
 	Title  string
 }
 
@@ -106,8 +128,8 @@ func getReccs(cfg Listenbrainz) []string {
 	return mbids
 }
 
-func getTracks(mbids []string) Track {
-	var tracks Track
+func getTracks(mbids []string, artistSeparator string) []Track {
+	var tracks []Track
 	var recordings Recordings
 	str_mbids := strings.Join(mbids, ",")
 
@@ -122,13 +144,15 @@ func getTracks(mbids []string) Track {
 		log.Fatalf("failed to unmarshal body: %s", err.Error())
 	}
 	for _, recording := range recordings {
-		tracks = append(tracks, struct {
-			Album  string
-			Artist string
-			Title  string
-		}{
+		var metadataArtists []string
+		for _, artist := range recording.Artist.Artists {
+			metadataArtists = append(metadataArtists, artist.Name)
+		}
+
+		tracks = append(tracks, Track{
 			Album:  recording.Release.Name,
-			Artist: recording.Release.AlbumArtistName,
+			SearchArtist: recording.Release.AlbumArtistName,
+			MetadataArtist: strings.Join(metadataArtists, artistSeparator),
 			Title:  recording.Recording.Name,
 		})
 	}
@@ -138,7 +162,6 @@ func getTracks(mbids []string) Track {
 }
 
 func getWeeklyExploration(cfg Listenbrainz) (string, error) {
-
 	var playlists Playlists
 
 	body, err := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", cfg.User))
@@ -165,10 +188,8 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
-func parseWeeklyExploration(identifier string) Track {
-
-	var tracks Track
-
+func parseWeeklyExploration(identifier, artistSeparator string) []Track {
+	var tracks []Track
 	var exploration Exploration
 
 	body, err := lbRequest(fmt.Sprintf("playlist/%s", identifier))
@@ -183,13 +204,15 @@ func parseWeeklyExploration(identifier string) Track {
 	}
 
 	for _, track := range exploration.Playlist.Tracks {
-		tracks = append(tracks, struct {
-			Album  string
-			Artist string
-			Title  string
-		}{
+		var metadataArtists []string
+		for _, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists {
+			metadataArtists = append(metadataArtists, artist.ArtistCreditName)
+		}
+		
+		tracks = append(tracks, Track{
 			Album:  track.Album,
-			Artist: track.Creator,
+			SearchArtist: track.Creator,
+			MetadataArtist: strings.Join(metadataArtists, artistSeparator),
 			Title:  track.Title,
 		})
 	}

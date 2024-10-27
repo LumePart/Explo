@@ -97,13 +97,13 @@ func searchTrack(cfg Config, track string) (string, error) {
     return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 }
 
-func subsonicPlaylist(cfg Config, songs []Song) error {
+func subsonicPlaylist(cfg Config, tracks []Track) error {
 
 	var trackIDs string
 	var reqParam string
 
-	for _, song := range songs { // Get track IDs from app and format them
-		ID, err := searchTrack(cfg, fmt.Sprintf("%s %s %s", song.Title, song.Artist, song.Album))
+	for _, song := range tracks { // Get track IDs from app and format them
+		ID, err := searchTrack(cfg, fmt.Sprintf("%s %s %s", song.Title, song.MetadataArtist, song.Album))
 		if ID  == "" || err != nil  { // if ID is empty, skip song
 			continue
 		}

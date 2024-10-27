@@ -36,9 +36,9 @@ type Item struct {
 
 
 
-func queryYT(cfg Youtube, song, artist string) Videos { // Queries youtube for the song
+func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 	
-	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", song, artist))
+	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Title, track.SearchArtist))
 	queryURL := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
 
 	body, err := makeRequest("GET", queryURL, nil, nil)
@@ -56,10 +56,10 @@ func queryYT(cfg Youtube, song, artist string) Videos { // Queries youtube for t
 
 }
 
-func getTopic(videos Videos, song, artist string) string { // gets song under artist topic or personal channel
+func getTopic(videos Videos, track Track) string { // gets song under artist topic or personal channel
 	
 	for _, v := range videos.Items {
-		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == artist) && filter(song, artist, v.Snippet.Title) {
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MetadataArtist) && filter(track, v.Snippet.Title) {
 			return v.ID.VideoID
 		} else {
 			continue
@@ -99,13 +99,13 @@ func getVideo(videoID string) (io.ReadCloser, error) { // gets video stream usin
 			
 }
 
-func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (Song, string) {
+func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 
 	defer stream.Close()
 	// Remove illegal characters for file naming
 	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
-	s := re.ReplaceAllString(song, cfg.Separator)
-	a := re.ReplaceAllString(artist, cfg.Separator)
+	s := re.ReplaceAllString(track.Title, cfg.Separator)
+	a := re.ReplaceAllString(track.SearchArtist, cfg.Separator)
 
 	input := fmt.Sprintf("%s%s-%s.webm", cfg.DownloadDir,s, a)
 	file, err := os.Create(input)
@@ -117,12 +117,12 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (S
 	_, err = io.Copy(file, stream)
 	if err != nil {
 		log.Printf("Failed to copy stream to file: %s", err.Error())
-		return Song{}, fmt.Sprintf("%s-%s", s, a) // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
+		return fmt.Sprintf("%s-%s", s, a) // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
 			"map": "0:a",
-			"metadata": []string{"artist="+artist,"title="+song,"album="+album},
+			"metadata": []string{"artist="+track.MetadataArtist,"title="+track.Title,"album="+track.Album},
 			"loglevel": "error",
 		}).OverWriteOutput().ErrorToStdOut()
 
@@ -133,49 +133,49 @@ func saveVideo(cfg Youtube, song, artist, album string, stream io.ReadCloser) (S
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
-		return Song{}, fmt.Sprintf("%s-%s", s, a)
+		return fmt.Sprintf("%s-%s", s, a)
 	}
-	return Song{Title: song, Artist: artist, Album: album}, fmt.Sprintf("%s-%s", s, a)
+	return fmt.Sprintf("%s-%s", s, a)
 	
 }
 
-func gatherVideo(cfg Youtube, song, artist, album string) (Song, string) {
+func gatherVideo(cfg Youtube, track Track) string {
 
-	videos := queryYT(cfg, song, artist)
-	id := getTopic(videos, song, artist)
+	videos := queryYT(cfg, track)
+	id := getTopic(videos, track)
 
 	if id != "" {
 		stream, err := getVideo(id)
 		if stream != nil && err == nil {
-			song, file := saveVideo(cfg, song, artist, album, stream)
-			return song, file
+			file := saveVideo(cfg, track, stream)
+			return file
 		} else {
 			log.Printf("failed getting stream: %s", err.Error())
 		}
 	}
 	// if getting song from official channel fails, try getting from first available channel
 	for _, video := range videos.Items {
-		if filter(song, artist, video.Snippet.Title) {
+		if filter(track, video.Snippet.Title) {
 		stream, err := getVideo(video.ID.VideoID)
 		if stream != nil && err == nil {
-			song, file := saveVideo(cfg, song, artist, album, stream)
-			return song, file
+			file := saveVideo(cfg, track, stream)
+			return file
 		} else {
 			log.Printf("failed getting stream: %s", err.Error())
 			continue
 		}
 	}
 }
-	return Song{}, ""
+	return ""
 }
 
-func filter(song, artist, videoTitle string) bool { // ignore artist lives or song remixes
+func filter(track Track, videoTitle string) bool { // ignore artist lives or song remixes
 
-	if (!contains(song,"live") && !contains(artist,"live") && contains(videoTitle, "live")) {
+	if (!contains(track.Title,"live") && !contains(track.MetadataArtist,"live") && contains(videoTitle, "live")) {
 		return false
 	}
 
-	if (!contains(song,"remix") && !contains(artist,"remix") && contains(videoTitle, "remix")) {
+	if (!contains(track.Title,"remix") && !contains(track.MetadataArtist,"remix") && contains(videoTitle, "remix")) {
 			return false
 	}
 

@@ -60,6 +60,7 @@ type Youtube struct {
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
+	ArtistSeparator string `env:"ARTIST_SEPARARTOR" env-default:";"`
 }
 
 type Song struct {
@@ -236,17 +237,17 @@ func main() {
 	cfg.getPlaylistName()
 	debug.Init(cfg.Debug)
 
-	var tracks Track
+	var tracks []Track
 
 	if cfg.Listenbrainz.Discovery == "playlist" {
 		id, err := getWeeklyExploration(cfg.Listenbrainz)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-		tracks = parseWeeklyExploration(id)
+		tracks = parseWeeklyExploration(id, cfg.Listenbrainz.ArtistSeparator)
 	} else {
 		mbids := getReccs(cfg.Listenbrainz)
-		tracks = getTracks(mbids)
+		tracks = getTracks(mbids, cfg.Listenbrainz.ArtistSeparator)
 	}
 
 	if !cfg.Persist { // delete songs and playlist before downloading new ones
@@ -256,17 +257,15 @@ func main() {
 	}
 
 	var files []string
-	var songs []Song
 	var m3usongs []string
 	
 	for _, track := range tracks {
-		song, file := gatherVideo(cfg.Youtube, track.Title, track.Artist, track.Album)
+		file := gatherVideo(cfg.Youtube, track)
 		files = append(files, file) // used for deleting .webms
-		if (song != Song{}) { // used for creating playlists
+		if (track != Track{}) { // used for creating playlists
 			m3usongs = append(m3usongs, file)
-			songs = append(songs, song)
 		}
-		if cfg.Listenbrainz.Discovery == "test" && (song != Song{}) {
+		if cfg.Listenbrainz.Discovery == "test" && (track != Track{}) {
 			log.Println("using 'test' discovery method. Downloaded 1 song.")
 			break
 		}
@@ -274,7 +273,7 @@ func main() {
 
 	cleanUp(cfg, files)
 	
-	err := createPlaylist(cfg, songs, m3usongs)
+	err := createPlaylist(cfg, tracks, m3usongs)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

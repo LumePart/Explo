@@ -34,7 +34,7 @@ func (cfg *Config) getPlaylistName() {
 	cfg.PlaylistName = playlistName
 }
 
-func createPlaylist(cfg Config, songs []Song, files []string) error {
+func createPlaylist(cfg Config, tracks []Track, files []string) error {
 
 	if cfg.System == "" {
 		return fmt.Errorf("could not get music system")
@@ -49,7 +49,7 @@ func createPlaylist(cfg Config, songs []Song, files []string) error {
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 
-		if err := subsonicPlaylist(cfg, songs); err != nil {
+		if err := subsonicPlaylist(cfg, tracks); err != nil {
 			return fmt.Errorf("failed to create subsonic playlist: %s", err.Error())
 		}
 		return nil
