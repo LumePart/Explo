@@ -26,6 +26,14 @@ Explo offers two discovery modes:
 
 ### Installation
 
+#### Docker
+
+1. Download [docker-compose.yaml](https://github.com/LumePart/Explo/blob/main/docker-compose.yaml) file to your system and configure volume mappings
+2. Make a ``local.env`` file in the same directory and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
+3. Launch the container with `docker compose up -d`
+
+#### Binary
+
 1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) and ensure it's executable
 2. Make a ``local.env`` file in the same directory and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
 3. Add a Cron job to run Explo weekly:
@@ -34,7 +42,7 @@ crontab -e
 ```
 Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrainz updates its discovery database on Mondays)
 ```bash
-15 0 * * 2 cd /path/to/explo && ./explo-amd64-linux
+15 0 * * 2 cd /path/to/explo && ./explo-linux-amd64
 ```
 **PS!** To test if everything is correct change ``LISTENBRAINZ_DISCOVERY`` to ``test`` and run the program manually
 
