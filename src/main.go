@@ -60,7 +60,7 @@ type Youtube struct {
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
-	SingleArtist bool `env:"ARTIST_SEPARARTOR" env-default:"false"`
+	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"false"`
 }
 
 type Song struct {
