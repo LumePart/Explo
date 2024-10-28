@@ -152,7 +152,7 @@ func getTracks(mbids []string, singleArtist bool) []Track {
 			if len(recording.Artist.Artists) > 1 {
 				var tempTitle string
 			for i, artist := range recording.Artist.Artists[1:] {
-				tempTitle += fmt.Sprintf("%s%s",recording.Artist.Artists[i-1], artist.Name) 
+				tempTitle += fmt.Sprintf("%s%s",recording.Artist.Artists[i-1].JoinPhrase, artist.Name) 
 			}
 			title = fmt.Sprintf("%s (%s)", recording.Recording.Name, tempTitle)
 		}
