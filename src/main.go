@@ -60,7 +60,7 @@ type Youtube struct {
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
-	ArtistSeparator string `env:"ARTIST_SEPARARTOR" env-default:";"`
+	SingleArtist bool `env:"ARTIST_SEPARARTOR" env-default:"false"`
 }
 
 type Song struct {
@@ -244,10 +244,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-		tracks = parseWeeklyExploration(id, cfg.Listenbrainz.ArtistSeparator)
+		tracks = parseWeeklyExploration(id, cfg.Listenbrainz.SingleArtist)
 	} else {
 		mbids := getReccs(cfg.Listenbrainz)
-		tracks = getTracks(mbids, cfg.Listenbrainz.ArtistSeparator)
+		tracks = getTracks(mbids, cfg.Listenbrainz.SingleArtist)
 	}
 
 	if !cfg.Persist { // delete songs and playlist before downloading new ones

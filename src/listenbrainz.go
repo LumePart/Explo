@@ -98,8 +98,7 @@ type Exploration struct {
 
 type Track struct {
 	Album  string
-	SearchArtist string // used for searching in youtube
-	MetadataArtist string
+	Artist string
 	Title  string
 }
 
@@ -128,7 +127,7 @@ func getReccs(cfg Listenbrainz) []string {
 	return mbids
 }
 
-func getTracks(mbids []string, artistSeparator string) []Track {
+func getTracks(mbids []string, singleArtist bool) []Track {
 	var tracks []Track
 	var recordings Recordings
 	str_mbids := strings.Join(mbids, ",")
@@ -144,20 +143,26 @@ func getTracks(mbids []string, artistSeparator string) []Track {
 		log.Fatalf("failed to unmarshal getTracks body: %s", err.Error())
 	}
 	for _, recording := range recordings {
-		var metadataArtists []string
-		if artistSeparator != "" { // if artist separator is empty, only append the first artist
-			for _, artist := range recording.Artist.Artists {
-				metadataArtists = append(metadataArtists, artist.Name)
+		var title string
+		var artist string
+
+		title = recording.Recording.Name
+		artist = recording.Artist.Name
+		if singleArtist { // if artist separator is empty, only append the first artist
+			if len(recording.Artist.Artists) > 1 {
+				var tempTitle string
+			for _, artist := range recording.Artist.Artists[1:] {
+				tempTitle += fmt.Sprintf("%s%s",artist.Name, artist.JoinPhrase) 
 			}
-	} else {
-		metadataArtists = append(metadataArtists, recording.Artist.Artists[0].Name)
+			title = fmt.Sprintf("%s (%s)", recording.Recording.Name, tempTitle)
+		}
+		artist = recording.Artist.Artists[0].Name
 	}
 
 		tracks = append(tracks, Track{
 			Album:  recording.Release.Name,
-			SearchArtist: recording.Release.AlbumArtistName,
-			MetadataArtist: strings.Join(metadataArtists, artistSeparator),
-			Title:  recording.Recording.Name,
+			Artist: artist,
+			Title:  title,
 		})
 	}
 
@@ -192,7 +197,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
-func parseWeeklyExploration(identifier, artistSeparator string) []Track {
+func parseWeeklyExploration(identifier string, singleArtist bool) []Track {
 	var tracks []Track
 	var exploration Exploration
 
@@ -208,20 +213,26 @@ func parseWeeklyExploration(identifier, artistSeparator string) []Track {
 	}
 
 	for _, track := range exploration.Playlist.Tracks {
-		var metadataArtists []string
-		if artistSeparator != "" { // if artist separator is empty, only append the first artist
-		for _, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists {
-			metadataArtists = append(metadataArtists, artist.ArtistCreditName)
+		var title string
+		var artist string
+
+		title = track.Title
+		artist = track.Creator
+		if singleArtist { // if artist separator is empty, only append the first artist
+			if len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
+				var tempTitle string
+			for _, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[1:] {
+				tempTitle += fmt.Sprintf("%s%s",artist.ArtistCreditName, artist.JoinPhrase) 
+			}
+			title = fmt.Sprintf("%s (%s)", track.Title, tempTitle)
 		}
-	} else {
-		metadataArtists = append(metadataArtists, track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName)
+		artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 	}
-		
+
 		tracks = append(tracks, Track{
 			Album:  track.Album,
-			SearchArtist: track.Creator,
-			MetadataArtist: strings.Join(metadataArtists, artistSeparator),
-			Title:  track.Title,
+			Artist: artist,
+			Title:  title,
 		})
 	}
 	return tracks

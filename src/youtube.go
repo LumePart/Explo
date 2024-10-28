@@ -38,7 +38,7 @@ type Item struct {
 
 func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 	
-	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Title, track.SearchArtist))
+	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Title, track.Artist))
 	queryURL := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, cfg.APIKey)
 
 	body, err := makeRequest("GET", queryURL, nil, nil)
@@ -59,7 +59,7 @@ func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 func getTopic(videos Videos, track Track) string { // gets song under artist topic or personal channel
 	
 	for _, v := range videos.Items {
-		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MetadataArtist) && filter(track, v.Snippet.Title) {
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.Artist) && filter(track, v.Snippet.Title) {
 			return v.ID.VideoID
 		} else {
 			continue
@@ -105,7 +105,7 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 	// Remove illegal characters for file naming
 	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
 	s := re.ReplaceAllString(track.Title, cfg.Separator)
-	a := re.ReplaceAllString(track.SearchArtist, cfg.Separator)
+	a := re.ReplaceAllString(track.Artist, cfg.Separator)
 
 	input := fmt.Sprintf("%s%s-%s.webm", cfg.DownloadDir,s, a)
 	file, err := os.Create(input)
@@ -122,7 +122,7 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
 			"map": "0:a",
-			"metadata": []string{"artist="+track.MetadataArtist,"title="+track.Title,"album="+track.Album},
+			"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
 			"loglevel": "error",
 		}).OverWriteOutput().ErrorToStdOut()
 
@@ -171,15 +171,15 @@ func gatherVideo(cfg Youtube, track Track) string {
 
 func filter(track Track, videoTitle string) bool { // ignore artist lives or song remixes
 
-	if (!contains(track.Title,"live") && !contains(track.MetadataArtist,"live") && contains(videoTitle, "live")) {
+	if (!contains(track.Title,"live") && !contains(track.Artist,"live") && contains(videoTitle, "live")) {
 		return false
 	}
 
-	if (!contains(track.Title,"remix") && !contains(track.MetadataArtist,"remix") && contains(videoTitle, "remix")) {
+	if (!contains(track.Title,"remix") && !contains(track.Artist,"remix") && contains(videoTitle, "remix")) {
 			return false
 	}
 
-	if (!contains(track.Title,"instrumental") && !contains(track.MetadataArtist,"instrumental") && contains(videoTitle, "instrumental")) {
+	if (!contains(track.Title,"instrumental") && !contains(track.Artist,"instrumental") && contains(videoTitle, "instrumental")) {
 		return false
 }
 

@@ -103,7 +103,7 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 	var reqParam string
 
 	for _, song := range tracks { // Get track IDs from app and format them
-		ID, err := searchTrack(cfg, fmt.Sprintf("%s %s %s", song.Title, song.MetadataArtist, song.Album))
+		ID, err := searchTrack(cfg, fmt.Sprintf("%s %s %s", song.Title, song.Artist, song.Album))
 		if ID  == "" || err != nil  { // if ID is empty, skip song
 			continue
 		}
