@@ -154,7 +154,7 @@ func getTracks(mbids []string, singleArtist bool) []Track {
 			for i, artist := range recording.Artist.Artists[1:] {
 				tempTitle += fmt.Sprintf("%s%s",recording.Artist.Artists[i].JoinPhrase, artist.Name) 
 			}
-			title = fmt.Sprintf("%s (%s)", recording.Recording.Name, tempTitle)
+			title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle)
 		}
 		artist = recording.Artist.Artists[0].Name
 	}
@@ -222,9 +222,9 @@ func parseWeeklyExploration(identifier string, singleArtist bool) []Track {
 			if len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
 				var tempTitle string
 			for i, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[1:] {
-				tempTitle += fmt.Sprintf("%s%s",track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[i], artist.ArtistCreditName) 
+				tempTitle += fmt.Sprintf("%s%s",track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[i].JoinPhrase, artist.ArtistCreditName) 
 			}
-			title = fmt.Sprintf("%s (%s)", track.Title, tempTitle)
+			title = fmt.Sprintf("%s%s", track.Title, tempTitle)
 		}
 		artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 	}
