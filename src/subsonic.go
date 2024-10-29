@@ -96,7 +96,7 @@ func searchTrack(cfg Config, track Track) (string, error) {
 
 	switch len(resp.SubsonicResponse.SearchResult3.Song) {
 	case 0:
-		return "", nil
+		return "", fmt.Errorf("no results found for %s", searchQuery)
 	case 1:
 		return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
 	default:
@@ -105,7 +105,7 @@ func searchTrack(cfg Config, track Track) (string, error) {
 				return song.ID, nil
 			}
 		}
-		return "", nil
+		return "", fmt.Errorf("multiple songs found for: %s, but titles do not match with the actual track", searchQuery)
 	}
 }
 
@@ -117,6 +117,7 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 	for _, track := range tracks { // Get track IDs from app and format them
 		ID, err := searchTrack(cfg, track)
 		if ID  == "" || err != nil  { // if ID is empty, skip song
+			debug.Debug(err.Error())
 			continue
 		}
 		trackIDs += "&songId="+ID
