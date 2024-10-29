@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"explo/debug"
 	"fmt"
 	"log"
 	"net/url"
-	"explo/debug"
+	"strings"
 )
 
 type Paths []struct {
@@ -132,7 +133,7 @@ func getJfSongs(cfg Config, files []string) ([]string, error) { // Gets all file
 
 	for _, file := range files {
 		for _, item := range results.Items {
-			if fmt.Sprintf("%s%s.mp3", cfg.Youtube.DownloadDir, file) == item.Path {
+			if strings.Contains(item.Path, fmt.Sprintf("%s.mp3", file)) {
 				songIDs = append(songIDs, item.ID)
 			}
 		}
