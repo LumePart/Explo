@@ -74,11 +74,13 @@ func (cfg *Credentials) genToken() {
 
 }
 
-func searchTrack(cfg Config, track string) (string, error) {
+func searchTrack(cfg Config, track Track) (string, error) {
 
-    cleanedTrack := url.QueryEscape(track)
+	searchQuery := fmt.Sprintf("%s %s %s", track.Title, track.Artist, track.Album)
+
+    cleanedQuery := url.QueryEscape(searchQuery)
     
-    reqParam := fmt.Sprintf("search3?query=%s&f=json", cleanedTrack)
+    reqParam := fmt.Sprintf("search3?query=%s&f=json", cleanedQuery)
 	
     body, err := subsonicRequest(reqParam, cfg)
     if err != nil {
@@ -91,10 +93,20 @@ func searchTrack(cfg Config, track string) (string, error) {
         return "", err
     }
     
-    if len(resp.SubsonicResponse.SearchResult3.Song) < 1 {
-        return "", nil
-    }
-    return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
+
+	switch len(resp.SubsonicResponse.SearchResult3.Song) {
+	case 0:
+		return "", nil
+	case 1:
+		return resp.SubsonicResponse.SearchResult3.Song[0].ID, nil
+	default:
+		for _, song := range resp.SubsonicResponse.SearchResult3.Song {
+			if song.Title == track.Title {
+				return song.ID, nil
+			}
+		}
+		return "", nil
+	}
 }
 
 func subsonicPlaylist(cfg Config, tracks []Track) error {
@@ -102,8 +114,8 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 	var trackIDs string
 	var reqParam string
 
-	for _, song := range tracks { // Get track IDs from app and format them
-		ID, err := searchTrack(cfg, fmt.Sprintf("%s %s %s", song.Title, song.Artist, song.Album))
+	for _, track := range tracks { // Get track IDs from app and format them
+		ID, err := searchTrack(cfg, track)
 		if ID  == "" || err != nil  { // if ID is empty, skip song
 			continue
 		}
