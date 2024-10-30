@@ -7,4 +7,4 @@ services:
       - /path/to/musiclibrary/explo:DOWNLOAD_DIR # Should be in the same path you have your music system pointed to, DOWNLOAD_DIR has to be same as in local.env
       # - /path/to/playlist:/path/to/playlists # for MPD. Should be 1:1 with PLAYLIST_DIR in local.env (e.g /mpd/playlists:/mpd/playlists) 
     environment:
-      - CRON_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight
+      - CRON_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight (UTC time)
