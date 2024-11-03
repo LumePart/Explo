@@ -117,7 +117,8 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 	_, err = io.Copy(file, stream)
 	if err != nil {
 		log.Printf("Failed to copy stream to file: %s", err.Error())
-		return fmt.Sprintf("%s-%s", s, a) // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
+		os.Remove(input)
+		return "" // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
@@ -133,8 +134,10 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
-		return fmt.Sprintf("%s-%s", s, a)
+		os.Remove(input)
+		return ""
 	}
+	os.Remove(input)
 	return fmt.Sprintf("%s-%s", s, a)
 	
 }

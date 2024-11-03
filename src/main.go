@@ -116,18 +116,6 @@ func fixDir(dir string) string {
 	return dir
 }
 
-func cleanUp(cfg Config, songs []string) { // Remove downloaded webms
-
-	for _, song := range songs {
-		path := fmt.Sprintf("%s%s.webm", cfg.Youtube.DownloadDir,song)
-		
-		err := os.Remove(path)
-		if err != nil {
-			log.Printf("failed to remove file: %s", err.Error())
-		}
-	}
-
-}
 
 func deleteSongs(cfg Youtube) { // Deletes all files if persist equals false
 	entries, err := os.ReadDir(cfg.DownloadDir)
@@ -256,22 +244,18 @@ func main() {
 		}
 	}
 
-	var files []string
 	var m3usongs []string
 	
 	for _, track := range tracks {
 		file := gatherVideo(cfg.Youtube, track)
-		files = append(files, file) // used for deleting .webms
-		if (track != Track{}) { // used for creating playlists
+		if (file != "") { // used for creating playlists
 			m3usongs = append(m3usongs, file)
 		}
-		if cfg.Listenbrainz.Discovery == "test" && (track != Track{}) {
+		if cfg.Listenbrainz.Discovery == "test" && (file != "") {
 			log.Println("using 'test' discovery method. Downloaded 1 song.")
 			break
 		}
 	}
-
-	cleanUp(cfg, files)
 	
 	err := createPlaylist(cfg, tracks, m3usongs)
 	if err != nil {
