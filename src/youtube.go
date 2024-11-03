@@ -117,7 +117,10 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 	_, err = io.Copy(file, stream)
 	if err != nil {
 		log.Printf("Failed to copy stream to file: %s", err.Error())
-		os.Remove(input)
+		err = os.Remove(input)
+		if err != nil {
+			log.Printf("failed to delete file: %s", err.Error())
+		}
 		return "" // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
@@ -134,10 +137,16 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
-		os.Remove(input)
+		err = os.Remove(input)
+		if err != nil {
+			log.Printf("failed to delete file: %s", err.Error())
+		}
 		return ""
 	}
-	os.Remove(input)
+	err = os.Remove(input)
+		if err != nil {
+			log.Printf("failed to delete file: %s", err.Error())
+		}
 	return fmt.Sprintf("%s-%s", s, a)
 	
 }
