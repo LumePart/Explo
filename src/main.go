@@ -248,10 +248,10 @@ func main() {
 	
 	for _, track := range tracks {
 		file := gatherVideo(cfg.Youtube, track)
-		if (file != "") { // used for creating playlists
+		if file != "" { // used for creating playlists
 			m3usongs = append(m3usongs, file)
 		}
-		if cfg.Listenbrainz.Discovery == "test" && (file != "") {
+		if cfg.Listenbrainz.Discovery == "test" && file != "" {
 			log.Println("using 'test' discovery method. Downloaded 1 song.")
 			break
 		}
