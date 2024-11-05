@@ -244,6 +244,8 @@ func main() {
 		}
 	}
 
+	tracks = checkTracks(cfg, tracks)
+
 	gatherVideos(cfg, tracks)
 	
 	err := createPlaylist(cfg, tracks)
