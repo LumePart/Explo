@@ -99,7 +99,7 @@ func getVideo(videoID string) (io.ReadCloser, error) { // gets video stream usin
 			
 }
 
-func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
+func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
 
 	defer stream.Close()
 	// Remove illegal characters for file naming
@@ -121,7 +121,7 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 		if err != nil {
 			log.Printf("failed to delete file: %s", err.Error())
 		}
-		return "" // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
+		return false // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
@@ -141,44 +141,63 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) string {
 		if err != nil {
 			log.Printf("failed to delete file: %s", err.Error())
 		}
-		return ""
+		return false
 	}
 	err = os.Remove(input)
 		if err != nil {
 			log.Printf("failed to delete file: %s", err.Error())
 		}
-	return fmt.Sprintf("%s-%s", s, a)
+	return true
 	
 }
 
-func gatherVideo(cfg Youtube, track Track) string {
+func gatherVideos(cfg Config, tracks []Track) {
+	for i := range tracks {
+		if !tracks[i].Present {
+			downloaded := gatherVideo(cfg.Youtube, tracks[i])
 
-	videos := queryYT(cfg, track)
-	id := getTopic(videos, track)
-
-	if id != "" {
-		stream, err := getVideo(id)
-		if stream != nil && err == nil {
-			file := saveVideo(cfg, track, stream)
-			return file
-		} else {
-			log.Printf("failed getting stream: %s", err.Error())
-		}
-	}
-	// if getting song from official channel fails, try getting from first available channel
-	for _, video := range videos.Items {
-		if filter(track, video.Snippet.Title) {
-		stream, err := getVideo(video.ID.VideoID)
-		if stream != nil && err == nil {
-			file := saveVideo(cfg, track, stream)
-			return file
-		} else {
-			log.Printf("failed getting stream: %s", err.Error())
-			continue
+				// If "test" discovery mode is enabled, download just one song and break
+				if cfg.Listenbrainz.Discovery == "test" && downloaded {
+					log.Println("Using 'test' discovery method. Downloaded 1 song.")
+					break
+			}
 		}
 	}
 }
-	return ""
+
+func gatherVideo(cfg Youtube, track Track) bool {
+	// Query YouTube for videos matching the track
+	videos := queryYT(cfg, track)
+	
+	// Try to get the video from the official or topic channel
+	if id := getTopic(videos, track); id != "" {
+		return fetchAndSaveVideo(cfg, track, id)
+			
+	}
+
+	// If official video isn't found, try the first suitable channel
+	for _, video := range videos.Items {
+		if filter(track, video.Snippet.Title) {
+			return fetchAndSaveVideo(cfg, track, video.ID.VideoID)
+		}
+	}
+
+	return false
+}
+
+func fetchAndSaveVideo(cfg Youtube, track Track, videoID string) bool {
+	stream, err := getVideo(videoID)
+	if err != nil {
+		log.Printf("failed getting stream for video ID %s: %s", videoID, err.Error())
+		return false
+	}
+	
+	if stream != nil {
+		return saveVideo(cfg, track, stream)
+	}
+	
+	log.Printf("stream was nil for video ID %s", videoID)
+	return false
 }
 
 func filter(track Track, videoTitle string) bool { // ignore artist lives or song remixes

@@ -100,6 +100,8 @@ type Track struct {
 	Album  string
 	Artist string
 	Title  string
+	File   string
+	Present bool
 }
 
 func getReccs(cfg Listenbrainz) []string {

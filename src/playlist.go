@@ -8,14 +8,14 @@ import (
 )
 
 
-func createM3U(cfg Config, name string, files []string) error {
+func createM3U(cfg Config, name string, tracks []Track) error {
 	f, err := os.OpenFile(cfg.PlaylistDir+name+".m3u", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
 
-	for _, file := range files {
-		fullFile := fmt.Sprintf("%s%s.mp3\n",cfg.Youtube.DownloadDir, file)
+	for _, track := range tracks {
+		fullFile := fmt.Sprintf("%s%s.mp3\n",cfg.Youtube.DownloadDir, track.File)
 		_, err := f.Write([]byte(fullFile))
 		if err != nil {
 			log.Printf("Failed to write song to file: %s", err.Error())
@@ -34,7 +34,23 @@ func (cfg *Config) getPlaylistName() {
 	cfg.PlaylistName = playlistName
 }
 
-func createPlaylist(cfg Config, tracks []Track, files []string) error {
+func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice with Present status
+	for i, track := range tracks {
+		var ID string
+		switch cfg.System {
+		case "subsonic":
+			ID, _ = searchTrack(cfg, track)
+		case "jellyfin":
+			ID, _ = getJfSongs(cfg, track)
+		}
+		if ID != "" {
+			tracks[i].Present = true
+		}
+	}
+	return tracks
+}
+
+func createPlaylist(cfg Config, tracks []Track) error {
 
 	if cfg.System == "" {
 		return fmt.Errorf("could not get music system")
@@ -62,13 +78,13 @@ func createPlaylist(cfg Config, tracks []Track, files []string) error {
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 
-		if err := createJfPlaylist(cfg, files); err != nil {
+		if err := createJfPlaylist(cfg, tracks); err != nil {
 			return fmt.Errorf("failed to create playlist: %s", err.Error())
 		}
 		return nil
 	case "mpd": 
 
-		if err := createM3U(cfg, cfg.PlaylistName, files); err != nil {
+		if err := createM3U(cfg, cfg.PlaylistName, tracks); err != nil {
 			return fmt.Errorf("failed to create M3U playlist: %s", err.Error())
 		}
 		return nil

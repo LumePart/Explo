@@ -113,13 +113,12 @@ func refreshJfLibrary(cfg Config) error {
 	return nil
 }
 
-func getJfSongs(cfg Config, files []string) ([]string, error) { // Gets all files in Explo library and filters out new ones
+func getJfSongs(cfg Config, track Track) (string, error) { // Gets all files in Explo library and filters out new ones
 	params := fmt.Sprintf("/Items?parentId=%s&fields=Path", cfg.Jellyfin.LibraryID)
-	var songIDs []string
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
-		return songIDs, fmt.Errorf("failed to find song: %s", err.Error())
+		return "", fmt.Errorf("failed to find song: %s", err.Error())
 	}
 
 	var results Audios
@@ -127,18 +126,15 @@ func getJfSongs(cfg Config, files []string) ([]string, error) { // Gets all file
 	err = json.Unmarshal(body, &results)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		return songIDs, fmt.Errorf("failed to unmarshal body: %s", err.Error())
+		return "", fmt.Errorf("failed to unmarshal body: %s", err.Error())
 	}
 
-
-	for _, file := range files {
-		for _, item := range results.Items {
-			if strings.Contains(item.Path, fmt.Sprintf("%s.mp3", file)) {
-				songIDs = append(songIDs, item.ID)
-			}
+	for _, item := range results.Items {
+		if strings.Contains(item.Path, track.File) {
+			return item.ID, nil
 		}
 	}
-	return songIDs, nil
+	return "", nil
 }
 
 func findJfPlaylist(cfg Config) (string, error) {
@@ -159,12 +155,17 @@ func findJfPlaylist(cfg Config) (string, error) {
 	return results.SearchHints[0].ID, nil
 }
 
-func createJfPlaylist(cfg Config, files []string) error {
+func createJfPlaylist(cfg Config, tracks []Track) error {
+	var songIDs []string
 	
-	songIDs, err := getJfSongs(cfg, files)
-	if err != nil {
-		return err
+	for _, track := range tracks {
+	songID, err := getJfSongs(cfg, track)
+	if songID == "" || err != nil {
+		debug.Debug(fmt.Sprintf("could not get %s", track.File))
+		continue
 	}
+	songIDs = append(songIDs, songID)
+}
 	
 	params := "/Playlists"
 
