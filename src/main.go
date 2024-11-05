@@ -232,10 +232,10 @@ func main() {
 		if err != nil {
 			log.Fatal(err.Error())
 		}
-		tracks = parseWeeklyExploration(id, cfg.Listenbrainz.SingleArtist)
+		tracks = parseWeeklyExploration(id, cfg.Youtube.Separator, cfg.Listenbrainz.SingleArtist)
 	} else {
 		mbids := getReccs(cfg.Listenbrainz)
-		tracks = getTracks(mbids, cfg.Listenbrainz.SingleArtist)
+		tracks = getTracks(mbids, cfg.Youtube.Separator, cfg.Listenbrainz.SingleArtist)
 	}
 
 	if !cfg.Persist { // delete songs and playlist before downloading new ones

@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"explo/debug"
 
@@ -102,12 +101,8 @@ func getVideo(videoID string) (io.ReadCloser, error) { // gets video stream usin
 func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
 
 	defer stream.Close()
-	// Remove illegal characters for file naming
-	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
-	s := re.ReplaceAllString(track.Title, cfg.Separator)
-	a := re.ReplaceAllString(track.Artist, cfg.Separator)
 
-	input := fmt.Sprintf("%s%s-%s.webm", cfg.DownloadDir,s, a)
+	input := fmt.Sprintf("%s%s.webm", cfg.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
 		log.Fatalf("Failed to create song file: %s", err.Error())
@@ -117,14 +112,11 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
 	_, err = io.Copy(file, stream)
 	if err != nil {
 		log.Printf("Failed to copy stream to file: %s", err.Error())
-		err = os.Remove(input)
-		if err != nil {
-			log.Printf("failed to delete file: %s", err.Error())
-		}
+		os.Remove(input)
 		return false // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
-	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s-%s.mp3", cfg.DownloadDir,s, a), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File), ffmpeg.KwArgs{
 			"map": "0:a",
 			"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
 			"loglevel": "error",
@@ -137,18 +129,11 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
 	err = cmd.Run()
 	if err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
-		err = os.Remove(input)
-		if err != nil {
-			log.Printf("failed to delete file: %s", err.Error())
-		}
+		os.Remove(input)
 		return false
 	}
-	err = os.Remove(input)
-		if err != nil {
-			log.Printf("failed to delete file: %s", err.Error())
-		}
+	os.Remove(input)
 	return true
-	
 }
 
 func gatherVideos(cfg Config, tracks []Track) {

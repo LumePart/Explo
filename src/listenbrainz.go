@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -129,7 +130,7 @@ func getReccs(cfg Listenbrainz) []string {
 	return mbids
 }
 
-func getTracks(mbids []string, singleArtist bool) []Track {
+func getTracks(mbids []string, seaparator string, singleArtist bool) []Track {
 	var tracks []Track
 	var recordings Recordings
 	str_mbids := strings.Join(mbids, ",")
@@ -166,6 +167,7 @@ func getTracks(mbids []string, singleArtist bool) []Track {
 			Album:  recording.Release.Name,
 			Artist: artist,
 			Title:  title,
+			File: getFilename(title, artist, seaparator),
 		})
 	}
 
@@ -200,7 +202,7 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
-func parseWeeklyExploration(identifier string, singleArtist bool) []Track {
+func parseWeeklyExploration(identifier, separator string, singleArtist bool) []Track {
 	var tracks []Track
 	var exploration Exploration
 
@@ -237,10 +239,22 @@ func parseWeeklyExploration(identifier string, singleArtist bool) []Track {
 			Album:  track.Album,
 			Artist: artist,
 			Title:  title,
+			File: getFilename(title, artist, separator),
+
 		})
 	}
 	return tracks
 
+}
+
+func getFilename(title, artist, separator string) string {
+
+	// Remove illegal characters for file naming
+	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
+	t := re.ReplaceAllString(title, separator)
+	a := re.ReplaceAllString(artist, separator)
+
+	return fmt.Sprintf("%s-%s",t,a)
 }
 
 func lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API requests
