@@ -113,7 +113,7 @@ func refreshJfLibrary(cfg Config) error {
 	return nil
 }
 
-func getJfSongs(cfg Config, track Track) (string, error) { // Gets all files in Explo library and filters out new ones
+func getJfSong(cfg Config, track Track) (string, error) { // Gets all files in Explo library and filters out new ones
 	params := fmt.Sprintf("/Items?parentId=%s&fields=Path", cfg.Jellyfin.LibraryID)
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
@@ -159,7 +159,7 @@ func createJfPlaylist(cfg Config, tracks []Track) error {
 	var songIDs []string
 	
 	for _, track := range tracks {
-	songID, err := getJfSongs(cfg, track)
+	songID, err := getJfSong(cfg, track)
 	if songID == "" || err != nil {
 		debug.Debug(fmt.Sprintf("could not get %s", track.File))
 		continue

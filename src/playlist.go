@@ -41,7 +41,7 @@ func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice 
 		case "subsonic":
 			ID, _ = searchTrack(cfg, track)
 		case "jellyfin":
-			ID, _ = getJfSongs(cfg, track)
+			ID, _ = getJfSong(cfg, track)
 		}
 		if ID != "" {
 			tracks[i].Present = true
