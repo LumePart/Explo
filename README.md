@@ -29,7 +29,7 @@ Explo offers two discovery modes:
 #### Docker
 
 1. Download [docker-compose.yaml](https://github.com/LumePart/Explo/blob/main/docker-compose.yaml) file to your system and configure volume mappings
-2. Make a ``local.env`` file in the same directory and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
+2. Make a ``local.env`` file in the directory defined in docker-compose and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
 3. Launch the container with `docker compose up -d`
 
 #### Binary
