@@ -1,6 +1,7 @@
 services:
   explo:
     image: ghcr.io/lumepart/explo:latest
+    restart: unless-stopped
     container_name: explo
     volumes:
       - /path/to/local.env:/opt/explo/local.env
