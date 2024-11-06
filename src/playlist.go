@@ -34,7 +34,7 @@ func (cfg *Config) getPlaylistName() {
 	cfg.PlaylistName = playlistName
 }
 
-func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice with Present status
+func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice with Present status and song ID (if available)
 	for i, track := range tracks {
 		var ID string
 		switch cfg.System {
@@ -45,6 +45,7 @@ func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice 
 		}
 		if ID != "" {
 			tracks[i].Present = true
+			tracks[i].ID = ID
 		}
 	}
 	return tracks

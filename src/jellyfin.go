@@ -159,13 +159,16 @@ func createJfPlaylist(cfg Config, tracks []Track) error {
 	var songIDs []string
 	
 	for _, track := range tracks {
-	songID, err := getJfSong(cfg, track)
-	if songID == "" || err != nil {
-		debug.Debug(fmt.Sprintf("could not get %s", track.File))
-		continue
+		if track.ID == "" {
+			songID, err := getJfSong(cfg, track)
+			if songID == "" || err != nil {
+				debug.Debug(fmt.Sprintf("could not get %s", track.File))
+				continue
+			}
+			track.ID = songID
+		}
+		songIDs = append(songIDs, track.ID)
 	}
-	songIDs = append(songIDs, songID)
-}
 	
 	params := "/Playlists"
 

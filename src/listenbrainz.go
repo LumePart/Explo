@@ -99,6 +99,7 @@ type Exploration struct {
 
 type Track struct {
 	Album  string
+	ID string
 	Artist string
 	Title  string
 	File   string

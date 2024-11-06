@@ -115,13 +115,17 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 	var reqParam string
 
 	for _, track := range tracks { // Get track IDs from app and format them
-		ID, err := searchTrack(cfg, track)
-		if ID  == "" || err != nil  { // if ID is empty, skip song
-			debug.Debug(err.Error())
-			continue
+		if track.ID == "" {
+			songID, err := searchTrack(cfg, track)
+			if songID  == "" || err != nil  { // if ID is empty, skip song
+				debug.Debug(fmt.Sprintf("could not get %s", track.File))
+				continue
+			}
+			track.ID = songID
 		}
-		trackIDs += "&songId="+ID
+		trackIDs += "&songId="+track.ID
 	}
+	
 	reqParam = fmt.Sprintf("createPlaylist?name=%s%s&f=json", cfg.PlaylistName, trackIDs)
 	
 	_, err := subsonicRequest(reqParam, cfg)
