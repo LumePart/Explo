@@ -46,7 +46,7 @@ type Jellyfin struct {
 
 type Plex struct {
 	LibraryName string `env:"LIBRARY_NAME"`
-	LibraryID int `env:"LIBRARY_ID"`
+	LibraryID *float64 `env:"LIBRARY_ID"`
 }
 
 type Subsonic struct {

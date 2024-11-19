@@ -79,7 +79,7 @@ func (cfg *Credentials) getPlexAuth(ctx context.Context, client *plexgo.PlexAPI)
 	cfg.APIKey = auth.AuthToken
 }
 
-func getLibrary(ctx context.Context, cfg Plex, client *plexgo.PlexAPI) (*float64, error) {
+func (cfg *Plex) getPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) error {
 	var libraries Libraries
 	err := callPlex(ctx, func(ctx context.Context) (*http.Response, error) {
 		res, err := client.Library.GetAllLibraries(ctx)
@@ -90,12 +90,12 @@ func getLibrary(ctx context.Context, cfg Plex, client *plexgo.PlexAPI) (*float64
 	}, &libraries)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch libraries: %s", err.Error())
+		return fmt.Errorf("failed to fetch libraries: %s", err.Error())
 	}
 	for _, library := range libraries.MediaContainer.Library {
 		if cfg.LibraryName == library.Title {
-			return plexgo.Float64(library.Location[0].ID), nil
+			cfg.LibraryID = plexgo.Float64(library.Location[0].ID)
 		}
 	}
-	return nil, fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.LibraryName)
+	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.LibraryName)
 }
