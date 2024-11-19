@@ -5,6 +5,7 @@ go 1.21
 toolchain go1.21.6
 
 require (
+	github.com/LukeHagar/plexgo v0.16.1
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/kkdai/youtube/v2 v2.10.1
 	github.com/u2takey/ffmpeg-go v0.5.0
@@ -12,7 +13,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
-	github.com/LukeHagar/plexgo v0.16.1 // indirect
 	github.com/aws/aws-sdk-go v1.38.20 // indirect
 	github.com/bitly/go-simplejson v0.5.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
