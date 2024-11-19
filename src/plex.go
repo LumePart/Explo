@@ -36,7 +36,7 @@ func parsePlexResp[T any](body io.ReadCloser, target *T) error {
 	defer body.Close()
 	data, err := io.ReadAll(body)
 	if err != nil {
-		return fmt.Errorf("error reading response body: %w", err)
+		return fmt.Errorf("error reading response body: %s", err.Error())
 	}
 	if err := json.Unmarshal(data, target); err != nil {
 		return fmt.Errorf("error unmarshaling response body: %w", err)
@@ -47,7 +47,7 @@ func parsePlexResp[T any](body io.ReadCloser, target *T) error {
 func callPlex[T any](ctx context.Context, apiCall func(ctx context.Context) (*http.Response, error), target *T) error { // generic function to parse multiple struct types
 	res, err := apiCall(ctx)
 	if err != nil {
-		return fmt.Errorf("API call failed: %w", err)
+		return fmt.Errorf("API call failed: %s", err.Error())
 	}
 	if res == nil || res.Body == nil {
 		return fmt.Errorf("empty response from API")
@@ -73,7 +73,7 @@ func (cfg *Credentials) getPlexAuth(ctx context.Context, client *plexgo.PlexAPI)
 	}, auth)
 
 	if err != nil {
-		log.Fatalf("Failed to authenticate: %v", err)
+		log.Fatalf("Failed to authenticate: %s", err.Error())
 	}
 
 	cfg.APIKey = auth.AuthToken
@@ -90,7 +90,7 @@ func getLibrary(ctx context.Context, cfg Plex, client *plexgo.PlexAPI) (*float64
 	}, &libraries)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch libraries: %w", err)
+		return nil, fmt.Errorf("failed to fetch libraries: %s", err.Error())
 	}
 	for _, library := range libraries.MediaContainer.Library {
 		if cfg.LibraryName == library.Title {
