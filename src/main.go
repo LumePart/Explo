@@ -15,6 +15,7 @@ import (
 type Config struct {
 	Subsonic Subsonic
 	Jellyfin Jellyfin
+	Plex Plex
 	Youtube Youtube
 	Listenbrainz Listenbrainz
 	Creds Credentials
@@ -41,6 +42,11 @@ type Jellyfin struct {
 	Source string `env:"JELLYFIN_SOURCE"`
 	LibraryName string `env:"LIBRARY_NAME" env-default:"Explo"`
 	LibraryID string `env:"LIBRARY_ID"`
+}
+
+type Plex struct {
+	LibraryName string `env:"LIBRARY_NAME"`
+	LibraryID int `env:"LIBRARY_ID"`
 }
 
 type Subsonic struct {

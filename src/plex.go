@@ -16,6 +16,22 @@ type Auth struct {
 	AuthToken         string `json:"authToken"`
 }
 
+type Libraries struct {
+	MediaContainer struct {
+		Size      int    `json:"size"`
+		AllowSync bool   `json:"allowSync"`
+		Title1    string `json:"title1"`
+		Library []struct {
+			Title 			 string `json:"title"`
+			Key              string `json:"key"`
+			Location         []struct {
+				ID   float64    `json:"id"`
+				Path string `json:"path"`
+			} `json:"Location"`
+		} `json:"Directory"`
+	} `json:"MediaContainer"`
+}
+
 func parsePlexResp[T any](body io.ReadCloser, target *T) error {
 	defer body.Close()
 	data, err := io.ReadAll(body)
@@ -61,4 +77,25 @@ func (cfg *Credentials) getPlexAuth(ctx context.Context, client *plexgo.PlexAPI)
 	}
 
 	cfg.APIKey = auth.AuthToken
+}
+
+func getLibrary(ctx context.Context, cfg Plex, client *plexgo.PlexAPI) (*float64, error) {
+	var libraries Libraries
+	err := callPlex(ctx, func(ctx context.Context) (*http.Response, error) {
+		res, err := client.Library.GetAllLibraries(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return res.RawResponse, nil
+	}, &libraries)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch libraries: %w", err)
+	}
+	for _, library := range libraries.MediaContainer.Library {
+		if cfg.LibraryName == library.Title {
+			return plexgo.Float64(library.Location[0].ID), nil
+		}
+	}
+	return nil, fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.LibraryName)
 }
