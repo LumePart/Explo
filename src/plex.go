@@ -23,7 +23,7 @@ type Libraries struct {
 		Title1    string `json:"title1"`
 		Library []struct {
 			Title 			 string `json:"title"`
-			Key              string `json:"key"`
+			Key              json.Number `json:"key"`
 			Location         []struct {
 				ID   float64    `json:"id"`
 				Path string `json:"path"`
@@ -94,8 +94,16 @@ func (cfg *Plex) getPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) err
 	}
 	for _, library := range libraries.MediaContainer.Library {
 		if cfg.LibraryName == library.Title {
-			cfg.LibraryID = plexgo.Float64(library.Location[0].ID)
+			key, err := library.Key.Float64()
+			if err != nil {
+				fmt.Errorf("failed to get library number: %s", err.Error())
+			}
+			cfg.LibraryID = plexgo.Float64(key)
 		}
 	}
 	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.LibraryName)
+}
+
+func refreshPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) error {
+
 }
