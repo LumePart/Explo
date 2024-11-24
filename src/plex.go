@@ -1,19 +1,28 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
-	"fmt"
 	"net/http"
-
-	"github.com/LukeHagar/plexgo"
-	"github.com/LukeHagar/plexgo/models/operations"
 )
 
-type Auth struct {
-	AuthToken         string `json:"authToken"`
+type LoginPayload struct {
+	User LoginUser `json:"user"`
+}
+
+type LoginUser struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	User struct {
+		AuthToken string `json:"authToken"`
+	} `json:"user"`
 }
 
 type Libraries struct {
@@ -32,7 +41,13 @@ type Libraries struct {
 	} `json:"MediaContainer"`
 }
 
-func parsePlexResp[T any](body io.ReadCloser, target *T) error {
+func (cfg *Credentials) PlexHeader() {
+	cfg.Headers = make(map[string]string)
+
+	cfg.Headers["X-Plex-Identifier"] = "explo"
+}
+
+/* func parsePlexResp[T any](body io.ReadCloser, target *T) error { // Could be used globally (not just for plex)
 	defer body.Close()
 	data, err := io.ReadAll(body)
 	if err != nil {
@@ -42,41 +57,52 @@ func parsePlexResp[T any](body io.ReadCloser, target *T) error {
 		return fmt.Errorf("error unmarshaling response body: %w", err)
 	}
 	return nil
-}
+} */
 
-func callPlex[T any](ctx context.Context, apiCall func(ctx context.Context) (*http.Response, error), target *T) error { // generic function to parse multiple struct types
-	res, err := apiCall(ctx)
-	if err != nil {
-		return fmt.Errorf("API call failed: %s", err.Error())
-	}
-	if res == nil || res.Body == nil {
-		return fmt.Errorf("empty response from API")
-	}
-	return parsePlexResp(res.Body, target)
-}
-
-func (cfg *Credentials) getPlexAuth(ctx context.Context, client *plexgo.PlexAPI) {
-	request := operations.PostUsersSignInDataRequest{
-		RequestBody: &operations.PostUsersSignInDataRequestBody{
+func (cfg *Credentials) getPlexAuth() { // Get user token from plex
+	payload := LoginPayload{
+		User: LoginUser{
 			Login:    cfg.User,
 			Password: cfg.Password,
 		},
 	}
 
-	auth := &Auth{}
-	err := callPlex(ctx, func(ctx context.Context) (*http.Response, error) {
-		resp, err := client.Authentication.PostUsersSignInData(ctx, request)
-		if err != nil {
-			return nil, err
-		}
-		return resp.RawResponse, nil
-	}, auth)
-
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Fatalf("Failed to authenticate: %s", err.Error())
+		log.Fatalf("failed to marshal payload: %s", err.Error())
 	}
 
-	cfg.APIKey = auth.AuthToken
+
+	body, err := makeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), cfg.Headers)
+	
+	if err != nil {
+		log.Fatalf("failed to make request to plex: %s", err.Error())
+	}
+
+	var auth LoginResponse
+	err = json.Unmarshal(body, &auth)
+	if err != nil {
+		log.Fatalf("failed to unmarshal response: %s", err.Error())
+	}
+
+	cfg.APIKey = auth.User.AuthToken
+}
+
+func getPlexLibraries(cfg Config) (Libraries, error) {
+
+	params := fmt.Sprintf("/library/sections/?X-Plex-Token=%s", cfg.Creds.APIKey)
+
+	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return Libraries{}, fmt.Errorf("failed to make request to plex: %s", err.Error())
+	}
+
+	var libraries Libraries
+	err = json.Unmarshal(body, &libraries)
+	if err != nil {
+		return Libraries{}, fmt.Errorf("failed to unmarshal response: %s", err.Error())
+	}
+	return libraries, nil
 }
 
 func (cfg *Plex) getPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) error {
@@ -102,8 +128,4 @@ func (cfg *Plex) getPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) err
 		}
 	}
 	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.LibraryName)
-}
-
-func refreshPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) error {
-
 }

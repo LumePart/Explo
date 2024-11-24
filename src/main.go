@@ -159,8 +159,8 @@ func (cfg *Config) detectSystem() {
 
 		}
 		log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
-}
-log.Printf("using %s", cfg.System)
+	}
+	log.Printf("using %s", cfg.System)
 }
 
 func (cfg *Config) systemSetup() { // Verifies variables and does setup
