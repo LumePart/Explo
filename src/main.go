@@ -198,6 +198,7 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 		return nil, fmt.Errorf("failed to initialize request: %s", err.Error())
 	}
 	req.Header.Add("Content-Type","application/json")
+	req.Header.Add("Accept", "application/json")
 
 	for key, value := range headers {
 		req.Header.Add(key,value)
