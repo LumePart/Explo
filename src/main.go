@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"explo/debug"
 	"fmt"
 	"io"
@@ -248,8 +247,7 @@ func main() {
 	}
 
 	tracks = checkTracks(cfg, tracks)
-	var ctx context.Context
-	gatherVideos(ctx, cfg, tracks)
+	gatherVideos(cfg, tracks)
 	
 	err := createPlaylist(cfg, tracks)
 	if err != nil {

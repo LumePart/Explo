@@ -125,7 +125,9 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 	return true
 }
 
-func gatherVideos(ctx context.Context, cfg Config, tracks []Track) {
+func gatherVideos(cfg Config, tracks []Track) {
+	ctx := context.Background()
+
 	for i := range tracks {
 		if !tracks[i].Present {
 			downloaded := gatherVideo(ctx, cfg.Youtube, tracks[i])
