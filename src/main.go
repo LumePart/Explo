@@ -1,15 +1,17 @@
 package main
 
 import (
+	"context"
+	"explo/debug"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"strings"
-	"io"
+
 	"github.com/ilyakaznacheev/cleanenv"
-	"net/http"
-	"explo/debug"
 )
 
 type Config struct {
@@ -56,6 +58,7 @@ type Youtube struct {
 	DownloadDir string `env:"DOWNLOAD_DIR"`
 	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
 	FfmpegPath string `env:"FFMPEG_PATH"`
+	YtdlpPath string `env:"YTDLP_PATH"`
 }
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
@@ -245,8 +248,8 @@ func main() {
 	}
 
 	tracks = checkTracks(cfg, tracks)
-
-	gatherVideos(cfg, tracks)
+	var ctx context.Context
+	gatherVideos(ctx, cfg, tracks)
 	
 	err := createPlaylist(cfg, tracks)
 	if err != nil {
