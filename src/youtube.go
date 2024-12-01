@@ -76,8 +76,9 @@ func getVideo(ctx context.Context, cfg Youtube, videoID string) (*goutubedl.Down
 
 	result, err := goutubedl.New(ctx, videoID, goutubedl.Options{})
 	if err != nil {
-		log.Println("could not create URL for video download, trying next one")
+		return nil, fmt.Errorf("could not create URL for video download: %s", err.Error())
 	}
+	
 	downloadResult, err := result.Download(ctx, "bestaudio")
 	if err != nil {
 		return nil, fmt.Errorf("could not download video: %s", err.Error())
