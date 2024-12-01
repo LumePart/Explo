@@ -78,7 +78,7 @@ func getVideo(ctx context.Context, cfg Youtube, videoID string) (*goutubedl.Down
 	if err != nil {
 		return nil, fmt.Errorf("could not create URL for video download: %s", err.Error())
 	}
-	
+
 	downloadResult, err := result.Download(ctx, "bestaudio")
 	if err != nil {
 		return nil, fmt.Errorf("could not download video: %s", err.Error())
@@ -106,7 +106,7 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 		return false // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
-	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input, ffmpeg.KwArgs{
 			"c": "copy",
 			"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
 			"loglevel": "error",
