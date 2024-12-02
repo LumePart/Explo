@@ -106,11 +106,11 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 		return false // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
 	}
 
-	cmd := ffmpeg.Input(input, ffmpeg.KwArgs{
-			"c": "copy",
-			"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
-			"loglevel": "error",
-		}).OverWriteOutput().ErrorToStdOut()
+	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File), ffmpeg.KwArgs{
+		"map": "0:a",
+		"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
+		"loglevel": "error",
+	}).OverWriteOutput().ErrorToStdOut()
 
 	if cfg.FfmpegPath != "" {
 		cmd.SetFfmpegPath(cfg.FfmpegPath)
