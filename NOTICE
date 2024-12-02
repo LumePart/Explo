@@ -1,0 +1,12 @@
+NOTICE
+------
+This project includes the following third-party libraries:
+
+- **ffmpeg-go (https://github.com/u2takey/ffmpeg-go)**
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+
+- **goutubedl (https://github.com/wader/goutubedl)**
+  Licensed under the MIT License.
+
+- **godotenv (https://github.com/joho/godotenv)**
+  Licensed under the MIT License.
