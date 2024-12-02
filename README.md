@@ -47,7 +47,15 @@ Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrai
 ```
 **PS!** To test if everything is correct change ``LISTENBRAINZ_DISCOVERY`` to ``test`` and run the program manually
 
+## Acknowledgements
 
+Explo uses the following 3rd-party libraries:
+
+- [ffmpeg-go](https://github.com/u2takey/ffmpeg-go): A Go wrapper for FFmpeg.
+
+- [goutubedl](github.com/wader/goutubedl): A Go wrapper for yt-dlp.
+
+- [godotenv](https://github.com/joho/godotenv): A library for loading configuration from .env files.
 
 ## Contributing
 
