@@ -92,7 +92,7 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 
 	defer stream.Close()
 
-	input := fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File)
+	input := fmt.Sprintf("%s%s_TEMP.mp3", cfg.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
 		log.Fatalf("Failed to create song file: %s", err.Error())
