@@ -107,7 +107,7 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File), ffmpeg.KwArgs{
-		"c": "copy",
+		"map": "0:a",
 		"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
 		"loglevel": "error",
 	}).OverWriteOutput().ErrorToStdOut()
