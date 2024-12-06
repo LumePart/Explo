@@ -257,7 +257,7 @@ func parseWeeklyExploration(identifier, separator string, singleArtist bool) []T
 func getFilename(title, artist, separator string) string {
 
 	// Remove illegal characters for file naming
-	re := regexp.MustCompile("[^a-zA-Z0-9._]+")
+	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
 	t := re.ReplaceAllString(title, separator)
 	a := re.ReplaceAllString(artist, separator)
 
