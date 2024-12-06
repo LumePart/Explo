@@ -12,7 +12,7 @@ RUN GOOS=linux GOARCH=${TARGETARCH} go build -o explo ./src/
 
 FROM alpine
 
-RUN apk add --no-cache libc6-compat ffmpeg
+RUN apk add --no-cache libc6-compat ffmpeg yt-dlp
 
 WORKDIR /opt/explo/
 COPY ./docker/start.sh /start.sh

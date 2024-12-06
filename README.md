@@ -20,7 +20,6 @@ Explo offers two discovery modes:
 ### Prerequisites
 
 - A self-hosted music system like Jellyfin, MPD, or any Subsonic-API compatible system (e.g., Navidrome, Airsonic).
-- ffmpeg installed on server
 - A [YouTube Data API](https://developers.google.com/youtube/v3/getting-started) key.
 - [ListenBrainz scrobbling](https://listenbrainz.org/add-data/) set up
 
@@ -34,8 +33,10 @@ Explo offers two discovery modes:
 
 #### Binary
 
+Make sure ffmpeg and yt-dlp are installed on the system and accessible via $PATH. Alternatively, you can specify their paths in the local.env file.
+
 1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) and ensure it's executable
-2. Make a ``local.env`` file in the same directory and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
+2. Make a ``local.env`` file in the same directory as the binary and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
 3. Add a Cron job to run Explo weekly:
 ```bash
 crontab -e
@@ -45,6 +46,16 @@ Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrai
 15 0 * * 2 cd /path/to/explo && ./explo-linux-amd64
 ```
 **PS!** To test if everything is correct change ``LISTENBRAINZ_DISCOVERY`` to ``test`` and run the program manually
+
+## Acknowledgements
+
+Explo uses the following 3rd-party libraries:
+
+- [ffmpeg-go](https://github.com/u2takey/ffmpeg-go): A Go wrapper for FFmpeg.
+
+- [goutubedl](github.com/wader/goutubedl): A Go wrapper for yt-dlp.
+
+- [godotenv](https://github.com/joho/godotenv): A library for loading configuration from .env files.
 
 ## Contributing
 

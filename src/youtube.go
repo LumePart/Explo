@@ -1,17 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"explo/debug"
 	"fmt"
 	"io"
 	"log"
 	"net/url"
 	"os"
 	"strings"
-	"explo/debug"
 
-	"github.com/kkdai/youtube/v2"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
+	"github.com/wader/goutubedl"
 )
 
 type Videos struct {
@@ -67,42 +68,31 @@ func getTopic(videos Videos, track Track) string { // gets song under artist top
 	return ""
 }
 
-func getVideo(videoID string) (io.ReadCloser, error) { // gets video stream using kddai's youtube package
+func getVideo(ctx context.Context, cfg Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using kddai's youtube package
 
-	yt_client := youtube.Client{}
-	var format youtube.Format
-	
-	video, err := yt_client.GetVideo(videoID)
+	if cfg.YtdlpPath != "" {
+		goutubedl.Path = cfg.YtdlpPath
+	}
+
+	result, err := goutubedl.New(ctx, videoID, goutubedl.Options{})
 	if err != nil {
-		log.Println("could not get video, trying next one")
-	}
-	formats := video.Formats.WithAudioChannels() // Get video with audio
-
-	switch len(formats) {
-	case 0:
-		log.Println("format list is empty, getting next video...")
-		return nil, err
-	case 1, 2:
-		format = formats[0]
-	default: // if video has audio only format use that (to save temp space)
-		format = formats[2]
+		return nil, fmt.Errorf("could not create URL for video download: %s", err.Error())
 	}
 
-	stream, _, err := yt_client.GetStream(video, &format)
-
+	downloadResult, err := result.Download(ctx, "bestaudio")
 	if err != nil {
-		log.Printf("Failed to get video stream: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("could not download video: %s", err.Error())
 	}
-	return stream, nil
+
+	return downloadResult, nil
 			
 }
 
-func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
+func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool {
 
 	defer stream.Close()
 
-	input := fmt.Sprintf("%s%s.webm", cfg.DownloadDir, track.File)
+	input := fmt.Sprintf("%s%s_TEMP.mp3", cfg.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
 		log.Fatalf("Failed to create song file: %s", err.Error())
@@ -117,10 +107,10 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File), ffmpeg.KwArgs{
-			"map": "0:a",
-			"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
-			"loglevel": "error",
-		}).OverWriteOutput().ErrorToStdOut()
+		"map": "0:a",
+		"metadata": []string{"artist="+track.Artist,"title="+track.Title,"album="+track.Album},
+		"loglevel": "error",
+	}).OverWriteOutput().ErrorToStdOut()
 
 	if cfg.FfmpegPath != "" {
 		cmd.SetFfmpegPath(cfg.FfmpegPath)
@@ -137,9 +127,11 @@ func saveVideo(cfg Youtube, track Track, stream io.ReadCloser) bool {
 }
 
 func gatherVideos(cfg Config, tracks []Track) {
+	ctx := context.Background()
+
 	for i := range tracks {
 		if !tracks[i].Present {
-			downloaded := gatherVideo(cfg.Youtube, tracks[i])
+			downloaded := gatherVideo(ctx, cfg.Youtube, tracks[i])
 
 				// If "test" discovery mode is enabled, download just one song and break
 				if cfg.Listenbrainz.Discovery == "test" && downloaded {
@@ -150,28 +142,28 @@ func gatherVideos(cfg Config, tracks []Track) {
 	}
 }
 
-func gatherVideo(cfg Youtube, track Track) bool {
+func gatherVideo(ctx context.Context, cfg Youtube, track Track) bool {
 	// Query YouTube for videos matching the track
 	videos := queryYT(cfg, track)
 	
 	// Try to get the video from the official or topic channel
 	if id := getTopic(videos, track); id != "" {
-		return fetchAndSaveVideo(cfg, track, id)
+		return fetchAndSaveVideo(ctx, cfg, track, id)
 			
 	}
 
 	// If official video isn't found, try the first suitable channel
 	for _, video := range videos.Items {
 		if filter(track, video.Snippet.Title) {
-			return fetchAndSaveVideo(cfg, track, video.ID.VideoID)
+			return fetchAndSaveVideo(ctx, cfg, track, video.ID.VideoID)
 		}
 	}
 
 	return false
 }
 
-func fetchAndSaveVideo(cfg Youtube, track Track, videoID string) bool {
-	stream, err := getVideo(videoID)
+func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track Track, videoID string) bool {
+	stream, err := getVideo(ctx, cfg, videoID)
 	if err != nil {
 		log.Printf("failed getting stream for video ID %s: %s", videoID, err.Error())
 		return false
