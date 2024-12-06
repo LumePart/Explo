@@ -53,7 +53,7 @@ Explo uses the following 3rd-party libraries:
 
 - [ffmpeg-go](https://github.com/u2takey/ffmpeg-go): A Go wrapper for FFmpeg.
 
-- [goutubedl](github.com/wader/goutubedl): A Go wrapper for yt-dlp.
+- [goutubedl](https://github.com/wader/goutubedl): A Go wrapper for yt-dlp.
 
 - [godotenv](https://github.com/joho/godotenv): A library for loading configuration from .env files.
 
