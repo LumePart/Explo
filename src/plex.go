@@ -2,12 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 )
 
 type LoginPayload struct {
@@ -32,9 +29,9 @@ type Libraries struct {
 		Title1    string `json:"title1"`
 		Library []struct {
 			Title 			 string `json:"title"`
-			Key              json.Number `json:"key"`
+			Key              string `json:"key"`
 			Location         []struct {
-				ID   float64    `json:"id"`
+				ID   string    `json:"id"`
 				Path string `json:"path"`
 			} `json:"Location"`
 		} `json:"Directory"`
@@ -78,7 +75,6 @@ func (cfg *Credentials) getPlexAuth() { // Get user token from plex
 }
 
 func getPlexLibraries(cfg Config) (Libraries, error) {
-
 	params := fmt.Sprintf("/library/sections/?X-Plex-Token=%s", cfg.Creds.APIKey)
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
@@ -87,34 +83,25 @@ func getPlexLibraries(cfg Config) (Libraries, error) {
 	}
 
 	var libraries Libraries
-	err = json.Unmarshal(body, &libraries)
+	err = parseResp(body, &libraries)
 	if err != nil {
-		return Libraries{}, fmt.Errorf("failed to unmarshal response: %s", err.Error())
+		log.Fatalf("getPlexLibraries(): %s", err.Error())
 	}
 	return libraries, nil
 }
 
-func (cfg *Plex) getPlexLibrary(ctx context.Context, client *plexgo.PlexAPI) error {
-	var libraries Libraries
-	err := callPlex(ctx, func(ctx context.Context) (*http.Response, error) {
-		res, err := client.Library.GetAllLibraries(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return res.RawResponse, nil
-	}, &libraries)
-
+func (cfg *Config) getPlexLibrary() error {
+	libraries, err := getPlexLibraries(*cfg)
 	if err != nil {
 		return fmt.Errorf("failed to fetch libraries: %s", err.Error())
 	}
+
 	for _, library := range libraries.MediaContainer.Library {
-		if cfg.LibraryName == library.Title {
-			key, err := library.Key.Float64()
-			if err != nil {
-				fmt.Errorf("failed to get library number: %s", err.Error())
-			}
-			cfg.LibraryID = plexgo.Float64(key)
+		if cfg.Plex.LibraryName == library.Title {
+			cfg.Plex.LibraryID = library.Key
+			return nil
 		}
 	}
-	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.LibraryName)
+
+	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.Plex.LibraryName)
 }
