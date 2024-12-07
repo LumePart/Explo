@@ -31,7 +31,7 @@ type Libraries struct {
 			Title 			 string `json:"title"`
 			Key              string `json:"key"`
 			Location         []struct {
-				ID   string    `json:"id"`
+				ID   int    `json:"id"`
 				Path string `json:"path"`
 			} `json:"Location"`
 		} `json:"Directory"`
@@ -41,7 +41,7 @@ type Libraries struct {
 func (cfg *Credentials) PlexHeader() {
 	cfg.Headers = make(map[string]string)
 
-	cfg.Headers["X-Plex-Identifier"] = "explo"
+	cfg.Headers["X-Plex-Client-Identifier"] = "explo"
 }
 
 
@@ -104,4 +104,14 @@ func (cfg *Config) getPlexLibrary() error {
 	}
 
 	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.Plex.LibraryName)
+}
+
+func refreshPlexLibrary(cfg Config) error {
+	params := fmt.Sprintf("/library/sections/%s/refresh?X-Plex-Token=%s", cfg.Plex.LibraryID, cfg.Creds.APIKey)
+
+	_, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return fmt.Errorf("refreshPlexLibrary(): %s", err.Error())
+	}
+	return nil
 }
