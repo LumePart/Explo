@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"encoding/json"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -222,6 +223,18 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 	}
 
 	return body, nil
+}
+
+func parseResp[T any](body io.ReadCloser, target *T) error {
+	defer body.Close()
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %s", err.Error())
+	}
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("error unmarshaling response body: %w", err)
+	}
+	return nil
 }
 
 

@@ -47,17 +47,6 @@ func (cfg *Credentials) PlexHeader() {
 	cfg.Headers["X-Plex-Identifier"] = "explo"
 }
 
-/* func parsePlexResp[T any](body io.ReadCloser, target *T) error { // Could be used globally (not just for plex)
-	defer body.Close()
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return fmt.Errorf("error reading response body: %s", err.Error())
-	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return fmt.Errorf("error unmarshaling response body: %w", err)
-	}
-	return nil
-} */
 
 func (cfg *Credentials) getPlexAuth() { // Get user token from plex
 	payload := LoginPayload{
