@@ -69,9 +69,9 @@ func (cfg *Credentials) getPlexAuth() { // Get user token from plex
 	}
 
 	var auth LoginResponse
-	err = json.Unmarshal(body, &auth)
+	err = parseResp(body, &auth)
 	if err != nil {
-		log.Fatalf("failed to unmarshal response: %s", err.Error())
+		log.Fatalf("getPlexAuth(): %s", err.Error())
 	}
 
 	cfg.APIKey = auth.User.AuthToken
