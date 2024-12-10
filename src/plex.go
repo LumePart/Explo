@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 )
 
 type LoginPayload struct {
@@ -35,6 +36,36 @@ type Libraries struct {
 				Path string `json:"path"`
 			} `json:"Location"`
 		} `json:"Directory"`
+	} `json:"MediaContainer"`
+}
+
+type PlexSearch struct {
+	MediaContainer struct {
+		Size         int `json:"size"`
+		SearchResult []struct {
+			Score    float64 `json:"score"`
+			Metadata struct {
+				LibrarySectionTitle  string `json:"librarySectionTitle"`
+				Key                  string `json:"key"`
+				Type                 string `json:"type"`
+				Title                string `json:"title"` // Track
+				GrandparentTitle     string `json:"grandparentTitle"` // Artist
+				ParentTitle          string `json:"parentTitle"` // Album
+				OriginalTitle        string `json:"originalTitle"`
+				Summary              string `json:"summary"`
+				Index                int    `json:"index"`
+				Duration             int    `json:"duration"`
+				AddedAt              int    `json:"addedAt"`
+				UpdatedAt            int    `json:"updatedAt"`
+				Media                []struct {
+					ID            int    `json:"id"`
+					Duration      int    `json:"duration"`
+					AudioChannels int    `json:"audioChannels"`
+					AudioCodec    string `json:"audioCodec"`
+					Container     string `json:"container"`
+				} `json:"Media"`
+			} `json:"Metadata"`
+		} `json:"SearchResult"`
 	} `json:"MediaContainer"`
 }
 
@@ -114,4 +145,35 @@ func refreshPlexLibrary(cfg Config) error {
 		return fmt.Errorf("refreshPlexLibrary(): %s", err.Error())
 	}
 	return nil
+}
+
+func searchPlexSong(cfg Config, track Track) (string, error) {
+	params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
+
+
+	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return "", fmt.Errorf("searchPlexSong(): failed request for '%s': %s", track.Title, err.Error())
+	}
+	var searchResults PlexSearch
+
+	err = parseResp(body, &searchResults)
+	if err != nil {
+		return "", fmt.Errorf("searchPlexSong(): failed to parse response for '%s': %s", track.Title, err.Error())
+	}
+	key, err := getPlexSong(track, searchResults)
+	if err != nil {
+		return "", fmt.Errorf("searchPlexSong(): %s", err.Error())
+	}
+	return key, nil
+}
+
+func getPlexSong(track Track, searchResults PlexSearch) (string, error) {
+
+	for _, result := range searchResults.MediaContainer.SearchResult {
+		if result.Metadata.Type == "track" && result.Metadata.Title == track.Title && result.Metadata.ParentTitle == track.Album {
+			return result.Metadata.Key, nil
+		}
+	}
+	return "", fmt.Errorf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album)
 }
