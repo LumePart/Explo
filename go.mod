@@ -5,7 +5,6 @@ go 1.21
 toolchain go1.21.6
 
 require (
-	github.com/LukeHagar/plexgo v0.16.1
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/u2takey/ffmpeg-go v0.5.0
 	github.com/wader/goutubedl v0.0.0-20241118160803-5e1bb9940f3c
