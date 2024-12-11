@@ -53,7 +53,6 @@ type PlexSearch struct {
 				ParentTitle          string `json:"parentTitle"` // Album
 				OriginalTitle        string `json:"originalTitle"`
 				Summary              string `json:"summary"`
-				Index                int    `json:"index"`
 				Duration             int    `json:"duration"`
 				AddedAt              int    `json:"addedAt"`
 				UpdatedAt            int    `json:"updatedAt"`
@@ -66,6 +65,25 @@ type PlexSearch struct {
 				} `json:"Media"`
 			} `json:"Metadata"`
 		} `json:"SearchResult"`
+	} `json:"MediaContainer"`
+}
+
+type PlexPlaylist struct {
+	MediaContainer struct {
+		Size     int `json:"size"`
+		Metadata []struct {
+			RatingKey    string `json:"ratingKey"`
+			Key          string `json:"key"`
+			GUID         string `json:"guid"`
+			Type         string `json:"type"`
+			Title        string `json:"title"`
+			Summary      string `json:"summary"`
+			Smart        bool   `json:"smart"`
+			PlaylistType string `json:"playlistType"`
+			AddedAt      int    `json:"addedAt"`
+			UpdatedAt    int    `json:"updatedAt"`
+			Duration     int    `json:"duration,omitempty"`
+		} `json:"Metadata"`
 	} `json:"MediaContainer"`
 }
 
@@ -176,4 +194,35 @@ func getPlexSong(track Track, searchResults PlexSearch) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album)
+}
+
+func searchPlexPlaylist(cfg Config) (string, error) {
+	params := fmt.Sprintf("/playlists?X-Plex-Token=%s", cfg.Creds.APIKey)
+
+	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return "", fmt.Errorf("searchPlexPlaylist(): failed to request playlists: %s", err.Error())
+	}
+
+	var playlists PlexPlaylist
+	err = parseResp(body, &playlists)
+	if err != nil {
+		return "", fmt.Errorf("searchPlexPlaylist(): failed to parse response: %s", err.Error())
+	}
+
+	key, err := getPlexPlaylist(playlists, cfg.PlaylistName)
+	if err != nil {
+		return "", fmt.Errorf("getPlexPlaylist(): %s", err.Error())
+	}
+	return key, nil
+}
+
+func getPlexPlaylist(playlists PlexPlaylist, playlistName string) (string, error) {
+
+	for _, playlist := range playlists.MediaContainer.Metadata {
+		if playlist.Title == playlistName {
+			return playlist.Key, nil
+		}
+	}
+	return "", fmt.Errorf("failed to find playlist")
 }
