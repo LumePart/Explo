@@ -226,3 +226,13 @@ func getPlexPlaylist(playlists PlexPlaylist, playlistName string) (string, error
 	}
 	return "", fmt.Errorf("failed to find playlist")
 }
+
+/* func createPlexPlaylist(cfg Config) (string, error) { // need to get Plex server ID first
+	params := fmt.Sprintf("/playlists?title=%s&type=audio&X-Plex-Token=%s", cfg.PlaylistName, cfg.Creds.APIKey)
+
+	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return "", fmt.Errorf("createPlexPlaylist(): failed to create playlists: %s", err.Error())
+	}
+
+} */
