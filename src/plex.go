@@ -68,6 +68,17 @@ type PlexSearch struct {
 	} `json:"MediaContainer"`
 }
 
+	
+type PlexServer struct {
+	MediaContainer struct {
+		Size              int    `json:"size"`
+		APIVersion        string `json:"apiVersion"`
+		Claimed           bool   `json:"claimed"`
+		MachineIdentifier string `json:"machineIdentifier"`
+		Version           string `json:"version"`
+	} `json:"MediaContainer"`
+}
+
 type PlexPlaylist struct {
 	MediaContainer struct {
 		Size     int `json:"size"`
@@ -225,6 +236,23 @@ func getPlexPlaylist(playlists PlexPlaylist, playlistName string) (string, error
 		}
 	}
 	return "", fmt.Errorf("failed to find playlist")
+}
+
+func getPlexServer(cfg Config) (string, error) {
+	params := fmt.Sprintf("/identity?X-Plex-Token=%s", cfg.Creds.APIKey)
+
+	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return "", fmt.Errorf("getPlexServer(): failed to create playlists: %s", err.Error())
+	}
+
+	var server PlexServer
+
+	err = parseResp(body, &server)
+	if err != nil {
+		return "", fmt.Errorf("getPlexServer(): failed to parse response: %s", err.Error())
+	}
+	return server.MediaContainer.MachineIdentifier, nil
 }
 
 /* func createPlexPlaylist(cfg Config) (string, error) { // need to get Plex server ID first
