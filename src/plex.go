@@ -255,7 +255,7 @@ func getPlexServer(cfg Config) (string, error) {
 	return server.MediaContainer.MachineIdentifier, nil
 }
 
-/* func createPlexPlaylist(cfg Config) (string, error) { // need to get Plex server ID first
+func createPlexPlaylist(cfg Config) (string, error) {
 	params := fmt.Sprintf("/playlists?title=%s&type=audio&X-Plex-Token=%s", cfg.PlaylistName, cfg.Creds.APIKey)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
@@ -263,4 +263,12 @@ func getPlexServer(cfg Config) (string, error) {
 		return "", fmt.Errorf("createPlexPlaylist(): failed to create playlists: %s", err.Error())
 	}
 
-} */
+	var playlist PlexPlaylist
+
+	err = parseResp(body, &playlist)
+	if err != nil {
+		return "", fmt.Errorf("createPlexPlaylist(): failed to parse response: %s", err.Error())
+	}
+
+	return playlist.MediaContainer.Metadata[0].Key, nil
+}
