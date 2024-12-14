@@ -146,6 +146,7 @@ func getPlexLibraries(cfg Config) (Libraries, error) {
 	var libraries Libraries
 	err = parseResp(body, &libraries)
 	if err != nil {
+		debug.Debug(string(body))
 		log.Fatalf("getPlexLibraries(): %s", err.Error())
 	}
 	return libraries, nil
@@ -162,7 +163,7 @@ func (cfg *Config) getPlexLibrary() {
 			cfg.Plex.LibraryID = library.Key
 		}
 	}
-
+	debug.Debug(fmt.Sprintf("full libary output: %v", libraries))
 	log.Fatalf("no library named %s found, please check LIBRARY_NAME variable", cfg.Plex.LibraryName)
 }
 
