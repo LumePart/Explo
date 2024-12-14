@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"explo/debug"
 	"fmt"
 	"log"
 	"net/url"
@@ -221,21 +222,21 @@ func searchPlexPlaylist(cfg Config) (string, error) {
 		return "", fmt.Errorf("searchPlexPlaylist(): failed to parse response: %s", err.Error())
 	}
 
-	key, err := getPlexPlaylist(playlists, cfg.PlaylistName)
-	if err != nil {
-		return "", fmt.Errorf("getPlexPlaylist(): %s", err.Error())
+	key := getPlexPlaylist(playlists, cfg.PlaylistName)
+	if key == "" {
+		debug.Debug("no playlist found")
 	}
 	return key, nil
 }
 
-func getPlexPlaylist(playlists PlexPlaylist, playlistName string) (string, error) {
+func getPlexPlaylist(playlists PlexPlaylist, playlistName string) string {
 
 	for _, playlist := range playlists.MediaContainer.Metadata {
 		if playlist.Title == playlistName {
-			return playlist.Key, nil
+			return playlist.Key
 		}
 	}
-	return "", fmt.Errorf("failed to find playlist")
+	return ""
 }
 
 func getPlexServer(cfg Config) (string, error) {
@@ -255,8 +256,8 @@ func getPlexServer(cfg Config) (string, error) {
 	return server.MediaContainer.MachineIdentifier, nil
 }
 
-func createPlexPlaylist(cfg Config, libraryKey, machineID string) (string, error) {
-	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", cfg.PlaylistName, machineID, libraryKey, cfg.Creds.APIKey)
+func createPlexPlaylist(cfg Config, machineID string) (string, error) {
+	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", cfg.PlaylistName, machineID, cfg.Plex.LibraryID, cfg.Creds.APIKey)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -273,16 +274,15 @@ func createPlexPlaylist(cfg Config, libraryKey, machineID string) (string, error
 	return playlist.MediaContainer.Metadata[0].Key, nil
 }
 
-func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) error {
+func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) {
 	for _, track := range tracks {
 		params := fmt.Sprintf("/playlists/%s?uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", playlistKey, machineID, track.ID, cfg.Creds.APIKey)
 
 		_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
 		if err != nil {
-			return fmt.Errorf("addToPlexPlaylist(): failed to add %s to playlist: %s", track.Title, err.Error())
+			log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", track.Title, err.Error())
 		}
 	}
-	return nil
 }
 
 func deletePlexPlaylist(cfg Config, playlistKey string) error {

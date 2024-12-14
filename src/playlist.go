@@ -40,8 +40,12 @@ func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice 
 		switch cfg.System {
 		case "subsonic":
 			ID, _ = searchTrack(cfg, track)
+
 		case "jellyfin":
 			ID, _ = getJfSong(cfg, track)
+
+		case "plex":
+			ID, _ = searchPlexSong(cfg, track)
 		}
 		if ID != "" {
 			tracks[i].Present = true
@@ -83,12 +87,29 @@ func createPlaylist(cfg Config, tracks []Track) error {
 			return fmt.Errorf("failed to create playlist: %s", err.Error())
 		}
 		return nil
+
 	case "mpd": 
 
 		if err := createM3U(cfg, cfg.PlaylistName, tracks); err != nil {
 			return fmt.Errorf("failed to create M3U playlist: %s", err.Error())
 		}
 		return nil
+
+	case "plex":
+		if err := refreshPlexLibrary(cfg); err != nil {
+			return fmt.Errorf("createPlaylist(): %s", err.Error())
+		}
+		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
+		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+		ID, err := getPlexServer(cfg)
+		if err != nil {
+			return fmt.Errorf("createPlaylist(): %s", err.Error())
+		}
+		key, err := createPlexPlaylist(cfg, ID)
+		if err != nil {
+			return fmt.Errorf("createPlaylist(): %s", err.Error())
+		}
+		addToPlexPlaylist(cfg, key, ID, tracks)
 	}
 	return fmt.Errorf("something very strange happened")
 }
@@ -118,6 +139,14 @@ func handlePlaylistDeletion(cfg Config) error {
 			return nil
 		case "mpd":
 			if err := os.Remove(cfg.PlaylistDir+cfg.PlaylistName+".m3u"); err != nil {
+				return err
+			}
+		case "plex":
+			key, err := searchPlexPlaylist(cfg)
+			if err != nil {
+				return err
+			}
+			if err := deletePlexPlaylist(cfg, key); err != nil {
 				return err
 			}
 		}
