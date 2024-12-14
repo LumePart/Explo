@@ -161,6 +161,7 @@ func (cfg *Config) getPlexLibrary() {
 	for _, library := range libraries.MediaContainer.Library {
 		if cfg.Plex.LibraryName == library.Title {
 			cfg.Plex.LibraryID = library.Key
+			return
 		}
 	}
 	debug.Debug(fmt.Sprintf("full libary output: %v", libraries))
