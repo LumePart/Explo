@@ -255,8 +255,8 @@ func getPlexServer(cfg Config) (string, error) {
 	return server.MediaContainer.MachineIdentifier, nil
 }
 
-func createPlexPlaylist(cfg Config) (string, error) {
-	params := fmt.Sprintf("/playlists?title=%s&type=audio&X-Plex-Token=%s", cfg.PlaylistName, cfg.Creds.APIKey)
+func createPlexPlaylist(cfg Config, libraryKey, machineID string) (string, error) {
+	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", cfg.PlaylistName, machineID, libraryKey, cfg.Creds.APIKey)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -271,4 +271,26 @@ func createPlexPlaylist(cfg Config) (string, error) {
 	}
 
 	return playlist.MediaContainer.Metadata[0].Key, nil
+}
+
+func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) error {
+	for _, track := range tracks {
+		params := fmt.Sprintf("/playlists/%s?uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", playlistKey, machineID, track.ID, cfg.Creds.APIKey)
+
+		_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
+		if err != nil {
+			return fmt.Errorf("addToPlexPlaylist(): failed to add %s to playlist: %s", track.Title, err.Error())
+		}
+	}
+	return nil
+}
+
+func deletePlexPlaylist(cfg Config, playlistKey string) error {
+	params := fmt.Sprintf("/playlists/%s?X-Plex-Token=%s", playlistKey, cfg.Creds.APIKey)
+
+	_, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return fmt.Errorf("deletePlexPlaylist(): failed to delete plex playlist: %s", err.Error())
+	}
+	return nil
 }

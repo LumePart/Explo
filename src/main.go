@@ -228,7 +228,7 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 func parseResp[T any](body []byte, target *T) error {
 	
 	if err := json.Unmarshal(body, target); err != nil {
-		return fmt.Errorf("error unmarshaling response body: %w", err)
+		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil
 }
