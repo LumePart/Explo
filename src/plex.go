@@ -151,20 +151,19 @@ func getPlexLibraries(cfg Config) (Libraries, error) {
 	return libraries, nil
 }
 
-func (cfg *Config) getPlexLibrary() error {
+func (cfg *Config) getPlexLibrary() {
 	libraries, err := getPlexLibraries(*cfg)
 	if err != nil {
-		return fmt.Errorf("failed to fetch libraries: %s", err.Error())
+		log.Fatalf("failed to fetch libraries: %s", err.Error())
 	}
 
 	for _, library := range libraries.MediaContainer.Library {
 		if cfg.Plex.LibraryName == library.Title {
 			cfg.Plex.LibraryID = library.Key
-			return nil
 		}
 	}
 
-	return fmt.Errorf("no library named %s found, please check LIBRARY_NAME variable", cfg.Plex.LibraryName)
+	log.Fatalf("no library named %s found, please check LIBRARY_NAME variable", cfg.Plex.LibraryName)
 }
 
 func refreshPlexLibrary(cfg Config) error {
