@@ -243,12 +243,12 @@ func parseResp[T any](body []byte, target *T) error {
 
 func main() {
 	cfg := readEnv()
+	debug.Init(cfg.Debug)
 	cfg.detectSystem()
 	cfg.verifyDir(cfg.System)
 	cfg.handleDeprecation()
 	cfg.systemSetup()
 	cfg.getPlaylistName()
-	debug.Init(cfg.Debug)
 
 	var tracks []Track
 
