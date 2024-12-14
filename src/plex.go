@@ -99,7 +99,7 @@ type PlexPlaylist struct {
 	} `json:"MediaContainer"`
 }
 
-func (cfg *Credentials) PlexHeader() {
+func (cfg *Credentials) plexHeader() {
 	cfg.Headers = make(map[string]string)
 
 	cfg.Headers["X-Plex-Client-Identifier"] = "explo"

@@ -194,8 +194,8 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 		if (cfg.Creds.User == "" && cfg.Creds.Password == "") {
 			log.Fatal("USER and/or PASSWORD variable not set, exiting")
 		}
+		cfg.Creds.plexHeader() // Adds client headers
 		cfg.Creds.getPlexAuth()
-		cfg.Creds.PlexHeader() // Adds client headers
 		cfg.getPlexLibrary()
 	default:
 		log.Fatalf("system: %s not known, please use a supported system (jellyfin, mpd, subsonic or plex)", cfg.System)
