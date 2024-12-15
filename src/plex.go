@@ -306,11 +306,13 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 			}
 			tracks[i].ID = songID
 		}
-		params := fmt.Sprintf("/playlists/%s?uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", playlistKey, machineID, tracks[i].ID, cfg.Creds.APIKey)
+		if tracks[i].ID != "" {
+			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s&X-Plex-Token=%s", playlistKey, machineID, tracks[i].ID, cfg.Creds.APIKey)
 
-		_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
-		if err != nil {
-			log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
+			_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
+			if err != nil {
+				log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
+			}
 		}
 	}
 }

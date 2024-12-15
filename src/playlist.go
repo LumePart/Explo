@@ -110,6 +110,8 @@ func createPlaylist(cfg Config, tracks []Track) error {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
 		}
 		addToPlexPlaylist(cfg, key, ID, tracks)
+		
+		return nil
 	}
 	return fmt.Errorf("something very strange happened")
 }
