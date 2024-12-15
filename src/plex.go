@@ -155,7 +155,7 @@ func getPlexLibraries(cfg Config) (Libraries, error) {
 func (cfg *Config) getPlexLibrary() {
 	libraries, err := getPlexLibraries(*cfg)
 	if err != nil {
-		log.Fatalf("failed to fetch libraries: %s", err.Error())
+		log.Fatalf("getPlexLibrary(): failed to fetch libraries: %s", err.Error())
 	}
 
 	for _, library := range libraries.MediaContainer.Library {
@@ -164,8 +164,29 @@ func (cfg *Config) getPlexLibrary() {
 			return
 		}
 	}
-	debug.Debug(fmt.Sprintf("full libary output: %v", libraries))
-	log.Fatalf("no library named %s found, please check LIBRARY_NAME variable", cfg.Plex.LibraryName)
+	err = cfg.addPlexLibrary()
+	if err != nil {
+		debug.Debug(err.Error())
+		log.Fatalf("library named %s not found and cannot be added, please make it manually and ensure 'Prefer local metadata' is checked", cfg.Plex.LibraryName)
+	}
+}
+
+func (cfg *Config) addPlexLibrary() error {
+	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex Music&agent=tv.plex.agents.music&language=en-US&location=%s&perfs[respectTags]=1&X-Plex-Token=%s", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir, cfg.Creds.APIKey)
+
+	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
+	if err != nil {
+		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
+	}
+
+	var libraries Libraries
+	err = parseResp(body, &libraries)
+	if err != nil {
+		debug.Debug(string(body))
+		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
+	}
+	cfg.Plex.LibraryID = libraries.MediaContainer.Library[0].Key
+	return nil
 }
 
 func refreshPlexLibrary(cfg Config) error {
