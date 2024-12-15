@@ -206,6 +206,7 @@ func getPlexSong(track Track, searchResults PlexSearch) (string, error) {
 			return result.Metadata.Key, nil
 		}
 	}
+	debug.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
 	return "", fmt.Errorf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album)
 }
 
@@ -276,12 +277,19 @@ func createPlexPlaylist(cfg Config, machineID string) (string, error) {
 }
 
 func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) {
-	for _, track := range tracks {
-		params := fmt.Sprintf("/playlists/%s?uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", playlistKey, machineID, track.ID, cfg.Creds.APIKey)
+	for i, _ := range tracks {
+		if !tracks[i].Present {
+			songID, err := searchPlexSong(cfg, tracks[i])
+			if err != nil {
+				debug.Debug(err.Error())
+			}
+			tracks[i].ID = songID
+		}
+		params := fmt.Sprintf("/playlists/%s?uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", playlistKey, machineID, tracks[i].ID, cfg.Creds.APIKey)
 
 		_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
 		if err != nil {
-			log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", track.Title, err.Error())
+			log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
 		}
 	}
 }
