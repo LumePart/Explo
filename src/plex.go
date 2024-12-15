@@ -277,7 +277,7 @@ func createPlexPlaylist(cfg Config, machineID string) (string, error) {
 }
 
 func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) {
-	for i, _ := range tracks {
+	for i := range tracks {
 		if !tracks[i].Present {
 			songID, err := searchPlexSong(cfg, tracks[i])
 			if err != nil {
