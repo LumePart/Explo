@@ -47,7 +47,7 @@ type Jellyfin struct {
 }
 
 type Plex struct {
-	LibraryName string `env:"LIBRARY_NAME"`
+	LibraryName string `env:"LIBRARY_NAME" env-default:"Explo"`
 	LibraryID string `env:"LIBRARY_ID"`
 }
 
