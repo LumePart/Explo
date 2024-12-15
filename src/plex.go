@@ -179,7 +179,7 @@ func refreshPlexLibrary(cfg Config) error {
 }
 
 func searchPlexSong(cfg Config, track Track) (string, error) {
-	params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
+	params := fmt.Sprintf("/library/search?query=%s&X-Plex-Token=%s", url.QueryEscape(track.Title), cfg.Creds.APIKey)
 
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
