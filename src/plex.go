@@ -173,7 +173,7 @@ func (cfg *Config) getPlexLibrary() {
 	err = cfg.addPlexLibrary()
 	if err != nil {
 		debug.Debug(err.Error())
-		log.Fatalf("library named %s not found and cannot be added, please make it manually and ensure 'Prefer local metadata' is checked", cfg.Plex.LibraryName)
+		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", cfg.Plex.LibraryName)
 	}
 }
 

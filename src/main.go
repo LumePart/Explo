@@ -191,11 +191,14 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 			log.Fatal("PLAYLIST_DIR variable not set, exiting")
 		}
 	case "plex":
-		if (cfg.Creds.User == "" && cfg.Creds.Password == "") {
-			log.Fatal("USER and/or PASSWORD variable not set, exiting")
+		if ((cfg.Creds.User == "" || cfg.Creds.Password == "") && cfg.Creds.APIKey == "") {
+			log.Fatal("USER/PASSWORD or API_KEY variables not set, exiting")
 		}
-		cfg.Creds.plexHeader() // Adds client headers
-		cfg.Creds.getPlexAuth()
+		if cfg.Creds.APIKey == "" {
+			cfg.Creds.plexHeader() // Adds client headers
+			cfg.Creds.getPlexAuth()
+		}
+		cfg.Creds.plexHeader() // Adds client headers (again if no api key was set)
 		cfg.getPlexLibrary()
 	default:
 		log.Fatalf("system: %s not known, please use a supported system (jellyfin, mpd, subsonic or plex)", cfg.System)
