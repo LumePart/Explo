@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"time"
 )
 
 type LoginPayload struct {
@@ -175,10 +176,12 @@ func (cfg *Config) getPlexLibrary() {
 		debug.Debug(err.Error())
 		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", cfg.Plex.LibraryName)
 	}
+	log.Printf("created %s library, sleeping for 1 minute to let it sync", cfg.Plex.LibraryName)
+	time.Sleep(time.Duration(1) * time.Minute)
 }
 
 func (cfg *Config) addPlexLibrary() error {
-	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&perfs[respectTags]=1", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir)
+	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&prefs[respectTags]=1", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
