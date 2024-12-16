@@ -100,9 +100,15 @@ type PlexPlaylist struct {
 }
 
 func (cfg *Credentials) plexHeader() {
-	cfg.Headers = make(map[string]string)
 
+	if cfg.Headers == nil {
+	cfg.Headers = make(map[string]string)
 	cfg.Headers["X-Plex-Client-Identifier"] = "explo"
+	}
+
+	if cfg.APIKey != "" {
+		cfg.Headers["X-Plex-Token"] = cfg.APIKey
+	}
 }
 
 
@@ -136,7 +142,7 @@ func (cfg *Credentials) getPlexAuth() { // Get user token from plex
 }
 
 func getPlexLibraries(cfg Config) (Libraries, error) {
-	params := fmt.Sprintf("/library/sections/?X-Plex-Token=%s", cfg.Creds.APIKey)
+	params := "/library/sections/"
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -172,7 +178,7 @@ func (cfg *Config) getPlexLibrary() {
 }
 
 func (cfg *Config) addPlexLibrary() error {
-	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&perfs[respectTags]=1&X-Plex-Token=%s", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir, cfg.Creds.APIKey)
+	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&perfs[respectTags]=1", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -190,7 +196,7 @@ func (cfg *Config) addPlexLibrary() error {
 }
 
 func refreshPlexLibrary(cfg Config) error {
-	params := fmt.Sprintf("/library/sections/%s/refresh?X-Plex-Token=%s", cfg.Plex.LibraryID, cfg.Creds.APIKey)
+	params := fmt.Sprintf("/library/sections/%s/refresh", cfg.Plex.LibraryID)
 
 	_, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -200,7 +206,7 @@ func refreshPlexLibrary(cfg Config) error {
 }
 
 func searchPlexSong(cfg Config, track Track) (string, error) {
-	params := fmt.Sprintf("/library/search?query=%s&X-Plex-Token=%s", url.QueryEscape(track.Title), cfg.Creds.APIKey)
+	params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
 
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
@@ -232,7 +238,7 @@ func getPlexSong(track Track, searchResults PlexSearch) (string, error) {
 }
 
 func searchPlexPlaylist(cfg Config) (string, error) {
-	params := fmt.Sprintf("/playlists?X-Plex-Token=%s", cfg.Creds.APIKey)
+	params := "/playlists"
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -263,7 +269,7 @@ func getPlexPlaylist(playlists PlexPlaylist, playlistName string) string {
 }
 
 func getPlexServer(cfg Config) (string, error) {
-	params := fmt.Sprintf("/identity?X-Plex-Token=%s", cfg.Creds.APIKey)
+	params := "/identity"
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -280,7 +286,7 @@ func getPlexServer(cfg Config) (string, error) {
 }
 
 func createPlexPlaylist(cfg Config, machineID string) (string, error) {
-	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s&X-Plex-Token=%s", cfg.PlaylistName, machineID, cfg.Plex.LibraryID, cfg.Creds.APIKey)
+	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", cfg.PlaylistName, machineID, cfg.Plex.LibraryID)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
@@ -307,7 +313,7 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 			tracks[i].ID = songID
 		}
 		if tracks[i].ID != "" {
-			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s&X-Plex-Token=%s", playlistKey, machineID, tracks[i].ID, cfg.Creds.APIKey)
+			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistKey, machineID, tracks[i].ID)
 
 			_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
 			if err != nil {
@@ -318,7 +324,7 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 }
 
 func deletePlexPlaylist(cfg Config, playlistKey string) error {
-	params := fmt.Sprintf("/playlists/%s?X-Plex-Token=%s", playlistKey, cfg.Creds.APIKey)
+	params := fmt.Sprintf("/playlists/%s", playlistKey)
 
 	_, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
