@@ -172,7 +172,7 @@ func (cfg *Config) getPlexLibrary() {
 }
 
 func (cfg *Config) addPlexLibrary() error {
-	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex Music&agent=tv.plex.agents.music&language=en-US&location=%s&perfs[respectTags]=1&X-Plex-Token=%s", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir, cfg.Creds.APIKey)
+	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&perfs[respectTags]=1&X-Plex-Token=%s", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir, cfg.Creds.APIKey)
 
 	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
