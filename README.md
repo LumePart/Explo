@@ -9,7 +9,7 @@ Explo offers two discovery modes:
 
 ## Features
 
-- Supports **Jellyfin**, **MPD** and **Subsonic-API-based systems**.
+- Supports **Jellyfin**, **MPD**, **Plex** and **Subsonic-API-based systems**.
 - Automatically fetches recommendations and downloads the tracks.
 - Adds metadata (title, artist, album) to the downloaded files.
 - Creates a "Discover Weekly" playlist with the latest songs.
@@ -19,7 +19,7 @@ Explo offers two discovery modes:
 
 ### Prerequisites
 
-- A self-hosted music system like Jellyfin, MPD, or any Subsonic-API compatible system (e.g., Navidrome, Airsonic).
+- A self-hosted music system like Jellyfin, MPD, Plex, or any Subsonic-API compatible system (e.g., Navidrome, Airsonic).
 - A [YouTube Data API](https://developers.google.com/youtube/v3/getting-started) key.
 - [ListenBrainz scrobbling](https://listenbrainz.org/add-data/) set up
 
