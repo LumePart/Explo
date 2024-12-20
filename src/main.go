@@ -83,15 +83,15 @@ func (cfg *Config) handleDeprecation() { // assign deprecared env vars to new on
 	switch cfg.System {
 	case "subsonic":
 		if cfg.Subsonic.User != "" && cfg.Creds.User == "" {
-			log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'USER' instead.")
+			log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'SYSTEM_USER' instead.")
 			cfg.Creds.User = cfg.Subsonic.User
 		}
 		if cfg.Subsonic.Password != "" && cfg.Creds.Password == "" {
-			log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'PASSWORD' instead.")
+			log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'SYSTEM_PASSWORD' instead.")
 			cfg.Creds.Password = cfg.Subsonic.Password
 		}
 		if cfg.Subsonic.URL != "" && cfg.URL == "" {
-			log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'URL' instead.")
+			log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'SYSTEM_URL' instead.")
 			cfg.URL = cfg.Subsonic.URL
 		}
 	default:
