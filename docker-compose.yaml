@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     container_name: explo
     volumes:
-      - /path/to/local.env:/opt/explo/local.env
+      - /path/to/.env:/opt/explo/.env
       - /path/to/musiclibrary/explo:DOWNLOAD_DIR # Should be in the same path you have your music system pointed to, DOWNLOAD_DIR has to be same as in local.env
       # - /path/to/playlist:/path/to/playlists # for MPD. Should be 1:1 with PLAYLIST_DIR in local.env (e.g /mpd/playlists:/mpd/playlists) 
     environment:

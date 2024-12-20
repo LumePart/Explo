@@ -102,9 +102,13 @@ func (cfg *Config) handleDeprecation() { // assign deprecared env vars to new on
 func readEnv() Config {
 	var cfg Config
 
-	err := cleanenv.ReadConfig("./local.env", &cfg)
+	err := cleanenv.ReadConfig("./.env", &cfg)
 	if err != nil {
-		panic(err)
+		err := cleanenv.ReadConfig("./local.env", &cfg)
+		if err != nil {
+			panic(err)
+		}
+		log.Println("Warning: using old filename, please rename local.env to .env")
 	}
 	return cfg
 }

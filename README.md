@@ -28,7 +28,7 @@ Explo offers two discovery modes:
 #### Docker
 
 1. Download [docker-compose.yaml](https://github.com/LumePart/Explo/blob/main/docker-compose.yaml) file to your system and configure volume mappings
-2. Make a ``local.env`` file in the directory defined in docker-compose and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
+2. Make a ``.env`` file in the directory defined in docker-compose and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
 3. Launch the container with `docker compose up -d`
 
 #### Binary
@@ -36,7 +36,7 @@ Explo offers two discovery modes:
 Make sure ffmpeg and yt-dlp are installed on the system and accessible via $PATH. Alternatively, you can specify their paths in the local.env file.
 
 1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) and ensure it's executable
-2. Make a ``local.env`` file in the same directory as the binary and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
+2. Make a ``.env`` file in the same directory as the binary and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
 3. Add a Cron job to run Explo weekly:
 ```bash
 crontab -e
