@@ -154,18 +154,13 @@ func (cfg *Config) detectSystem() {
 			cfg.System = "subsonic"
 			return
 
-		} else if cfg.Creds.APIKey != "" {
-			log.Println("using Jellyfin")
-			cfg.System = "jellyfin"
-			return
-
 		} else if cfg.PlaylistDir != "" {
 			log.Println("using Music Player Daemon")
 			cfg.System = "mpd"
 			return
 
 		}
-		log.Fatal("unable to detect system, check if SUBSONIC_USER, JELLYFIN_API or PLAYLIST_DIR fields exist")
+		log.Fatal("unable to detect system, please define a system using the 'EXPLO_SYSTEM' env variable")
 	}
 	log.Printf("using %s", cfg.System)
 }
