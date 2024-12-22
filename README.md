@@ -33,7 +33,7 @@ Explo offers two discovery modes:
 
 #### Binary
 
-Make sure ffmpeg and yt-dlp are installed on the system and accessible via $PATH. Alternatively, you can specify their paths in the local.env file.
+Make sure ffmpeg and yt-dlp are installed on the system and accessible via $PATH. Alternatively, you can specify their paths in the ``.env`` file.
 
 1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) and ensure it's executable
 2. Make a ``.env`` file in the same directory as the binary and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
