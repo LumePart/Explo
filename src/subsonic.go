@@ -9,7 +9,6 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"net/url"
 	"explo/debug"
 )
@@ -88,8 +87,7 @@ func searchTrack(cfg Config, track Track) (string, error) {
     }
     
     var resp SubResponse
-    if err := json.Unmarshal(body, &resp); err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
+    if err := parseResp(body, &resp); err != nil {
         return "", err
     }
     
@@ -112,7 +110,6 @@ func searchTrack(cfg Config, track Track) (string, error) {
 func subsonicPlaylist(cfg Config, tracks []Track) error {
 
 	var trackIDs string
-	var reqParam string
 
 	for _, track := range tracks { // Get track IDs from app and format them
 		if track.ID == "" {
@@ -126,7 +123,7 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 		trackIDs += "&songId="+track.ID
 	}
 	
-	reqParam = fmt.Sprintf("createPlaylist?name=%s%s&f=json", cfg.PlaylistName, trackIDs)
+	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", cfg.PlaylistName, trackIDs)
 	
 	_, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
@@ -138,35 +135,32 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 func subsonicScan(cfg Config) error {
 	reqParam := "startScan?f=json"
 	
-	_, err := subsonicRequest(reqParam, cfg)
-	if err != nil {
+	if _, err := subsonicRequest(reqParam, cfg); err != nil {
 		return err
 	}
 	return nil
 }
 
 func getDiscoveryPlaylist(cfg Config) ([]string, error) {
-
-	var resp SubResponse
-	var playlists []string
 	reqParam := "getPlaylists?f=json"
 
 	body, err := subsonicRequest(reqParam, cfg)
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
+
+	var resp SubResponse
+	if err := parseResp(body, &resp); err != nil {
         return nil, err
     }
 
+	var playlists []string
 	for _, playlist := range resp.SubsonicResponse.Playlists.Playlist {
 		if strings.Contains(playlist.Name, "Discover-Weekly") {
 			playlists = append(playlists, playlist.ID)
 
 		}
 	}
-
 	return playlists, nil
 }
 
@@ -174,8 +168,7 @@ func delSubsonicPlaylists(playlists []string, cfg Config) error {
 
 	for _, id := range playlists {
 		reqParam := fmt.Sprintf("deletePlaylist?id=%s&f=json", id)
-		_, err := subsonicRequest(reqParam, cfg)
-		if err != nil {
+		if _, err := subsonicRequest(reqParam, cfg); err != nil {
 			return err
 		}
 	}
@@ -192,14 +185,10 @@ func subsonicRequest(reqParams string, cfg Config) ([]byte, error) {
 	}
 
 	var checkResp FailedResp
-
-	err = json.Unmarshal(body, &checkResp)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
+	if err = parseResp(body, &checkResp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal request %s", err.Error())
 	} else if checkResp.SubsonicResponse.Status == "failed" {
 		return nil, fmt.Errorf("%s", checkResp.SubsonicResponse.Error.Message)
 	}
-
 	return body, nil
 }

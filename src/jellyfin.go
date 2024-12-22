@@ -59,16 +59,13 @@ func jfAllPaths(cfg Config) (Paths, error) {
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("jfAllPaths: %s", err.Error())
 	}
 
 	var paths Paths
-	err = json.Unmarshal(body, &paths)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
-		return nil, err
+	if err = parseResp(body, &paths); err != nil {
+		return nil, fmt.Errorf("jfAllPaths: %s", err.Error())
 	}
-
 	return paths, nil
 }
 
@@ -106,8 +103,7 @@ func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
 func refreshJfLibrary(cfg Config) error {
 	params := fmt.Sprintf("/Items/%s/Refresh", cfg.Jellyfin.LibraryID)
 
-	_, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
+	if _, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("failed to refresh library: %s", err.Error())
 	}
 	return nil
@@ -122,11 +118,8 @@ func getJfSong(cfg Config, track Track) (string, error) { // Gets all files in E
 	}
 
 	var results Audios
-
-	err = json.Unmarshal(body, &results)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
-		return "", fmt.Errorf("failed to unmarshal body: %s", err.Error())
+	if err = parseResp(body, &results); err != nil {
+		return "", fmt.Errorf("getJfSong(): %s", err.Error())
 	}
 
 	for _, item := range results.Items {
@@ -146,11 +139,8 @@ func findJfPlaylist(cfg Config) (string, error) {
 	}
 
 	var results Search
-
-	err = json.Unmarshal(body, &results)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
-		return "", fmt.Errorf("failed to unmarshal body: %s", err.Error())
+	if err = parseResp(body, &results); err != nil {
+		return "", fmt.Errorf("findJfPlaylist(): %s", err.Error())
 	}
 	return results.SearchHints[0].ID, nil
 }
@@ -185,10 +175,8 @@ func createJfPlaylist(cfg Config, tracks []Track) error {
 		"MediaType": "Audio",
 		"UserId": "%s"
 		}`, cfg.PlaylistName, IDs, cfg.Creds.APIKey))
-	
 
-	_, err = makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
-	if err != nil {
+	if _, err = makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("failed to create playlist: %s", err.Error())
 	}
 	return nil
@@ -197,8 +185,7 @@ func createJfPlaylist(cfg Config, tracks []Track) error {
 func deleteJfPlaylist(cfg Config, ID string) error {
 	params := fmt.Sprintf("/Items/%s", ID)
 
-	_, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
+	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("failed to delete playlist: %s", err.Error())
 	}
 	return nil

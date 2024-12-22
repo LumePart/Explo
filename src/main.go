@@ -237,6 +237,7 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 func parseResp[T any](body []byte, target *T) error {
 	
 	if err := json.Unmarshal(body, target); err != nil {
+		debug.Debug(fmt.Sprintf("full response: %s", string(body)))
 		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil

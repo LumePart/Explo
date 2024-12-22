@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"explo/debug"
 	"fmt"
 	"io"
 	"log"
@@ -46,9 +44,7 @@ func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 		log.Fatal(err)
 	}
 	var videos Videos
-	err = json.Unmarshal(body, &videos)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
+	if err = parseResp(body, &videos); err != nil {
 		log.Fatalf("Failed to unmarshal queryYT body: %s", err.Error())
 	}
 
@@ -68,7 +64,7 @@ func getTopic(videos Videos, track Track) string { // gets song under artist top
 	return ""
 }
 
-func getVideo(ctx context.Context, cfg Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using kddai's youtube package
+func getVideo(ctx context.Context, cfg Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using yt-dlp
 
 	if cfg.YtdlpPath != "" {
 		goutubedl.Path = cfg.YtdlpPath
@@ -99,11 +95,10 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, stream)
-	if err != nil {
+	if _, err = io.Copy(file, stream); err != nil {
 		log.Printf("Failed to copy stream to file: %s", err.Error())
 		os.Remove(input)
-		return false // If the download fails (downloads a few bytes) then it will get triggered here: "tls: bad record MAC"
+		return false
 	}
 
 	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", cfg.DownloadDir, track.File), ffmpeg.KwArgs{
@@ -116,8 +111,7 @@ func saveVideo(cfg Youtube, track Track, stream *goutubedl.DownloadResult) bool 
 		cmd.SetFfmpegPath(cfg.FfmpegPath)
 	}
 
-	err = cmd.Run()
-	if err != nil {
+	if err = cmd.Run(); err != nil {
 		log.Printf("Failed to convert audio: %s", err.Error())
 		os.Remove(input)
 		return false

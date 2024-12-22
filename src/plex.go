@@ -128,7 +128,6 @@ func (cfg *Credentials) getPlexAuth() { // Get user token from plex
 
 
 	body, err := makeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), cfg.Headers)
-	
 	if err != nil {
 		log.Fatalf("failed to make request to plex: %s", err.Error())
 	}
@@ -171,8 +170,7 @@ func (cfg *Config) getPlexLibrary() {
 			return
 		}
 	}
-	err = cfg.addPlexLibrary()
-	if err != nil {
+	if err = cfg.addPlexLibrary(); err != nil {
 		debug.Debug(err.Error())
 		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", cfg.Plex.LibraryName)
 	}
@@ -189,9 +187,7 @@ func (cfg *Config) addPlexLibrary() error {
 	}
 
 	var libraries Libraries
-	err = parseResp(body, &libraries)
-	if err != nil {
-		debug.Debug(string(body))
+	if err = parseResp(body, &libraries); err != nil {
 		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
 	}
 	cfg.Plex.LibraryID = libraries.MediaContainer.Library[0].Key
@@ -201,8 +197,7 @@ func (cfg *Config) addPlexLibrary() error {
 func refreshPlexLibrary(cfg Config) error {
 	params := fmt.Sprintf("/library/sections/%s/refresh", cfg.Plex.LibraryID)
 
-	_, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
+	if _, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("refreshPlexLibrary(): %s", err.Error())
 	}
 	return nil
@@ -211,15 +206,13 @@ func refreshPlexLibrary(cfg Config) error {
 func searchPlexSong(cfg Config, track Track) (string, error) {
 	params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
 
-
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
 		return "", fmt.Errorf("searchPlexSong(): failed request for '%s': %s", track.Title, err.Error())
 	}
 	var searchResults PlexSearch
 
-	err = parseResp(body, &searchResults)
-	if err != nil {
+	if err = parseResp(body, &searchResults); err != nil {
 		return "", fmt.Errorf("searchPlexSong(): failed to parse response for '%s': %s", track.Title, err.Error())
 	}
 	key, err := getPlexSong(track, searchResults)
@@ -249,8 +242,7 @@ func searchPlexPlaylist(cfg Config) (string, error) {
 	}
 
 	var playlists PlexPlaylist
-	err = parseResp(body, &playlists)
-	if err != nil {
+	if err = parseResp(body, &playlists); err != nil {
 		return "", fmt.Errorf("searchPlexPlaylist(): failed to parse response: %s", err.Error())
 	}
 
@@ -281,9 +273,8 @@ func getPlexServer(cfg Config) (string, error) {
 
 	var server PlexServer
 
-	err = parseResp(body, &server)
-	if err != nil {
-		return "", fmt.Errorf("getPlexServer(): failed to parse response: %s", err.Error())
+	if err = parseResp(body, &server); err != nil {
+		return "", fmt.Errorf("getPlexServer(): %s", err.Error())
 	}
 	return server.MediaContainer.MachineIdentifier, nil
 }
@@ -298,9 +289,8 @@ func createPlexPlaylist(cfg Config, machineID string) (string, error) {
 
 	var playlist PlexPlaylist
 
-	err = parseResp(body, &playlist)
-	if err != nil {
-		return "", fmt.Errorf("createPlexPlaylist(): failed to parse response: %s", err.Error())
+	if err = parseResp(body, &playlist); err != nil {
+		return "", fmt.Errorf("createPlexPlaylist(): %s", err.Error())
 	}
 
 	return playlist.MediaContainer.Metadata[0].Key, nil
@@ -318,8 +308,7 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 		if tracks[i].ID != "" {
 			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistKey, machineID, tracks[i].ID)
 
-			_, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers)
-			if err != nil {
+			if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 				log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
 			}
 		}
@@ -329,8 +318,7 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 func deletePlexPlaylist(cfg Config, playlistKey string) error {
 	params := fmt.Sprintf("/playlists/%s", playlistKey)
 
-	_, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
+	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("deletePlexPlaylist(): failed to delete plex playlist: %s", err.Error())
 	}
 	return nil
