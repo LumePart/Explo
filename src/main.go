@@ -65,7 +65,7 @@ type Youtube struct {
 	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath string `env:"YTDLP_PATH"`
-	FilterList []string `env:"FILTERLIST" env-default:"live, remix, instrumental"`
+	FilterList []string `env:"FILTERLIST" env-default:"live,remix,instrumental"`
 }
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
