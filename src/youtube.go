@@ -52,10 +52,10 @@ func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 
 }
 
-func getTopic(videos Videos, track Track) string { // gets song under artist topic or personal channel
+func getTopic(cfg Youtube, videos Videos, track Track) string { // gets song under artist topic or personal channel
 	
 	for _, v := range videos.Items {
-		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.Artist) && filter(track, v.Snippet.Title) {
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.Artist) && filter(track, v.Snippet.Title, cfg.FilterList) {
 			return v.ID.VideoID
 		} else {
 			continue
@@ -141,14 +141,14 @@ func gatherVideo(ctx context.Context, cfg Youtube, track Track) bool {
 	videos := queryYT(cfg, track)
 	
 	// Try to get the video from the official or topic channel
-	if id := getTopic(videos, track); id != "" {
+	if id := getTopic(cfg, videos, track); id != "" {
 		return fetchAndSaveVideo(ctx, cfg, track, id)
 			
 	}
 
 	// If official video isn't found, try the first suitable channel
 	for _, video := range videos.Items {
-		if filter(track, video.Snippet.Title) {
+		if filter(track, video.Snippet.Title, cfg.FilterList) {
 			return fetchAndSaveVideo(ctx, cfg, track, video.ID.VideoID)
 		}
 	}
@@ -171,20 +171,13 @@ func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track Track, videoID st
 	return false
 }
 
-func filter(track Track, videoTitle string) bool { // ignore artist lives or song remixes
+func filter(track Track, videoTitle string, filterList []string) bool { // ignore artist lives or song remixes
 
-	if (!contains(track.Title,"live") && !contains(track.Artist,"live") && contains(videoTitle, "live")) {
-		return false
-	}
-
-	if (!contains(track.Title,"remix") && !contains(track.Artist,"remix") && contains(videoTitle, "remix")) {
+	for _, keyword := range filterList {
+		if (!contains(track.Title,keyword) && !contains(track.Artist, keyword) && contains(videoTitle, keyword)) {
 			return false
+		}
 	}
-
-	if (!contains(track.Title,"instrumental") && !contains(track.Artist,"instrumental") && contains(videoTitle, "instrumental")) {
-		return false
-}
-
 	return true
 }
 
@@ -192,6 +185,6 @@ func contains(str string, substr string) bool {
 
 	return strings.Contains(
         strings.ToLower(str),
-        substr,
+        strings.ToLower(substr),
     )
 }
