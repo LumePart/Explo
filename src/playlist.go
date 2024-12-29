@@ -18,7 +18,7 @@ func createM3U(cfg Config, name string, tracks []Track) error {
 		fullFile := fmt.Sprintf("%s%s.mp3\n",cfg.Youtube.DownloadDir, track.File)
 		_, err := f.Write([]byte(fullFile))
 		if err != nil {
-			log.Printf("Failed to write song to file: %s", err.Error())
+			log.Printf("failed to write song to file: %s", err.Error())
 		}
 	}
 	return nil
@@ -60,6 +60,8 @@ func createPlaylist(cfg Config, tracks []Track) error {
 	if cfg.System == "" {
 		return fmt.Errorf("could not get music system")
 	}
+
+	description := "Created by Explo using recommendations from ListenBrainz"
 	
 	switch cfg.System {
 	case "subsonic":
@@ -70,9 +72,14 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 
-		if err := subsonicPlaylist(cfg, tracks); err != nil {
+		ID, err := subsonicPlaylist(cfg, tracks)
+		if err != nil {
 			return fmt.Errorf("failed to create subsonic playlist: %s", err.Error())
 		}
+		if err := updSubsonicPlaylist(cfg, ID, description); err != nil {
+			log.Printf("WARNING: failed to add comment to playlist: %s", err.Error())
+		}
+		
 		return nil
 	
 	case "jellyfin":

@@ -36,20 +36,22 @@ type SubResponse struct {
 			} `json:"song"`
 		} `json:"searchResult3,omitempty"`
 		Playlists     struct {
-			Playlist []struct {
-				ID        string    `json:"id"`
-				Name      string    `json:"name"`
-				Comment   string    `json:"comment,omitempty"`
-				SongCount int       `json:"songCount"`
-				Duration  int       `json:"duration"`
-				Public    bool      `json:"public"`
-				Owner     string    `json:"owner"`
-				Created   time.Time `json:"created"`
-				Changed   time.Time `json:"changed"`
-				CoverArt  string    `json:"coverArt"`
-			} `json:"playlist"`
+			Playlist []Playlist `json:"playlist"`
 		} `json:"playlists,omitempty"`
 	} `json:"subsonic-response"`
+}
+
+type Playlist struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Comment   string    `json:"comment,omitempty"`
+	SongCount int       `json:"songCount"`
+	Duration  int       `json:"duration"`
+	Public    bool      `json:"public"`
+	Owner     string    `json:"owner"`
+	Created   time.Time `json:"created"`
+	Changed   time.Time `json:"changed"`
+	CoverArt  string    `json:"coverArt"`
 }
 
 
@@ -107,7 +109,7 @@ func searchTrack(cfg Config, track Track) (string, error) {
 	}
 }
 
-func subsonicPlaylist(cfg Config, tracks []Track) error {
+func subsonicPlaylist(cfg Config, tracks []Track) (string, error) {
 
 	var trackIDs string
 
@@ -125,11 +127,16 @@ func subsonicPlaylist(cfg Config, tracks []Track) error {
 	
 	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", cfg.PlaylistName, trackIDs)
 	
-	_, err := subsonicRequest(reqParam, cfg)
+	body, err := subsonicRequest(reqParam, cfg)
+
+	var playlist Playlist
+	if err := parseResp(body, &playlist); err != nil {
+        return "", err
+    }
 	if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return playlist.ID, nil
 }
 
 func subsonicScan(cfg Config) error {
@@ -162,6 +169,15 @@ func getDiscoveryPlaylist(cfg Config) ([]string, error) {
 		}
 	}
 	return playlists, nil
+}
+
+func updSubsonicPlaylist(cfg Config, ID, comment string) error {
+	reqParam := fmt.Sprintf("updatePlaylist?id=%s&comment=%s", ID, comment)
+
+	if _, err := subsonicRequest(reqParam, cfg); err != nil {
+		return err
+	}
+	return nil
 }
 
 func delSubsonicPlaylists(playlists []string, cfg Config) error {
