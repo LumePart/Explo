@@ -57,21 +57,26 @@ func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice 
 }
 
 func createPlaylist(cfg Config, tracks []Track) error {
-
 	if cfg.System == "" {
 		return fmt.Errorf("could not get music system")
 	}
 
 	description := "Created by Explo using recommendations from ListenBrainz" // Description to add to playlists
 	
+
+	// Helper func to sleep after refreshing library
+	refreshLibrary := func() {
+		log.Printf("[%s] Refreshing library...", cfg.System)
+		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+	}
+
 	switch cfg.System {
 	case "subsonic":
 
 		if err := subsonicScan(cfg); err != nil {
 			return fmt.Errorf("failed to schedule a library scan: %s", err.Error())
 		}
-		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
-		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+		refreshLibrary()
 
 		ID, err := subsonicPlaylist(cfg, tracks)
 		if err != nil {
@@ -88,8 +93,7 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		if err := refreshJfLibrary(cfg); err != nil {
 			return fmt.Errorf("failed to refresh library: %s", err.Error())
 		}
-		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
-		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+		refreshLibrary()
 
 		ID, err := createJfPlaylist(cfg, tracks)
 		if err != nil {
@@ -112,8 +116,8 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		if err := refreshPlexLibrary(cfg); err != nil {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
 		}
-		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
-		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
+		refreshLibrary()
+
 		serverID, err := getPlexServer(cfg)
 		if err != nil {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
@@ -130,7 +134,7 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		
 		return nil
 	}
-	return fmt.Errorf("something very strange happened")
+	return fmt.Errorf("unsupported system: %s", cfg.System)
 }
 
 func handlePlaylistDeletion(cfg Config) error {
