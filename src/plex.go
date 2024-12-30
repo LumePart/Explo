@@ -296,7 +296,7 @@ func createPlexPlaylist(cfg Config, machineID string) (string, error) {
 	return playlist.MediaContainer.Metadata[0].Key, nil
 }
 
-func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) {
+func addToPlexPlaylist(cfg Config, playlistID, machineID string, tracks []Track) {
 	for i := range tracks {
 		if !tracks[i].Present {
 			songID, err := searchPlexSong(cfg, tracks[i])
@@ -306,13 +306,22 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 			tracks[i].ID = songID
 		}
 		if tracks[i].ID != "" {
-			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistKey, machineID, tracks[i].ID)
+			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistID, machineID, tracks[i].ID)
 
 			if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 				log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
 			}
 		}
 	}
+}
+
+func updatePlexPlaylist(cfg Config, PlaylistID, summary string) error {
+	params := fmt.Sprintf("/playlists/%s?summary=%s", PlaylistID, summary)
+
+	if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
+		return err
+	}
+	return nil
 }
 
 func deletePlexPlaylist(cfg Config, playlistKey string) error {

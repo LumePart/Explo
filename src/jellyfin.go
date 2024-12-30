@@ -44,7 +44,10 @@ type Items struct {
 	Path			  string		  `json:"Path"`
 	Album             string          `json:"Album,omitempty"`
 	AlbumArtist       string          `json:"AlbumArtist,omitempty"`
+}
 
+type JFPlaylist struct {
+	ID string `json:"Id"`
 }
 
 func (cfg *Credentials) jfHeader() {
@@ -145,7 +148,7 @@ func findJfPlaylist(cfg Config) (string, error) {
 	return results.SearchHints[0].ID, nil
 }
 
-func createJfPlaylist(cfg Config, tracks []Track) error {
+func createJfPlaylist(cfg Config, tracks []Track) (string, error) {
 	var songIDs []string
 	
 	for _, track := range tracks {
@@ -165,7 +168,7 @@ func createJfPlaylist(cfg Config, tracks []Track) error {
 	IDs, err := json.Marshal(songIDs)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("songIDs: %v", songIDs))
-		return fmt.Errorf("failed to marshal songIDs: %s", err.Error())
+		return "", fmt.Errorf("createJfPlaylist(): %s", err.Error())
 	}
 
 	payload := []byte(fmt.Sprintf(`
@@ -176,8 +179,31 @@ func createJfPlaylist(cfg Config, tracks []Track) error {
 		"UserId": "%s"
 		}`, cfg.PlaylistName, IDs, cfg.Creds.APIKey))
 
-	if _, err = makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("failed to create playlist: %s", err.Error())
+	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
+	if err != nil {
+		return "", fmt.Errorf("createJfPlaylist(): %s", err.Error())
+	}
+	var playlist JFPlaylist
+	if err = parseResp(body, &playlist); err != nil {
+		return "", fmt.Errorf("createJfPlaylist(): %s", err.Error())
+	}
+	return playlist.ID, nil
+}
+
+func updateJfPlaylist(cfg Config, ID, overview string) error {
+	params := fmt.Sprintf("/Items/%s", ID)
+
+	payload := []byte(fmt.Sprintf(`
+		{
+		"Id":"%s",
+		"Overview":"%s",
+		"Genres":[],
+		"Tags":[],
+		"ProviderIds":{}
+		}`, ID, overview)) // the additional fields have to be added, otherwise JF returns code 400
+
+	if _, err := makeRequest("POST", cfg.URL+params, bytes.NewBuffer(payload), cfg.Creds.Headers); err != nil {
+		return err
 	}
 	return nil
 }

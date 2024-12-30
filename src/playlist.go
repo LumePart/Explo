@@ -1,9 +1,10 @@
 package main
 
 import (
+	"explo/debug"
 	"fmt"
-	"os"
 	"log"
+	"os"
 	"time"
 )
 
@@ -61,7 +62,7 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		return fmt.Errorf("could not get music system")
 	}
 
-	description := "Created by Explo using recommendations from ListenBrainz"
+	description := "Created by Explo using recommendations from ListenBrainz" // Description to add to playlists
 	
 	switch cfg.System {
 	case "subsonic":
@@ -77,7 +78,7 @@ func createPlaylist(cfg Config, tracks []Track) error {
 			return fmt.Errorf("failed to create subsonic playlist: %s", err.Error())
 		}
 		if err := updSubsonicPlaylist(cfg, ID, description); err != nil {
-			log.Printf("WARNING: failed to add comment to playlist: %s", err.Error())
+			debug.Debug(fmt.Sprintf("failed to add comment to playlist: %s", err.Error()))
 		}
 		
 		return nil
@@ -90,9 +91,14 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
 
-		if err := createJfPlaylist(cfg, tracks); err != nil {
+		ID, err := createJfPlaylist(cfg, tracks)
+		if err != nil {
 			return fmt.Errorf("failed to create playlist: %s", err.Error())
 		}
+		if err := updateJfPlaylist(cfg, ID, description); err != nil {
+			debug.Debug(fmt.Sprintf("failed to add overview to playlist: %s", err.Error()))
+		}
+
 		return nil
 
 	case "mpd": 
@@ -108,15 +114,19 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		}
 		log.Printf("sleeping for %d minutes, to allow scan to complete..", cfg.Sleep)
 		time.Sleep(time.Duration(cfg.Sleep) * time.Minute)
-		ID, err := getPlexServer(cfg)
+		serverID, err := getPlexServer(cfg)
 		if err != nil {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
 		}
-		key, err := createPlexPlaylist(cfg, ID)
+		ID, err := createPlexPlaylist(cfg, serverID)
 		if err != nil {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
 		}
-		addToPlexPlaylist(cfg, key, ID, tracks)
+		addToPlexPlaylist(cfg, ID, serverID, tracks)
+
+		if err := updatePlexPlaylist(cfg, ID, description); err != nil {
+			debug.Debug(fmt.Sprintf("failed to add summary to playlist: %s", err.Error()))
+		}
 		
 		return nil
 	}
