@@ -316,7 +316,7 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 }
 
 func updatePlexPlaylist(cfg Config, PlaylistKey, summary string) error {
-	params := fmt.Sprintf("/playlists/%s?summary=%s", PlaylistKey, summary)
+	params := fmt.Sprintf("/playlists/%s?summary=%s", PlaylistKey, url.QueryEscape(summary))
 
 	if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return err
