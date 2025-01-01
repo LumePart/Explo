@@ -122,13 +122,13 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		if err != nil {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
 		}
-		ID, err := createPlexPlaylist(cfg, serverID)
+		playlistKey, err := createPlexPlaylist(cfg, serverID)
 		if err != nil {
 			return fmt.Errorf("createPlaylist(): %s", err.Error())
 		}
-		addToPlexPlaylist(cfg, ID, serverID, tracks)
+		addToPlexPlaylist(cfg, playlistKey, serverID, tracks)
 
-		if err := updatePlexPlaylist(cfg, ID, description); err != nil {
+		if err := updatePlexPlaylist(cfg, playlistKey, description); err != nil {
 			debug.Debug(fmt.Sprintf("failed to add summary to playlist: %s", err.Error()))
 		}
 		
