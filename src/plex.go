@@ -257,7 +257,7 @@ func getPlexPlaylist(playlists PlexPlaylist, playlistName string) string {
 
 	for _, playlist := range playlists.MediaContainer.Metadata {
 		if playlist.Title == playlistName {
-			return playlist.Key
+			return playlist.RatingKey
 		}
 	}
 	return ""
@@ -293,10 +293,10 @@ func createPlexPlaylist(cfg Config, machineID string) (string, error) {
 		return "", fmt.Errorf("createPlexPlaylist(): %s", err.Error())
 	}
 
-	return playlist.MediaContainer.Metadata[0].Key, nil
+	return playlist.MediaContainer.Metadata[0].RatingKey, nil
 }
 
-func addToPlexPlaylist(cfg Config, playlistID, machineID string, tracks []Track) {
+func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) {
 	for i := range tracks {
 		if !tracks[i].Present {
 			songID, err := searchPlexSong(cfg, tracks[i])
@@ -306,7 +306,7 @@ func addToPlexPlaylist(cfg Config, playlistID, machineID string, tracks []Track)
 			tracks[i].ID = songID
 		}
 		if tracks[i].ID != "" {
-			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistID, machineID, tracks[i].ID)
+			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistKey, machineID, tracks[i].ID)
 
 			if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 				log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
@@ -315,8 +315,8 @@ func addToPlexPlaylist(cfg Config, playlistID, machineID string, tracks []Track)
 	}
 }
 
-func updatePlexPlaylist(cfg Config, PlaylistID, summary string) error {
-	params := fmt.Sprintf("%s?summary=%s", PlaylistID, summary)
+func updatePlexPlaylist(cfg Config, PlaylistKey, summary string) error {
+	params := fmt.Sprintf("/playlists/%s?summary=%s", PlaylistKey, summary)
 
 	if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return err
@@ -325,8 +325,9 @@ func updatePlexPlaylist(cfg Config, PlaylistID, summary string) error {
 }
 
 func deletePlexPlaylist(cfg Config, playlistKey string) error {
+	params := fmt.Sprintf("/playlists/%s", playlistKey)
 
-	if _, err := makeRequest("DELETE", cfg.URL+playlistKey, nil, cfg.Creds.Headers); err != nil {
+	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("deletePlexPlaylist(): failed to delete plex playlist: %s", err.Error())
 	}
 	return nil
