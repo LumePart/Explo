@@ -196,11 +196,12 @@ func updateJfPlaylist(cfg Config, ID, overview string) error {
 	payload := []byte(fmt.Sprintf(`
 		{
 		"Id":"%s",
+		"Name":"%s"
 		"Overview":"%s",
 		"Genres":[],
 		"Tags":[],
 		"ProviderIds":{}
-		}`, ID, overview)) // the additional fields have to be added, otherwise JF returns code 400
+		}`, ID, cfg.PlaylistName, overview)) // the additional fields have to be added, otherwise JF returns code 400
 
 	if _, err := makeRequest("POST", cfg.URL+params, bytes.NewBuffer(payload), cfg.Creds.Headers); err != nil {
 		return err
