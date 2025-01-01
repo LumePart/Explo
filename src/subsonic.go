@@ -173,7 +173,7 @@ func getDiscoveryPlaylist(cfg Config) ([]string, error) {
 }
 
 func updSubsonicPlaylist(cfg Config, ID, comment string) error {
-	reqParam := fmt.Sprintf("updatePlaylist?id=%s&comment=%s", ID, comment)
+	reqParam := fmt.Sprintf("updatePlaylist?id=%s&comment=%s", ID, url.QueryEscape(comment))
 
 	if _, err := subsonicRequest(reqParam, cfg); err != nil {
 		return err
