@@ -306,7 +306,7 @@ func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track
 			tracks[i].ID = songID
 		}
 		if tracks[i].ID != "" {
-			params := fmt.Sprintf("%s?uri=server://%s/com.plexapp.plugins.%s", playlistKey, machineID, tracks[i].ID)
+			params := fmt.Sprintf("/playlists/%s?uri=server://%s/com.plexapp.plugins.%s", playlistKey, machineID, tracks[i].ID)
 
 			if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 				log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
