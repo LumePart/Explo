@@ -316,7 +316,7 @@ func addToPlexPlaylist(cfg Config, playlistID, machineID string, tracks []Track)
 }
 
 func updatePlexPlaylist(cfg Config, PlaylistID, summary string) error {
-	params := fmt.Sprintf("/playlists/%s?summary=%s", PlaylistID, summary)
+	params := fmt.Sprintf("%s?summary=%s", PlaylistID, summary)
 
 	if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
 		return err
@@ -325,9 +325,8 @@ func updatePlexPlaylist(cfg Config, PlaylistID, summary string) error {
 }
 
 func deletePlexPlaylist(cfg Config, playlistKey string) error {
-	params := fmt.Sprintf("/playlists/%s", playlistKey)
 
-	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
+	if _, err := makeRequest("DELETE", cfg.URL+playlistKey, nil, cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("deletePlexPlaylist(): failed to delete plex playlist: %s", err.Error())
 	}
 	return nil
