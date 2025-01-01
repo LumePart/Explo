@@ -36,8 +36,9 @@ type SubResponse struct {
 			} `json:"song"`
 		} `json:"searchResult3,omitempty"`
 		Playlists     struct {
-			Playlist []Playlist `json:"playlist"`
+			Playlist []Playlist `json:"playlist,omitempty"`
 		} `json:"playlists,omitempty"`
+		Playlist      Playlist `json:"playlist,omitempty"`
 	} `json:"subsonic-response"`
 }
 
@@ -129,14 +130,14 @@ func subsonicPlaylist(cfg Config, tracks []Track) (string, error) {
 	
 	body, err := subsonicRequest(reqParam, cfg)
 
-	var playlist Playlist
-	if err := parseResp(body, &playlist); err != nil {
+	var resp SubResponse
+	if err := parseResp(body, &resp); err != nil {
         return "", err
     }
 	if err != nil {
 		return "", err
 	}
-	return playlist.ID, nil
+	return resp.SubsonicResponse.Playlist.ID, nil
 }
 
 func subsonicScan(cfg Config) error {
