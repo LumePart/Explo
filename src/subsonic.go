@@ -79,10 +79,8 @@ func (cfg *Credentials) genToken() {
 func searchTrack(cfg Config, track Track) (string, error) {
 
 	searchQuery := fmt.Sprintf("%s %s %s", track.Title, track.Artist, track.Album)
-
-    cleanedQuery := url.QueryEscape(searchQuery)
     
-    reqParam := fmt.Sprintf("search3?query=%s&f=json", cleanedQuery)
+    reqParam := fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(searchQuery))
 	
     body, err := subsonicRequest(reqParam, cfg)
     if err != nil {
