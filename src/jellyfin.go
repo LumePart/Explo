@@ -145,7 +145,12 @@ func findJfPlaylist(cfg Config) (string, error) {
 	if err = parseResp(body, &results); err != nil {
 		return "", fmt.Errorf("findJfPlaylist(): %s", err.Error())
 	}
-	return results.SearchHints[0].ID, nil
+	
+	if len(results.SearchHints) != 0 {
+		return results.SearchHints[0].ID, nil
+	} else {
+		return "", fmt.Errorf("no results found for playlist: %s", cfg.PlaylistName)
+	}
 }
 
 func createJfPlaylist(cfg Config, tracks []Track) (string, error) {
@@ -196,7 +201,7 @@ func updateJfPlaylist(cfg Config, ID, overview string) error {
 	payload := []byte(fmt.Sprintf(`
 		{
 		"Id":"%s",
-		"Name":"%s"
+		"Name":"%s",
 		"Overview":"%s",
 		"Genres":[],
 		"Tags":[],
