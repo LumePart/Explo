@@ -22,7 +22,7 @@ type Config struct {
 	Listenbrainz Listenbrainz
 	Creds Credentials
 	URL string `env:"SYSTEM_URL"`
-	Sleep int `env:"SLEEP" env-default:"1"`
+	Sleep int `env:"SLEEP" env-default:"2"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	Persist bool `env:"PERSIST" env-default:"true"`
 	System string `env:"EXPLO_SYSTEM"`
@@ -70,7 +70,7 @@ type Youtube struct {
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
-	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"false"`
+	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 
 type Song struct {
