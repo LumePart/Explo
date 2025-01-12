@@ -55,7 +55,7 @@ func queryYT(cfg Youtube, track Track) Videos { // Queries youtube for the song
 func getTopic(cfg Youtube, videos Videos, track Track) string { // gets song under artist topic or personal channel
 	
 	for _, v := range videos.Items {
-		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.Artist) && filter(track, v.Snippet.Title, cfg.FilterList) {
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && filter(track, v.Snippet.Title, cfg.FilterList) {
 			return v.ID.VideoID
 		} else {
 			continue

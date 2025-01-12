@@ -98,8 +98,10 @@ type Exploration struct {
 type Track struct {
 	Album  string
 	ID string
-	Artist string
-	Title  string
+	Artist string // All artists as returned by LB
+	MainArtist string
+	CleanTitle string // Title as returned by LB
+	Title  string // Title as built in getTracks()
 	File   string
 	Present bool
 }
@@ -146,7 +148,6 @@ func getTracks(mbids []string, seaparator string, singleArtist bool) []Track {
 	for _, recording := range recordings {
 		var title string
 		var artist string
-
 		title = recording.Recording.Name
 		artist = recording.Artist.Name
 		if singleArtist { // if artist separator is empty, only append the first artist
@@ -167,6 +168,8 @@ func getTracks(mbids []string, seaparator string, singleArtist bool) []Track {
 		tracks = append(tracks, Track{
 			Album:  recording.Release.Name,
 			Artist: artist,
+			MainArtist: recording.Artist.Name,
+			CleanTitle: recording.Recording.Name,
 			Title:  title,
 			File: getFilename(title, artist, seaparator),
 		})
