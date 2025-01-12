@@ -175,6 +175,7 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 			log.Fatal("USER and/or PASSWORD variable not set, exiting")
 		}
 		cfg.Creds.genToken()
+
 	case "jellyfin":
 		if cfg.Creds.APIKey == "" {
 			log.Fatal("API_KEY variable not set, exiting")
@@ -186,10 +187,12 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 			jfAddPath(*cfg)
 			cfg.getJfPath()
 		}
+
 	case "mpd":
 		if cfg.PlaylistDir == "" {
 			log.Fatal("PLAYLIST_DIR variable not set, exiting")
 		}
+
 	case "plex":
 		if ((cfg.Creds.User == "" || cfg.Creds.Password == "") && cfg.Creds.APIKey == "") {
 			log.Fatal("USER/PASSWORD or API_KEY variables not set, exiting")
@@ -200,6 +203,19 @@ func (cfg *Config) systemSetup() { // Verifies variables and does setup
 		}
 		cfg.Creds.plexHeader() // Adds client headers (again if no api key was set)
 		cfg.getPlexLibrary()
+
+	case "emby":
+		if cfg.Creds.APIKey == "" {
+			log.Fatal("API_KEY variable not set, exiting")
+		}
+		cfg.Creds.embyHeader() // Adds auth header
+		cfg.getEmbyPath()
+
+		if cfg.Jellyfin.LibraryID == "" {
+			embyAddPath(*cfg)
+			cfg.getEmbyPath()
+		}
+
 	default:
 		log.Fatalf("system: %s not known, please use a supported system (jellyfin, mpd, subsonic or plex)", cfg.System)
 }

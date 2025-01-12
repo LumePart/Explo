@@ -47,6 +47,9 @@ func checkTracks(cfg Config, tracks []Track) []Track { // Returns updated slice 
 
 		case "plex":
 			ID, _ = searchPlexSong(cfg, track)
+
+		case "emby":
+			ID, _ = getEmbySong(cfg, track)
 		}
 		if ID != "" {
 			tracks[i].Present = true
@@ -133,6 +136,22 @@ func createPlaylist(cfg Config, tracks []Track) error {
 		}
 		
 		return nil
+
+	case "emby":
+		if err := refreshEmbyLibrary(cfg); err != nil {
+			return fmt.Errorf("failed to refresh library: %s", err.Error())
+		}
+		refreshLibrary()
+
+		_, err := createEmbyPlaylist(cfg, tracks)
+		if err != nil {
+			return fmt.Errorf("failed to create playlist: %s", err.Error())
+		}
+		/* if err := updateEmbyPlaylist(cfg, ID, description); err != nil { Not working in emby
+			debug.Debug(fmt.Sprintf("failed to add overview to playlist: %s", err.Error()))
+		} */
+
+		return nil
 	}
 	return fmt.Errorf("unsupported system: %s", cfg.System)
 }
@@ -172,6 +191,16 @@ func handlePlaylistDeletion(cfg Config) error {
 			if err := deletePlexPlaylist(cfg, key); err != nil {
 				return err
 			}
+
+		case "emby":
+			ID, err := findEmbyPlaylist(cfg)
+			if err != nil {
+				return err
+			}
+			if err := deleteEmbyPlaylist(cfg, ID); err != nil {
+				return err
+			}
+			return nil
 		}
 	return nil
 }
