@@ -62,12 +62,12 @@ func jfAllPaths(cfg Config) (Paths, error) {
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
-		return nil, fmt.Errorf("jfAllPaths: %s", err.Error())
+		return nil, fmt.Errorf("jfAllPaths(): %s", err.Error())
 	}
 
 	var paths Paths
 	if err = parseResp(body, &paths); err != nil {
-		return nil, fmt.Errorf("jfAllPaths: %s", err.Error())
+		return nil, fmt.Errorf("jfAllPaths(): %s", err.Error())
 	}
 	return paths, nil
 }
@@ -75,7 +75,7 @@ func jfAllPaths(cfg Config) (Paths, error) {
 func (cfg *Config) getJfPath()  { // Gets Librarys ID
 	paths, err := jfAllPaths(*cfg)
 	if err != nil {
-		log.Fatalf("failed to get Jellyfin paths: %s", err.Error())
+		log.Fatalf("getJfPath(): %s", err.Error())
 	}
 
 	for _, path := range paths {
@@ -99,7 +99,7 @@ func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
 	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
 	if err != nil {
 		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to add path to Jellyfin: %s", err.Error())
+		log.Fatalf("failed to add library to Jellyfin using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
 	}
 }
 
@@ -107,7 +107,7 @@ func refreshJfLibrary(cfg Config) error {
 	params := fmt.Sprintf("/Items/%s/Refresh", cfg.Jellyfin.LibraryID)
 
 	if _, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("failed to refresh library: %s", err.Error())
+		return fmt.Errorf("refreshJfLibrary(): %s", err.Error())
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func getJfSong(cfg Config, track Track) (string, error) { // Gets all files in E
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("failed to find song: %s", err.Error())
+		return "", fmt.Errorf("getJfSong(): %s", err.Error())
 	}
 
 	var results Audios
@@ -138,7 +138,7 @@ func findJfPlaylist(cfg Config) (string, error) {
 
 	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("failed to find playlist: %s", err.Error())
+		return "", fmt.Errorf("findJfPlaylist(): %s", err.Error())
 	}
 
 	var results Search
@@ -218,7 +218,7 @@ func deleteJfPlaylist(cfg Config, ID string) error {
 	params := fmt.Sprintf("/Items/%s", ID)
 
 	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("failed to delete playlist: %s", err.Error())
+		return fmt.Errorf("deleyeJfPlaylist(): %s", err.Error())
 	}
 	return nil
 }
