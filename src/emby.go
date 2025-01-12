@@ -16,19 +16,6 @@ type EmbyPaths []struct {
 	RefreshStatus  string         `json:"RefreshStatus"`
 }
 
-type EmbySearch struct {
-	SearchHints      []SearchHints `json:"SearchHints"`
-	TotalRecordCount int           `json:"TotalRecordCount"`
-}
-type EmbySearchHints struct {
-	ItemID                  string    `json:"ItemId"`
-	ID                      string    `json:"Id"`
-	Name                    string    `json:"Name"`
-	Album                   string    `json:"Album"`
-	AlbumID                 string    `json:"AlbumId"`
-	AlbumArtist             string    `json:"AlbumArtist"`
-}
-
 type EmbyItemSearch struct {
 	Items            []Items `json:"Items"`
 	TotalRecordCount int     `json:"TotalRecordCount"`
