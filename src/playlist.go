@@ -1,7 +1,7 @@
 package main
 
 import (
-	"explo/debug"
+	"explo/src/debug"
 	"fmt"
 	"log"
 	"os"

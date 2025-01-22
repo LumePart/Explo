@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"explo/debug"
+	"explo/src/debug"
 	"fmt"
 	"log"
 	"net/url"

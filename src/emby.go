@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"explo/debug"
+	"explo/src/debug"
 	"fmt"
 	"log"
 	"strings"
