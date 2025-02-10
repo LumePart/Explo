@@ -245,6 +245,7 @@ func makeRequest(method, url string, payload io.Reader, headers map[string]strin
 	}
 	
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		debug.Debug(fmt.Sprintf("response body: %s", string(body)))
 		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
 	}
 
