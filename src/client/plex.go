@@ -1,13 +1,17 @@
-package main
+package client
 
 import (
 	"bytes"
 	"encoding/json"
-	"explo/src/debug"
 	"fmt"
 	"log"
 	"net/url"
 	"time"
+
+	"explo/src/debug"
+	"explo/src/util"
+	cfg "explo/src/config"
+	"explo/src/models"
 )
 
 type LoginPayload struct {
@@ -100,129 +104,234 @@ type PlexPlaylist struct {
 	} `json:"MediaContainer"`
 }
 
-func (cfg *Credentials) plexHeader() {
+type Plex struct {
+	machineID string
+	LibraryID string
+	Cfg cfg.ClientConfig
+}
 
-	if cfg.Headers == nil {
-	cfg.Headers = make(map[string]string)
-	cfg.Headers["X-Plex-Client-Identifier"] = "explo"
-	}
-
-	if cfg.APIKey != "" {
-		cfg.Headers["X-Plex-Token"] = cfg.APIKey
+func NewPlex(cfg cfg.ClientConfig) *Plex {
+	return &Plex{
+		Cfg: cfg,
 	}
 }
 
+func (c *Plex) AddHeader() error {
 
-func (cfg *Credentials) getPlexAuth() { // Get user token from plex
+	if c.Cfg.Creds.Headers == nil {
+	c.Cfg.Creds.Headers = make(map[string]string)
+
+	c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = "explo"
+	c.Cfg.Creds.Headers["Content-Type"] = "application/json"
+	c.Cfg.Creds.Headers["Accept"] = "application/json"
+	}
+
+	if c.Cfg.Creds.APIKey != "" {
+		c.Cfg.Creds.Headers["X-Plex-Token"] = c.Cfg.Creds.APIKey
+		return nil
+	}
+	return fmt.Errorf("couldn't get API key")
+}
+
+func (c *Plex) GetAuth() error { // Get user token and server ID from plex
 	payload := LoginPayload{
 		User: LoginUser{
-			Login:    cfg.User,
-			Password: cfg.Password,
+			Login:    c.Cfg.Creds.User,
+			Password: c.Cfg.Creds.Password,
 		},
 	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Fatalf("failed to marshal payload: %s", err.Error())
+		return fmt.Errorf("failed to marshal payload: %s", err.Error())
 	}
 
 
-	body, err := makeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), cfg.Headers)
+	body, err := util.MakeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), c.Cfg.Creds.Headers)
 	if err != nil {
-		log.Fatalf("failed to make request to plex: %s", err.Error())
+		return fmt.Errorf("%s", err.Error())
 	}
 
 	var auth LoginResponse
-	err = parseResp(body, &auth)
+	err = util.ParseResp(body, &auth)
 	if err != nil {
-		log.Fatalf("getPlexAuth(): %s", err.Error())
+		return fmt.Errorf("%s", err.Error())
 	}
 
-	cfg.APIKey = auth.User.AuthToken
-}
+	c.Cfg.Creds.APIKey = auth.User.AuthToken
 
-func getPlexLibraries(cfg Config) (Libraries, error) {
-	params := "/library/sections/"
-
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	err = getServer(c)
 	if err != nil {
-		return Libraries{}, fmt.Errorf("failed to make request to plex: %s", err.Error())
+		return fmt.Errorf("%s", err.Error())
 	}
-
-	var libraries Libraries
-	err = parseResp(body, &libraries)
-	if err != nil {
-		debug.Debug(string(body))
-		log.Fatalf("getPlexLibraries(): %s", err.Error())
-	}
-	return libraries, nil
-}
-
-func (cfg *Config) getPlexLibrary() {
-	libraries, err := getPlexLibraries(*cfg)
-	if err != nil {
-		log.Fatalf("getPlexLibrary(): failed to fetch libraries: %s", err.Error())
-	}
-
-	for _, library := range libraries.MediaContainer.Library {
-		if cfg.Plex.LibraryName == library.Title {
-			cfg.Plex.LibraryID = library.Key
-			return
-		}
-	}
-	if err = cfg.addPlexLibrary(); err != nil {
-		debug.Debug(err.Error())
-		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", cfg.Plex.LibraryName)
-	}
-	log.Printf("created %s library, sleeping for 1 minute to let it sync", cfg.Plex.LibraryName)
-	time.Sleep(time.Duration(1) * time.Minute)
-}
-
-func (cfg *Config) addPlexLibrary() error {
-	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&prefs[respectTags]=1", cfg.Plex.LibraryName, cfg.Youtube.DownloadDir)
-
-	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
-		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
-	}
-
-	var libraries Libraries
-	if err = parseResp(body, &libraries); err != nil {
-		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
-	}
-	cfg.Plex.LibraryID = libraries.MediaContainer.Library[0].Key
 	return nil
 }
 
-func refreshPlexLibrary(cfg Config) error {
-	params := fmt.Sprintf("/library/sections/%s/refresh", cfg.Plex.LibraryID)
+func (c *Plex) GetLibrary() error {
+	params := "/library/sections/"
 
-	if _, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
+	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return fmt.Errorf("failed to make request to plex: %s", err.Error())
+	}
+
+	var libraries Libraries
+	err = util.ParseResp(body, &libraries)
+	if err != nil {
+		return fmt.Errorf("getPlexLibrary(): failed to fetch libraries: %s", err.Error())
+	}
+
+	for _, library := range libraries.MediaContainer.Library {
+		if c.Cfg.LibraryName == library.Title {
+			c.LibraryID = library.Key
+			return nil
+		}
+	}
+	if err = c.AddLibrary(); err != nil {
+		debug.Debug(err.Error())
+		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", c.Cfg.LibraryName)
+	}
+	log.Printf("created %s library, sleeping for 1 minute to let it sync", c.Cfg.LibraryName)
+	time.Sleep(time.Duration(1) * time.Minute)
+	return nil
+}
+
+func (c *Plex) AddLibrary() error {
+	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&prefs[respectTags]=1", c.Cfg.LibraryName, c.Cfg.DownloadDir)
+
+	body, err := util.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
+	}
+
+	var libraries Libraries
+	if err = util.ParseResp(body, &libraries); err != nil {
+		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
+	}
+	c.LibraryID = libraries.MediaContainer.Library[0].Key
+	return nil
+}
+
+func (c *Plex) RefreshLibrary() error {
+	params := fmt.Sprintf("/library/sections/%s/refresh", c.LibraryID)
+
+	if _, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("refreshPlexLibrary(): %s", err.Error())
 	}
 	return nil
 }
 
-func searchPlexSong(cfg Config, track Track) (string, error) {
+func (c *Plex) SearchSongs(tracks []*models.Track) error {
+	for _, track := range tracks {
 	params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
 
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("searchPlexSong(): failed request for '%s': %s", track.Title, err.Error())
+		log.Printf("search request failed request for '%s': %s", track.Title, err.Error())
+		continue
 	}
 	var searchResults PlexSearch
 
-	if err = parseResp(body, &searchResults); err != nil {
-		return "", fmt.Errorf("searchPlexSong(): failed to parse response for '%s': %s", track.Title, err.Error())
+	if err = util.ParseResp(body, &searchResults); err != nil {
+		log.Printf("failed to parse response for '%s': %s", track.Title, err.Error())
+		continue
 	}
-	key, err := getPlexSong(track, searchResults)
+	key, err := getPlexSong(*track, searchResults)
 	if err != nil {
-		return "", fmt.Errorf("searchPlexSong(): %s", err.Error())
+		log.Printf("%s", err.Error())
+		continue
 	}
-	return key, nil
+	if key != "" {
+		track.ID = key
+		track.Present = true
+	}
+}
+return nil
 }
 
-func getPlexSong(track Track, searchResults PlexSearch) (string, error) {
+func (c *Plex) SearchPlaylist() error {
+	params := "/playlists"
+
+	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return err
+	}
+
+	var playlists PlexPlaylist
+	if err = util.ParseResp(body, &playlists); err != nil {
+		return err
+	}
+
+	for _, playlist := range playlists.MediaContainer.Metadata {
+		if playlist.Title == c.Cfg.PlaylistName {
+			c.Cfg.PlaylistID = playlist.RatingKey
+			return nil
+		}
+	}
+	return nil
+}
+
+
+func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
+	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", c.Cfg.PlaylistName, c.machineID, c.LibraryID)
+
+	body, err := util.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return err
+	}
+
+	var playlist PlexPlaylist
+
+	if err = util.ParseResp(body, &playlist); err != nil {
+		return err
+	}
+
+	c.Cfg.PlaylistID = playlist.MediaContainer.Metadata[0].RatingKey
+
+	addtoPlaylist(c, tracks)
+
+	return nil
+}
+
+func (c *Plex) UpdatePlaylist(summary string) error {
+	fmt.Println(c.Cfg.PlaylistID, c.Cfg.PlaylistName)
+	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(summary))
+
+	body, err := util.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(body))
+	return nil
+}
+
+func (c *Plex) DeletePlaylist() error {
+	params := fmt.Sprintf("/playlists/%s", c.Cfg.PlaylistID)
+
+	if _, err := util.MakeRequest("DELETE", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+		return fmt.Errorf("failed to delete playlist: %s", err.Error())
+	}
+	return nil
+}
+
+func getServer(c *Plex) error {
+	params := "/identity"
+
+	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return fmt.Errorf("failed to get server ID: %s", err.Error())
+	}
+
+	var server PlexServer
+
+	if err = util.ParseResp(body, &server); err != nil {
+		return fmt.Errorf("failed to get server ID: %s", err.Error())
+	}
+	c.machineID = server.MediaContainer.MachineIdentifier
+	return nil
+}
+
+func getPlexSong(track models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
 
 	for _, result := range searchResults.MediaContainer.SearchResult {
 		if result.Metadata.Type == "track" && result.Metadata.Title == track.Title && result.Metadata.ParentTitle == track.Album {
@@ -233,102 +342,20 @@ func getPlexSong(track Track, searchResults PlexSearch) (string, error) {
 	return "", fmt.Errorf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album)
 }
 
-func searchPlexPlaylist(cfg Config) (string, error) {
-	params := "/playlists"
-
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+func addtoPlaylist(c *Plex, tracks []*models.Track) {
+	err := c.SearchSongs(tracks)
 	if err != nil {
-		return "", fmt.Errorf("searchPlexPlaylist(): failed to request playlists: %s", err.Error())
+		debug.Debug(err.Error())
+		return
 	}
 
-	var playlists PlexPlaylist
-	if err = parseResp(body, &playlists); err != nil {
-		return "", fmt.Errorf("searchPlexPlaylist(): failed to parse response: %s", err.Error())
-	}
+	for _, track := range tracks {
+		if track.ID != "" {
+			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
 
-	key := getPlexPlaylist(playlists, cfg.PlaylistName)
-	if key == "" {
-		debug.Debug("no playlist found")
-	}
-	return key, nil
-}
-
-func getPlexPlaylist(playlists PlexPlaylist, playlistName string) string {
-
-	for _, playlist := range playlists.MediaContainer.Metadata {
-		if playlist.Title == playlistName {
-			return playlist.RatingKey
-		}
-	}
-	return ""
-}
-
-func getPlexServer(cfg Config) (string, error) {
-	params := "/identity"
-
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
-		return "", fmt.Errorf("getPlexServer(): failed to create playlists: %s", err.Error())
-	}
-
-	var server PlexServer
-
-	if err = parseResp(body, &server); err != nil {
-		return "", fmt.Errorf("getPlexServer(): %s", err.Error())
-	}
-	return server.MediaContainer.MachineIdentifier, nil
-}
-
-func createPlexPlaylist(cfg Config, machineID string) (string, error) {
-	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", cfg.PlaylistName, machineID, cfg.Plex.LibraryID)
-
-	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
-		return "", fmt.Errorf("createPlexPlaylist(): failed to create playlists: %s", err.Error())
-	}
-
-	var playlist PlexPlaylist
-
-	if err = parseResp(body, &playlist); err != nil {
-		return "", fmt.Errorf("createPlexPlaylist(): %s", err.Error())
-	}
-
-	return playlist.MediaContainer.Metadata[0].RatingKey, nil
-}
-
-func addToPlexPlaylist(cfg Config, playlistKey, machineID string, tracks []Track) {
-	for i := range tracks {
-		if !tracks[i].Present {
-			songID, err := searchPlexSong(cfg, tracks[i])
-			if err != nil {
-				debug.Debug(err.Error())
-			}
-			tracks[i].ID = songID
-		}
-		if tracks[i].ID != "" {
-			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", playlistKey, machineID, tracks[i].ID)
-
-			if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-				log.Printf("addToPlexPlaylist(): failed to add %s to playlist: %s", tracks[i].Title, err.Error())
+			if _, err := util.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+				log.Printf("failed to add %s to playlist: %s", track.Title, err.Error())
 			}
 		}
 	}
-}
-
-func updatePlexPlaylist(cfg Config, PlaylistKey, summary string) error {
-	params := fmt.Sprintf("/playlists/%s?summary=%s", PlaylistKey, url.QueryEscape(summary))
-
-	if _, err := makeRequest("PUT", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return err
-	}
-	return nil
-}
-
-func deletePlexPlaylist(cfg Config, playlistKey string) error {
-	params := fmt.Sprintf("/playlists/%s", playlistKey)
-
-	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("deletePlexPlaylist(): failed to delete plex playlist: %s", err.Error())
-	}
-	return nil
 }
