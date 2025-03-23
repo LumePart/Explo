@@ -1,11 +1,14 @@
-package main
+package discovery
 
 import (
-	"regexp"
 	"fmt"
-	"log"
+	"regexp"
 	"strings"
 	"time"
+
+	cfg "explo/src/config"
+	"explo/src/models"
+	"explo/src/util"
 )
 
 type Recommendations struct {
@@ -95,29 +98,57 @@ type Exploration struct {
 	} `json:"playlist"`
 }
 
-type Track struct {
-	Album  string
-	ID string
-	Artist string // All artists as returned by LB
-	MainArtist string
-	CleanTitle string // Title as returned by LB
-	Title  string // Title as built in getTracks()
-	File   string
-	Present bool
+type ListenBrainz struct {
+	cfg cfg.Listenbrainz
+	Separator string
 }
 
-func getReccs(cfg Listenbrainz) []string {
+
+func NewListenBrainz(cfg cfg.DiscoveryConfig) *ListenBrainz {
+	return &ListenBrainz{
+		cfg: cfg.Listenbrainz,
+		Separator: cfg.Separator,
+	}
+}
+func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
+	var tracks []*models.Track
+
+	switch c.cfg.Discovery {
+	case "playlist":
+		id, err := getWeeklyExploration(c.cfg.User)
+		if err != nil {
+			return nil, err
+		}
+		tracks, err = parseWeeklyExploration(id, c.Separator, c.cfg.SingleArtist)
+		if err != nil {
+			return nil, err
+		}
+		
+	default:
+		mbids, err := getAPIRecommendations(c.cfg.User)
+		if err != nil {
+			return nil, err
+		}
+		tracks, err = getTracks(mbids, c.Separator, c.cfg.SingleArtist)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return tracks, nil
+}
+
+func getAPIRecommendations(user string) ([]string, error) {
 	var mbids []string
 
-	body, err := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", cfg.User))
+	body, err := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", user))
 	if err != nil {
-		log.Fatal(err.Error())
+		return mbids, fmt.Errorf("could not get recommendations from API: %s", err.Error())
 	}
 
 	var reccs Recommendations
-	err = parseResp(body, &reccs)
+	err = util.ParseResp(body, &reccs)
 	if err != nil {
-		log.Fatalf("getReccs(): %s", err.Error())
+		return mbids, fmt.Errorf("could not get recommendations from API: %s", err.Error())
 	}
 
 	for _, rec := range reccs.Payload.Mbids {
@@ -125,70 +156,73 @@ func getReccs(cfg Listenbrainz) []string {
 	}
 
 	if len(mbids) == 0 {
-		log.Fatal("no recommendations found, exiting...")
+		return mbids, fmt.Errorf("no recommendations found, exiting")
 	}
-	return mbids
+	return mbids, nil
 }
 
-func getTracks(mbids []string, seaparator string, singleArtist bool) []Track {
-	str_mbids := strings.Join(mbids, ",")
+func getTracks(mbids []string, separator string, singleArtist bool) ([]*models.Track, error) {
+	strMbids := strings.Join(mbids, ",")
 
-	body, err := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist", str_mbids))
+	body, err := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist", strMbids))
 	if err != nil {
-		log.Fatal(err.Error())
+		return nil, fmt.Errorf("getTracks(): %s", err.Error())
 	}
 
 	var recordings Recordings
-	err = parseResp(body, &recordings)
-	if err != nil {
-		log.Fatalf("getTracks(): %s", err.Error())
+	if err := util.ParseResp(body, &recordings); err != nil {
+		return nil, fmt.Errorf("getTracks(): %s", err.Error())
 	}
 
-	var tracks []Track
+	if len(recordings) == 0 {
+		return nil, fmt.Errorf("no recordings found for MBIDs: %s", strMbids)
+	}
+
+	tracks := make([]*models.Track, 0, len(recordings))
 	for _, recording := range recordings {
 		var title string
 		var artist string
 		title = recording.Recording.Name
 		artist = recording.Artist.Name
-		if singleArtist { // if artist separator is empty, only append the first artist
-			if len(recording.Artist.Artists) > 1 {
-				var tempTitle string
-				joinPhrase := " feat. "
+
+		if singleArtist && len(recording.Artist.Artists) > 1 {
+			var tempTitle strings.Builder
+			joinPhrase := " feat. "
 			for i, artist := range recording.Artist.Artists[1:] {
 				if i > 0 {
 					joinPhrase = ", "
 				}
-				tempTitle += fmt.Sprintf("%s%s",joinPhrase, artist.Name) 
+				tempTitle.WriteString(joinPhrase)
+				tempTitle.WriteString(artist.Name)
 			}
-			title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle)
+			title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
+			artist = recording.Artist.Artists[0].Name
 		}
-		artist = recording.Artist.Artists[0].Name
-	}
 
-		tracks = append(tracks, Track{
-			Album:  recording.Release.Name,
-			Artist: artist,
-			MainArtist: recording.Artist.Name,
-			CleanTitle: recording.Recording.Name,
-			Title:  title,
-			File: getFilename(title, artist, seaparator),
+		tracks = append(tracks, &models.Track{
+			Album:       recording.Release.Name,
+			Artist:      artist,
+			MainArtist:  recording.Artist.Name,
+			CleanTitle:  recording.Recording.Name,
+			Title:       title,
+			File:        getFilename(title, artist, separator),
 		})
 	}
 
-	return tracks
+	return tracks, nil
 
 }
 
-func getWeeklyExploration(cfg Listenbrainz) (string, error) {
-	body, err := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", cfg.User))
+func getWeeklyExploration(user string) (string, error) { // Get user LB playlists and find Weekly Exploration's ID
+	body, err := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
 	if err != nil {
-		log.Fatal(err.Error())
+		return "", fmt.Errorf("getWeeklyExploration(): %s", err.Error())
 	}
 
 	var playlists Playlists
-	err = parseResp(body, &playlists)
+	err = util.ParseResp(body, &playlists)
 	if err != nil {
-		log.Fatalf("getWeeklyExploration(): %s", err.Error())
+		return "", fmt.Errorf("getWeeklyExploration(): %s", err.Error())
 	}
 
 	for _, playlist := range playlists.Playlist {
@@ -204,49 +238,52 @@ func getWeeklyExploration(cfg Listenbrainz) (string, error) {
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
-func parseWeeklyExploration(identifier, separator string, singleArtist bool) []Track {
+func parseWeeklyExploration(identifier, separator string, singleArtist bool) ([]*models.Track, error) {
 	body, err := lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
-		log.Fatal(err.Error())
+		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
 	}
 
 	var exploration Exploration
-	err = parseResp(body, &exploration)
+	err = util.ParseResp(body, &exploration)
 	if err != nil {
-		log.Fatalf("parseWeeklyExploration(): %s", err.Error())
+		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
 	}
 
-	var tracks []Track
-	for _, track := range exploration.Playlist.Tracks {
-		var title string
-		var artist string
+	if len(exploration.Playlist.Tracks) == 0 {
+		return nil, fmt.Errorf("no tracks found in playlist %s", identifier)
+	}
 
-		title = track.Title
-		artist = track.Creator
-		if singleArtist { // if artist separator is empty, only append the first artist
-			if len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
-				var tempTitle string
-				joinPhrase := " feat. "
+	tracks := make([]*models.Track, 0, len(exploration.Playlist.Tracks))
+	for _, track := range exploration.Playlist.Tracks {
+		title := track.Title
+		artist := track.Creator
+
+		if singleArtist && len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
+			var tempTitle strings.Builder
+			joinPhrase := " feat. "
 			for i, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[1:] {
 				if i > 0 {
 					joinPhrase = ", "
 				}
-				tempTitle += fmt.Sprintf("%s%s",joinPhrase, artist.ArtistCreditName) 
+				tempTitle.WriteString(joinPhrase)
+				tempTitle.WriteString(artist.ArtistCreditName)
 			}
-			title = fmt.Sprintf("%s%s", track.Title, tempTitle)
+			title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
+			artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 		}
-		artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
-	}
 
-		tracks = append(tracks, Track{
-			Album:  track.Album,
-			Artist: artist,
-			Title:  title,
-			File: getFilename(title, artist, separator),
-
+		tracks = append(tracks, &models.Track{
+			Album:      track.Album,
+			MainArtist: track.Creator,
+			Artist:     artist,
+			CleanTitle: track.Title,
+			Title:      title,
+			File:       getFilename(title, artist, separator),
 		})
 	}
-	return tracks
+
+	return tracks, nil
 
 }
 
@@ -265,10 +302,14 @@ func lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API request
 
 	reqURL := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)
 	
-	body, err := makeRequest("GET", reqURL, nil, nil)
-	
+	body, err := util.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make request to ListenBrainz API: %s", err)
 	}
+
+	if len(body) == 0 {
+		return nil, fmt.Errorf("ListenBrainz API returned empty response for: %s", reqURL)
+	}
+	
 	return body, nil
 }
