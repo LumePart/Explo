@@ -343,12 +343,6 @@ func getPlexSong(track models.Track, searchResults PlexSearch) (string, error) {
 }
 
 func addtoPlaylist(c *Plex, tracks []*models.Track) {
-	err := c.SearchSongs(tracks)
-	if err != nil {
-		debug.Debug(err.Error())
-		return
-	}
-
 	for _, track := range tracks {
 		if track.ID != "" {
 			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)

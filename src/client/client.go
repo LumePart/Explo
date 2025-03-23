@@ -109,7 +109,7 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 
 	log.Printf("[%s] Refreshing library...", c.System)
 	time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
-
+	c.API.SearchSongs(tracks) // search newly added songs
 	if err := c.API.CreatePlaylist(tracks); err != nil {
 		return fmt.Errorf("[%s] failed to create playlist: %s", c.System, err.Error())
 	}
