@@ -18,6 +18,7 @@ type Config struct {
 }
 
 type ClientConfig struct {
+	ClientID string `env:"CLIENT_ID" env-default:"explo"`
 	LibraryName string `env:"LIBRARY_NAME" env-default:"Explo"`
 	URL string `env:"SYSTEM_URL"`
 	DownloadDir string `env:"DOWNLOAD_DIR"`
@@ -26,6 +27,7 @@ type ClientConfig struct {
 	PlaylistID string
 	Sleep int `env:"SLEEP" env-default:"2"`
 	Creds Credentials
+	Subsonic SubsonicConfig
 }
 
 type Credentials struct {
