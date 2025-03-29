@@ -121,7 +121,7 @@ func (c *Plex) AddHeader() error {
 	if c.Cfg.Creds.Headers == nil {
 	c.Cfg.Creds.Headers = make(map[string]string)
 
-	c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = "explo"
+	c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = c.Cfg.ClientID
 	c.Cfg.Creds.Headers["Content-Type"] = "application/json"
 	c.Cfg.Creds.Headers["Accept"] = "application/json"
 	}
