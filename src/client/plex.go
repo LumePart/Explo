@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"time"
 
 	"explo/src/debug"
 	"explo/src/util"
-	cfg "explo/src/config"
+	"explo/src/config"
 	"explo/src/models"
 )
 
@@ -107,10 +106,10 @@ type PlexPlaylist struct {
 type Plex struct {
 	machineID string
 	LibraryID string
-	Cfg cfg.ClientConfig
+	Cfg config.ClientConfig
 }
 
-func NewPlex(cfg cfg.ClientConfig) *Plex {
+func NewPlex(cfg config.ClientConfig) *Plex {
 	return &Plex{
 		Cfg: cfg,
 	}
@@ -121,7 +120,7 @@ func (c *Plex) AddHeader() error {
 	if c.Cfg.Creds.Headers == nil {
 	c.Cfg.Creds.Headers = make(map[string]string)
 
-	c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = c.Cfg.ClientID
+	c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = "explo"
 	c.Cfg.Creds.Headers["Content-Type"] = "application/json"
 	c.Cfg.Creds.Headers["Accept"] = "application/json"
 	}
@@ -178,7 +177,7 @@ func (c *Plex) GetLibrary() error {
 	var libraries Libraries
 	err = util.ParseResp(body, &libraries)
 	if err != nil {
-		return fmt.Errorf("getPlexLibrary(): failed to fetch libraries: %s", err.Error())
+		return fmt.Errorf("failed to parse libraries: %s", err.Error())
 	}
 
 	for _, library := range libraries.MediaContainer.Library {
@@ -191,9 +190,7 @@ func (c *Plex) GetLibrary() error {
 		debug.Debug(err.Error())
 		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", c.Cfg.LibraryName)
 	}
-	log.Printf("created %s library, sleeping for 1 minute to let it sync", c.Cfg.LibraryName)
-	time.Sleep(time.Duration(1) * time.Minute)
-	return nil
+	return fmt.Errorf("library '%s' not found", c.Cfg.LibraryName)
 }
 
 func (c *Plex) AddLibrary() error {
@@ -201,12 +198,12 @@ func (c *Plex) AddLibrary() error {
 
 	body, err := util.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
-		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
+		return err
 	}
 
 	var libraries Libraries
 	if err = util.ParseResp(body, &libraries); err != nil {
-		return fmt.Errorf("addPlexLibrary(): %s", err.Error())
+		return err
 	}
 	c.LibraryID = libraries.MediaContainer.Library[0].Key
 	return nil
@@ -223,28 +220,28 @@ func (c *Plex) RefreshLibrary() error {
 
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-	params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
+		params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
-	if err != nil {
-		log.Printf("search request failed request for '%s': %s", track.Title, err.Error())
-		continue
-	}
-	var searchResults PlexSearch
-
-	if err = util.ParseResp(body, &searchResults); err != nil {
-		log.Printf("failed to parse response for '%s': %s", track.Title, err.Error())
-		continue
-	}
-	key, err := getPlexSong(*track, searchResults)
-	if err != nil {
-		log.Printf("%s", err.Error())
-		continue
-	}
-	if key != "" {
-		track.ID = key
-		track.Present = true
-	}
+		body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+		if err != nil {
+			log.Printf("search request failed request for '%s': %s", track.Title, err.Error())
+			continue
+		}
+		
+		var searchResults PlexSearch
+		if err = util.ParseResp(body, &searchResults); err != nil {
+			log.Printf("failed to parse response for '%s': %s", track.Title, err.Error())
+			continue
+		}
+		key, err := getPlexSong(track, searchResults)
+		if err != nil {
+			debug.Debug(err.Error())
+			continue
+		}
+		if key != "" {
+			track.ID = key
+			track.Present = true
+		}
 }
 return nil
 }
@@ -294,14 +291,11 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 }
 
 func (c *Plex) UpdatePlaylist(summary string) error {
-	fmt.Println(c.Cfg.PlaylistID, c.Cfg.PlaylistName)
 	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(summary))
 
-	body, err := util.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
-	if err != nil {
+	if _, err := util.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
-	fmt.Println(string(body))
 	return nil
 }
 
@@ -309,7 +303,7 @@ func (c *Plex) DeletePlaylist() error {
 	params := fmt.Sprintf("/playlists/%s", c.Cfg.PlaylistID)
 
 	if _, err := util.MakeRequest("DELETE", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("failed to delete playlist: %s", err.Error())
+		return err
 	}
 	return nil
 }
@@ -331,7 +325,7 @@ func getServer(c *Plex) error {
 	return nil
 }
 
-func getPlexSong(track models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
+func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
 
 	for _, result := range searchResults.MediaContainer.SearchResult {
 		if result.Metadata.Type == "track" && result.Metadata.Title == track.Title && result.Metadata.ParentTitle == track.Album {
@@ -343,6 +337,7 @@ func getPlexSong(track models.Track, searchResults PlexSearch) (string, error) {
 }
 
 func addtoPlaylist(c *Plex, tracks []*models.Track) {
+
 	for _, track := range tracks {
 		if track.ID != "" {
 			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
