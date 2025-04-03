@@ -43,7 +43,13 @@ func main() {
 	}
 	client.CheckTracks(tracks) // Check if tracks exist on system before downloading
 	downloader.StartDownload(&tracks)
+	if len(tracks) == 0 {
+		log.Fatal("couldn't download any tracks")
+	}
+
 	if err := client.CreatePlaylist(tracks); err != nil {
 		log.Println(err)
+	} else {
+		log.Printf("[%s] %s playlist created successfully",cfg.System, cfg.ClientCfg.PlaylistName)
 	}
 }
