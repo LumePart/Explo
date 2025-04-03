@@ -42,7 +42,7 @@ func main() {
 		downloader.DeleteSongs()
 	}
 	client.CheckTracks(tracks) // Check if tracks exist on system before downloading
-	downloader.StartDownload(tracks)
+	downloader.StartDownload(&tracks)
 	if err := client.CreatePlaylist(tracks); err != nil {
 		log.Println(err)
 	}

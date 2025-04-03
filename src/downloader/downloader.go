@@ -35,9 +35,9 @@ func NewDownloader(cfg *cfg.DownloadConfig) *DownloadClient { // get download se
 		Downloaders: downloader}
 }
 
-func (c *DownloadClient) StartDownload(tracks []*models.Track) {
+func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	for _, d := range c.Downloaders { // download tracks using downloaders defined in config
-		for _, track := range tracks {
+		for _, track := range *tracks {
 			if !track.Present {
 				if err := d.QueryTrack(track); err != nil {
 					debug.Debug(err.Error())
@@ -49,11 +49,13 @@ func (c *DownloadClient) StartDownload(tracks []*models.Track) {
 
 				if c.Cfg.Discovery == "test" {
 					debug.Debug("test mode enabled: Downloaded 1 song, stopping downloads")
+					filterTracks(tracks)
 					return
 				}
 			}
 		}
 	}
+	filterTracks(tracks)
 }
 
 func (c *DownloadClient) DeleteSongs() {
@@ -70,4 +72,15 @@ func (c *DownloadClient) DeleteSongs() {
 			}
 		}
 	}
+}
+
+func filterTracks(tracks *[]*models.Track) { // only keep tracks that were downloaded or were found by music system
+	filteredTracks := (*tracks)[:0]
+	for _, track := range *tracks {
+		if track.Present {
+			track.Present = false // clear present status so music system can use the same field
+			filteredTracks = append(filteredTracks, track)
+		}
+	}
+	*tracks = filteredTracks
 }
