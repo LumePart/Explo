@@ -1,13 +1,16 @@
-package main
+package client
 
 import (
 	"bytes"
 	"encoding/json"
-	"explo/src/debug"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
+
+	"explo/src/config"
+	"explo/src/debug"
+	"explo/src/models"
+	"explo/src/util"
 )
 
 type Paths []struct {
@@ -50,44 +53,56 @@ type JFPlaylist struct {
 	ID string `json:"Id"`
 }
 
-func (cfg *Credentials) jfHeader() {
-	cfg.Headers = make(map[string]string)
-
-	cfg.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=Explo", cfg.APIKey)
-	
+type Jellyfin struct {
+	LibraryID string
+	Cfg config.ClientConfig
 }
 
-func jfAllPaths(cfg Config) (Paths, error) {
-	params := "/Library/VirtualFolders"
+func NewJellyfin(cfg config.ClientConfig) *Jellyfin {
+	return &Jellyfin{Cfg: cfg}
+}
 
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+func (c *Jellyfin) AddHeader() error {
+	if c.Cfg.Creds.Headers == nil {
+		c.Cfg.Creds.Headers = make(map[string]string)
+	}
+
+	if c.Cfg.Creds.APIKey != "" {
+	c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", c.Cfg.Creds.APIKey, c.Cfg.ClientID)
+	return nil
+	}
+	return fmt.Errorf("API_KEY not set")
+}
+
+func (c *Jellyfin) GetAuth() error {
+	return nil
+}
+
+func (c *Jellyfin) GetLibrary() error {
+	reqParam := "/Library/VirtualFolders"
+	
+	body, err := util.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
-		return nil, fmt.Errorf("jfAllPaths(): %s", err.Error())
+		return err
 	}
 
 	var paths Paths
-	if err = parseResp(body, &paths); err != nil {
-		return nil, fmt.Errorf("jfAllPaths(): %s", err.Error())
+	if err = util.ParseResp(body, &paths); err != nil {
+		return err
 	}
-	return paths, nil
-}
-
-func (cfg *Config) getJfPath()  { // Gets Librarys ID
-	paths, err := jfAllPaths(*cfg)
-	if err != nil {
-		log.Fatalf("getJfPath(): %s", err.Error())
-	}
-
+	
 	for _, path := range paths {
-		if path.Name == cfg.Jellyfin.LibraryName {
-			cfg.Jellyfin.LibraryID = path.ItemID
+		if path.Name == c.Cfg.LibraryName {
+			c.LibraryID = path.ItemID
+			return nil
 		}
 	}
+	return fmt.Errorf("failed to find library named %s", c.Cfg.LibraryName)
 }
 
-func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
-	cleanPath := url.PathEscape(cfg.Youtube.DownloadDir)
-	params := fmt.Sprintf("/Library/VirtualFolders?name=%s&paths=%s&collectionType=music&refreshLibrary=true", cfg.Jellyfin.LibraryName, cleanPath)
+func (c *Jellyfin) AddLibrary() error {
+	cleanPath := url.PathEscape(c.Cfg.DownloadDir)
+	reqParam := fmt.Sprintf("/Library/VirtualFolders?name=%s&paths=%s&collectionType=music&refreshLibrary=true", c.Cfg.LibraryName, cleanPath)
 	payload := []byte(`{
 		"LibraryOptions": {
 		  "Enabled": true,
@@ -96,108 +111,101 @@ func jfAddPath(cfg Config)  { // adds Jellyfin library, if not set
 		}
 	  }`)
 
-	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
-		log.Fatalf("failed to add library to Jellyfin using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
-	}
-}
-
-func refreshJfLibrary(cfg Config) error {
-	params := fmt.Sprintf("/Items/%s/Refresh", cfg.Jellyfin.LibraryID)
-
-	if _, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("refreshJfLibrary(): %s", err.Error())
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
+		return fmt.Errorf("failed to add library to Jellyfin using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
 	}
 	return nil
 }
 
-func getJfSong(cfg Config, track Track) (string, error) { // Gets all files in Explo library and filters out new ones
-	params := fmt.Sprintf("/Items?parentId=%s&fields=Path", cfg.Jellyfin.LibraryID)
+func (c *Jellyfin) RefreshLibrary() error {
+	reqParam := fmt.Sprintf("/Items/%s/Refresh", c.LibraryID)
 
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
+	queryParams := fmt.Sprintf("/Items?parentId=%s&fields=Path&mediaTypes=Audio&sortBy=DateCreated&sortOrder=Descending&limit=200", c.LibraryID) // limit 200 recently added audio tracks to search from
+
+	body, err := util.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("getJfSong(): %s", err.Error())
+		return fmt.Errorf("request failed to get songs from %s library: %s", c.Cfg.LibraryName, err.Error())
 	}
 
 	var results Audios
-	if err = parseResp(body, &results); err != nil {
-		return "", fmt.Errorf("getJfSong(): %s", err.Error())
+	if err = util.ParseResp(body, &results); err != nil {
+		return err
 	}
 
-	for _, item := range results.Items {
-		if strings.Contains(item.Path, track.File) {
-			return item.ID, nil
+	for _, track := range tracks {
+
+		for _, item := range results.Items {
+			if strings.Contains(item.Path, track.File) {
+				track.ID = item.ID
+				track.Present = true
+				break
+			}
+		}
+		if !track.Present {
+		debug.Debug(fmt.Sprintf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album))
 		}
 	}
-	return "", nil
+	return nil
 }
 
-func findJfPlaylist(cfg Config) (string, error) {
-	params := fmt.Sprintf("/Search/Hints?searchTerm=%s&mediaTypes=Playlist", cfg.PlaylistName)
+func (c *Jellyfin) SearchPlaylist() error {
+	queryParams := fmt.Sprintf("/Search/Hints?searchTerm=%s&mediaTypes=Playlist", c.Cfg.PlaylistName)
 
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+	body, err := util.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("findJfPlaylist(): %s", err.Error())
+		return err
 	}
 
 	var results Search
-	if err = parseResp(body, &results); err != nil {
-		return "", fmt.Errorf("findJfPlaylist(): %s", err.Error())
+	if err = util.ParseResp(body, &results); err != nil {
+		return err
 	}
 	
 	if len(results.SearchHints) != 0 {
-		return results.SearchHints[0].ID, nil
+		c.Cfg.PlaylistID = results.SearchHints[0].ID
+		return nil
 	} else {
-		return "", fmt.Errorf("no results found for playlist: %s", cfg.PlaylistName)
+		return fmt.Errorf("no results found for playlist: %s", c.Cfg.PlaylistName)
 	}
 }
 
-func createJfPlaylist(cfg Config, tracks []Track) (string, error) {
-	var songIDs []string
-	
-	for _, track := range tracks {
-		if track.ID == "" {
-			songID, err := getJfSong(cfg, track)
-			if songID == "" || err != nil {
-				debug.Debug(fmt.Sprintf("could not get %s", track.File))
-				continue
-			}
-			track.ID = songID
-		}
-		songIDs = append(songIDs, track.ID)
-	}
-	
-	params := "/Playlists"
+func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 
-	IDs, err := json.Marshal(songIDs)
+	songs, err := formatJFSongs(tracks)
 	if err != nil {
-		debug.Debug(fmt.Sprintf("songIDs: %v", songIDs))
-		return "", fmt.Errorf("createJfPlaylist(): %s", err.Error())
+		return fmt.Errorf("failed to marshal track IDs: %s", err.Error())
 	}
 
+	queryParams := "/Playlists"
 	payload := []byte(fmt.Sprintf(`
 		{
 		"Name": "%s",
 		"Ids": %s,
 		"MediaType": "Audio",
 		"UserId": "%s"
-		}`, cfg.PlaylistName, IDs, cfg.Creds.APIKey))
+		}`, c.Cfg.PlaylistName, songs, c.Cfg.Creds.APIKey))
 
-	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
+	body, err := util.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewReader(payload), c.Cfg.Creds.Headers)
 	if err != nil {
-		return "", fmt.Errorf("createJfPlaylist(): %s", err.Error())
+		return err
 	}
 	var playlist JFPlaylist
-	if err = parseResp(body, &playlist); err != nil {
-		return "", fmt.Errorf("createJfPlaylist(): %s", err.Error())
+	if err = util.ParseResp(body, &playlist); err != nil {
+		return err
 	}
-	return playlist.ID, nil
+	c.Cfg.PlaylistID = playlist.ID
+	return nil
 }
 
-func updateJfPlaylist(cfg Config, ID, overview string) error {
-	params := fmt.Sprintf("/Items/%s", ID)
-
+func (c *Jellyfin) UpdatePlaylist(overview string) error {
+	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
 	payload := []byte(fmt.Sprintf(`
 		{
 		"Id":"%s",
@@ -206,19 +214,33 @@ func updateJfPlaylist(cfg Config, ID, overview string) error {
 		"Genres":[],
 		"Tags":[],
 		"ProviderIds":{}
-		}`, ID, cfg.PlaylistName, overview)) // the additional fields have to be added, otherwise JF returns code 400
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview)) // the additional fields have to be added, otherwise JF returns code 400
 
-	if _, err := makeRequest("POST", cfg.URL+params, bytes.NewBuffer(payload), cfg.Creds.Headers); err != nil {
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
 }
 
-func deleteJfPlaylist(cfg Config, ID string) error {
-	params := fmt.Sprintf("/Items/%s", ID)
+func (c *Jellyfin) DeletePlaylist() error {
+	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
 
-	if _, err := makeRequest("DELETE", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
+	if _, err := util.MakeRequest("DELETE", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("deleyeJfPlaylist(): %s", err.Error())
 	}
 	return nil
+}
+
+func formatJFSongs(tracks []*models.Track) ([]byte, error) { // marshal track IDs
+	songIDs := make([]string, 0, len(tracks))
+	for _, track := range tracks {
+		if track.Present {
+			songIDs = append(songIDs,track.ID)
+		}
+	}
+	songs, err := json.Marshal(songIDs)
+	if err != nil {
+		return nil, err
+	}
+	return songs, nil
 }
