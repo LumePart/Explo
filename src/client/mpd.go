@@ -14,6 +14,10 @@ type MPD struct {
 	Cfg config.ClientConfig
 }
 
+func NewMPD(cfg config.ClientConfig) *MPD {
+	return &MPD{Cfg: cfg}
+}
+
 func (c *MPD) GetLibrary() error {
 	return nil
 }
