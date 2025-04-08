@@ -36,10 +36,19 @@ func NewClient(cfg *config.Config) *Client {
 	}
 	switch c.System {
 	
-	/* case "jellyfin":
-		c.API = NewJellyfin(cfg.ClientCfg) */
+	case "jellyfin":
+		c.API = NewJellyfin(cfg.ClientCfg)
+	
+	case "mpd":
+		c.API = NewMPD(cfg.ClientCfg)
+
 	case "plex":
 		c.API = NewPlex(cfg.ClientCfg)
+
+	case "subsonic": 
+		c.API = NewSubsonic(cfg.ClientCfg)
+	
+
 
 	c.systemSetup() // Run setup automatically
 	return c
