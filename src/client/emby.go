@@ -1,11 +1,16 @@
-package main
+package client
 
 import (
 	"bytes"
-	"explo/src/debug"
 	"fmt"
 	"log"
 	"strings"
+	"time"
+
+	"explo/src/config"
+	"explo/src/debug"
+	"explo/src/models"
+	"explo/src/util"
 )
 
 type EmbyPaths []struct {
@@ -34,43 +39,56 @@ type EmbyPlaylist struct {
 	ID string `json:"Id"`
 }
 
-func (cfg *Credentials) embyHeader() {
-	cfg.Headers = make(map[string]string)
-
-	cfg.Headers["X-Emby-Token"] = cfg.APIKey
-	
+type Emby struct {
+	LibraryID string
+	Cfg config.ClientConfig
 }
 
-func embyAllPaths(cfg Config) (EmbyPaths, error) {
-	params := "/emby/Library/VirtualFolders"
+func NewEmby(cfg config.ClientConfig) *Emby {
+	return &Emby{Cfg: cfg}
+}
 
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
+func (c *Emby) AddHeader() error {
+	if c.Cfg.Creds.Headers == nil {
+		c.Cfg.Creds.Headers = make(map[string]string)
+	}
+
+	if c.Cfg.Creds.APIKey != "" {
+		c.Cfg.Creds.Headers["X-Emby-Token"] = c.Cfg.Creds.APIKey
+		return nil
+	}
+	return fmt.Errorf("API_KEY not set")
+}
+
+func (c *Emby) GetAuth() error {
+	return nil
+}
+
+func (c *Emby) GetLibrary() error {
+	reqParam := "/emby/Library/VirtualFolders"
+
+	body, err := util.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
-		return nil, fmt.Errorf("embyAllPaths(): %s", err.Error())
+		return err
 	}
 
 	var paths EmbyPaths
-	if err = parseResp(body, &paths); err != nil {
-		return nil, fmt.Errorf("embyAllPaths(): %s", err.Error())
+	if err = util.ParseResp(body, &paths); err != nil {
+		return err
 	}
-	return paths, nil
-}
-
-func (cfg *Config) getEmbyPath()  { // Gets Librarys ID
-	paths, err := embyAllPaths(*cfg)
-	if err != nil {
-		log.Fatalf("failed to get Emby paths: %s", err.Error())
-	}
-
 	for _, path := range paths {
-		if path.Name == cfg.Jellyfin.LibraryName {
-			cfg.Jellyfin.LibraryID = path.ItemID
+		if path.Name == c.Cfg.LibraryName {
+			c.LibraryID = path.ItemID
+			return nil
 		}
 	}
+
+	return fmt.Errorf("failed to find library named %s", c.Cfg.LibraryName)
 }
 
-func embyAddPath(cfg Config)  { // adds Jellyfin library, if not set
-	params := "/emby/Library/VirtualFolders"
+func (c *Emby) AddLibrary() error {
+	reqParam := "/emby/Library/VirtualFolders"
+
 	payload := []byte(fmt.Sprintf(`{
 		"Name": "%s",
 		"CollectionType": "Music",
@@ -81,118 +99,129 @@ func embyAddPath(cfg Config)  { // adds Jellyfin library, if not set
 		  "EnableRealtimeMonitor": true,
 		  "EnableLUFSScan": false
 		}
-	  }`, cfg.Jellyfin.LibraryName, cfg.Youtube.DownloadDir))
+	  }`, c.Cfg.LibraryName, c.Cfg.DownloadDir))
 
-	body, err := makeRequest("POST", cfg.URL+params, bytes.NewReader(payload), cfg.Creds.Headers)
-	if err != nil {
-		debug.Debug(fmt.Sprintf("response: %s", body))
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
 		log.Fatalf("failed to add library to Emby using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
-	}
-}
-
-func refreshEmbyLibrary(cfg Config) error {
-	params := fmt.Sprintf("/emby/Items/%s/Refresh", cfg.Jellyfin.LibraryID)
-
-	if _, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("refreshEmbyLibrary(): %s", err.Error())
 	}
 	return nil
 }
 
-func getEmbySong(cfg Config, track Track) (string, error) { // Gets all files in Explo library and filters out new ones
-	params := fmt.Sprintf("/emby/Items?parentId=%s&fields=Path", cfg.Jellyfin.LibraryID)
+func (c *Emby) RefreshLibrary() error {
+	reqParam := fmt.Sprintf("/emby/Items/%s/Refresh", c.LibraryID)
 
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
-		return "", fmt.Errorf("getEmbySong(): %s", err.Error())
-	}
-
-	var results Audios
-	if err = parseResp(body, &results); err != nil {
-		return "", fmt.Errorf("getEmbySong(): %s", err.Error())
-	}
-
-	for _, item := range results.Items {
-		if strings.Contains(item.Path, track.File) {
-			return item.ID, nil
-		}
-	}
-	return "", nil
-}
-
-func findEmbyPlaylist(cfg Config) (string, error) {
-	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", cfg.PlaylistName)
-
-	body, err := makeRequest("GET", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
-		return "", fmt.Errorf("failed to find playlist: %s", err.Error())
-	}
-
-	var results EmbyItemSearch
-	if err = parseResp(body, &results); err != nil {
-		return "", fmt.Errorf("findJfPlaylist(): %s", err.Error())
-	}
-	if len(results.Items) != 0 {
-		return results.Items[0].ID, nil
-	} else {
-		return "", fmt.Errorf("no results found for %s", cfg.PlaylistName)
-	}
-}
-
-func createEmbyPlaylist(cfg Config, tracks []Track) (string, error) {
-	var songIDs []string
-	
-	for _, track := range tracks {
-		if track.ID == "" {
-			songID, err := getEmbySong(cfg, track)
-			if songID == "" || err != nil {
-				debug.Debug(fmt.Sprintf("could not get %s", track.File))
-				continue
-			}
-			track.ID = songID
-		}
-		songIDs = append(songIDs, track.ID)
-	}
-	IDs := strings.Join(songIDs, ",")
-
-	params := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", cfg.PlaylistName, IDs)
-
-
-	body, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers)
-	if err != nil {
-		return "", fmt.Errorf("createEmbyPlaylist(): %s", err.Error())
-	}
-	var playlist EmbyPlaylist
-	if err = parseResp(body, &playlist); err != nil {
-		return "", fmt.Errorf("createEmbyPlaylist(): %s", err.Error())
-	}
-	return playlist.ID, nil
-}
-
-/* func updateEmbyPlaylist(cfg Config, ID, overview string) error {
-	params := fmt.Sprintf("/emby/Items/%s", ID)
-
-	payload := []byte(fmt.Sprintf(`
-		{
-		"Id":"%s",
-		"Name":"%s",
-		"Overview":"%s",
-		"Genres":[],
-		"Tags":[],
-		"ProviderIds":{}
-		}`, ID, cfg.PlaylistName, overview)) // the additional fields have to be added, otherwise JF returns code 400
-
-	if _, err := makeRequest("POST", cfg.URL+params, bytes.NewBuffer(payload), cfg.Creds.Headers); err != nil {
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
-} */
+}
 
-func deleteEmbyPlaylist(cfg Config, ID string) error {
-	params := fmt.Sprintf("/emby/Items/Delete?Ids=%s", ID)
+func (c *Emby) SearchSongs(tracks []*models.Track) error {
+	reqParam := fmt.Sprintf("/Items?parentId=%s&fields=Path&mediaTypes=Audio&sortBy=DateCreated&sortOrder=Descending&limit=200", c.LibraryID) // limit 200 recently added audio tracks to search from
 
-	if _, err := makeRequest("POST", cfg.URL+params, nil, cfg.Creds.Headers); err != nil {
-		return fmt.Errorf("deleteEmbyPlaylist(): %s", err.Error())
+	body, err := util.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return err
+	}
+
+	var results Audios
+	if err = util.ParseResp(body, &results); err != nil {
+		return err
+	}
+
+	for _, track := range tracks {
+		for _, item := range results.Items {
+			if strings.Contains(item.Path, track.File) {
+				track.ID = item.ID
+				track.Present = true
+				break
+			}
+		}
+		if !track.Present {
+		debug.Debug(fmt.Sprintf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album))
+		}
 	}
 	return nil
+}
+
+func (c *Emby) SearchPlaylist() error {
+	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", c.Cfg.PlaylistName)
+
+	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return err
+	}
+
+	var results EmbyItemSearch
+	if err = util.ParseResp(body, &results); err != nil {
+		return err
+	}
+
+	if len(results.Items) != 0 {
+		c.Cfg.PlaylistID = results.Items[0].ID
+		return nil
+	} else {
+		return fmt.Errorf("no results found for %s", c.Cfg.PlaylistName)
+	}
+}
+
+func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
+	
+	songIDs, err := formatEmbySongs(tracks)
+	if err != nil {
+		return err
+	}
+
+	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", c.Cfg.PlaylistName, songIDs)
+
+
+	body, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return err
+	}
+	var playlist EmbyPlaylist
+	if err = util.ParseResp(body, &playlist); err != nil {
+		return err
+	}
+	c.Cfg.PlaylistID = playlist.ID
+	return nil
+}
+
+func (c *Emby) UpdatePlaylist(overview string) error {
+	time.Sleep(5 * time.Second) // small buffer between playlist creation and updating, Emby doesn't update playlist otherwise
+	reqParam := fmt.Sprintf("/emby/Items/%s", c.Cfg.PlaylistID)
+
+	payload := []byte(fmt.Sprintf(`
+		{
+		"Id": "%s",
+		"Name": "%s",
+		"Overview": "%s",
+		"ProviderIds": {}
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview)) // the additional field has to be added, otherwise Emby returns code 500
+
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Emby) DeletePlaylist() error { // Doesn't currently work due to a bug in Emby
+	reqParam := fmt.Sprintf("/emby/Items/Delete?Ids=%s", c.Cfg.PlaylistID)
+
+	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
+		return err
+	}
+	return nil
+}
+
+func formatEmbySongs(tracks []*models.Track) (string, error) {
+	songIDs := make([]string, 0, len(tracks))
+	for _, track := range tracks {
+		if track.Present {
+			songIDs = append(songIDs,track.ID)
+		}
+	}
+	songs := strings.Join(songIDs, ",")
+
+	return songs, nil
 }
