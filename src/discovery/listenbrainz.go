@@ -228,7 +228,7 @@ func getWeeklyExploration(user string) (string, error) { // Get user LB playlist
 	for _, playlist := range playlists.Playlist {
 
 		_, currentWeek := time.Now().Local().ISOWeek()
-		_, creationWeek := playlist.Data.Date.ISOWeek()
+		_, creationWeek := playlist.Data.Date.Local().ISOWeek()
 
 		if strings.Contains(playlist.Data.Title, "Weekly Exploration") && currentWeek == creationWeek {
 			id := strings.Split(playlist.Data.Identifier, "/")
