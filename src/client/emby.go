@@ -51,6 +51,7 @@ func NewEmby(cfg config.ClientConfig) *Emby {
 func (c *Emby) AddHeader() error {
 	if c.Cfg.Creds.Headers == nil {
 		c.Cfg.Creds.Headers = make(map[string]string)
+		c.Cfg.Creds.Headers["X-Emby-Client"] = c.Cfg.ClientID
 	}
 
 	if c.Cfg.Creds.APIKey != "" {
