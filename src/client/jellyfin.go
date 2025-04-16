@@ -184,13 +184,13 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	}
 
 	queryParams := "/Playlists"
-	payload := []byte(fmt.Sprintf(`
+	payload := fmt.Appendf(nil, `
 		{
 		"Name": "%s",
 		"Ids": %s,
 		"MediaType": "Audio",
 		"UserId": "%s"
-		}`, c.Cfg.PlaylistName, songs, c.Cfg.Creds.APIKey))
+		}`, c.Cfg.PlaylistName, songs, c.Cfg.Creds.APIKey)
 
 	body, err := util.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewReader(payload), c.Cfg.Creds.Headers)
 	if err != nil {
@@ -206,7 +206,7 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 
 func (c *Jellyfin) UpdatePlaylist(overview string) error {
 	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
-	payload := []byte(fmt.Sprintf(`
+	payload := fmt.Appendf(nil, `
 		{
 		"Id":"%s",
 		"Name":"%s",
@@ -214,7 +214,7 @@ func (c *Jellyfin) UpdatePlaylist(overview string) error {
 		"Genres":[],
 		"Tags":[],
 		"ProviderIds":{}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview)) // the additional fields have to be added, otherwise JF returns code 400
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview) // the additional fields have to be added, otherwise JF returns code 400
 
 	if _, err := util.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err

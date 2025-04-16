@@ -90,7 +90,7 @@ func (c *Emby) GetLibrary() error {
 func (c *Emby) AddLibrary() error {
 	reqParam := "/emby/Library/VirtualFolders"
 
-	payload := []byte(fmt.Sprintf(`{
+	payload := fmt.Appendf(nil, `{
 		"Name": "%s",
 		"CollectionType": "Music",
 		"RefreshLibrary": true,
@@ -100,7 +100,7 @@ func (c *Emby) AddLibrary() error {
 		  "EnableRealtimeMonitor": true,
 		  "EnableLUFSScan": false
 		}
-	  }`, c.Cfg.LibraryName, c.Cfg.DownloadDir))
+	  }`, c.Cfg.LibraryName, c.Cfg.DownloadDir)
 
 	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
 		log.Fatalf("failed to add library to Emby using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
@@ -188,13 +188,13 @@ func (c *Emby) UpdatePlaylist(overview string) error {
 	time.Sleep(5 * time.Second) // small buffer between playlist creation and updating, Emby doesn't update playlist otherwise
 	reqParam := fmt.Sprintf("/emby/Items/%s", c.Cfg.PlaylistID)
 
-	payload := []byte(fmt.Sprintf(`
+	payload := fmt.Appendf(nil, `
 		{
 		"Id": "%s",
 		"Name": "%s",
 		"Overview": "%s",
 		"ProviderIds": {}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview)) // the additional field has to be added, otherwise Emby returns code 500
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview) // the additional field has to be added, otherwise Emby returns code 500
 
 	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
