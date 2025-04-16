@@ -207,11 +207,11 @@ func (c *Emby) UpdatePlaylist(overview string) error {
 }
 
 func (c *Emby) DeletePlaylist() error { // Doesn't currently work due to a bug in Emby
-	reqParam := fmt.Sprintf("/emby/Items/Delete?Ids=%s", c.Cfg.PlaylistID)
+	/* reqParam := fmt.Sprintf("/emby/Items/Delete?Ids=%s", c.Cfg.PlaylistID)
 
 	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
-	}
+	} */
 	return nil
 }
 
