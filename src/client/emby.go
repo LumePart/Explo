@@ -167,11 +167,7 @@ func (c *Emby) SearchPlaylist() error {
 }
 
 func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
-	
-	songIDs, err := formatEmbySongs(tracks)
-	if err != nil {
-		return err
-	}
+	songIDs := formatEmbySongs(tracks)
 
 	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", c.Cfg.PlaylistName, songIDs)
 
@@ -215,7 +211,7 @@ func (c *Emby) DeletePlaylist() error { // Doesn't currently work due to a bug i
 	return nil
 }
 
-func formatEmbySongs(tracks []*models.Track) (string, error) {
+func formatEmbySongs(tracks []*models.Track) string {
 	songIDs := make([]string, 0, len(tracks))
 	for _, track := range tracks {
 		if track.Present {
@@ -224,5 +220,5 @@ func formatEmbySongs(tracks []*models.Track) (string, error) {
 	}
 	songs := strings.Join(songIDs, ",")
 
-	return songs, nil
+	return songs
 }
