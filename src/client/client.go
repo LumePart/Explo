@@ -37,7 +37,10 @@ func NewClient(cfg *config.Config, httpClient *util.HttpClient) *Client {
 		Cfg: &cfg.ClientCfg,
 	}
 	switch c.System {
-	
+		
+	case "emby":
+		c.API = NewEmby(cfg.ClientCfg, httpClient)
+
 	case "jellyfin":
 		c.API = NewJellyfin(cfg.ClientCfg, httpClient)
 	
