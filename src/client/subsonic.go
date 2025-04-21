@@ -120,13 +120,17 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 			debug.Debug(fmt.Sprintf("no results found for %s", searchQuery))
 		case 1:
 			track.ID = resp.SubsonicResponse.SearchResult3.Song[0].ID
+			track.Present = true
 		default:
-			for _, song := range resp.SubsonicResponse.SearchResult3.Song {
+			for i, song := range resp.SubsonicResponse.SearchResult3.Song {
 				if song.Title == track.Title || song.Title == track.CleanTitle {
 					track.ID = song.ID
+					track.Present = true
+					break
+				} else if i == len(resp.SubsonicResponse.SearchResult3.Song) -1 {
+					debug.Debug(fmt.Sprintf("multiple songs found for: %s, but titles do not match with the actual track", searchQuery))
 				}
 			}
-			debug.Debug(fmt.Sprintf("multiple songs found for: %s, but titles do not match with the actual track", searchQuery))
 		}
 	}
 	return nil
