@@ -37,13 +37,15 @@ type Item struct {
 
 type Youtube struct {
 	DownloadDir string
+	HttpClient *util.HttpClient
 	Cfg cfg.Youtube
 }
 
-func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string) *Youtube { // init downloader cfg for youtube
+func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util.HttpClient) *Youtube { // init downloader cfg for youtube
 	return &Youtube{
 		DownloadDir: downloadDir,
-		Cfg: cfg}
+		Cfg: cfg,
+		HttpClient: httpClient}
 }
 
 func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for the song
@@ -51,7 +53,7 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Title, track.Artist))
 	queryURL := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, c.Cfg.APIKey)
 
-	body, err := util.MakeRequest("GET", queryURL, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
 		return err
 	}

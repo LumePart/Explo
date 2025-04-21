@@ -8,6 +8,7 @@ import (
 	cfg "explo/src/config"
 	"explo/src/debug"
 	"explo/src/models"
+	"explo/src/util"
 )
 
 type DownloadClient struct {
@@ -21,12 +22,12 @@ type Downloader interface {
 }
 
 
-func NewDownloader(cfg *cfg.DownloadConfig) *DownloadClient { // get download services from config and append them to DownloadClient
+func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *DownloadClient { // get download services from config and append them to DownloadClient
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
 		case "youtube":
-			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir))
+			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
 		}
 	}
 
