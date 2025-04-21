@@ -55,11 +55,13 @@ type JFPlaylist struct {
 
 type Jellyfin struct {
 	LibraryID string
+	HttpClient *util.HttpClient
 	Cfg config.ClientConfig
 }
 
-func NewJellyfin(cfg config.ClientConfig) *Jellyfin {
-	return &Jellyfin{Cfg: cfg}
+func NewJellyfin(cfg config.ClientConfig, httpClient *util.HttpClient) *Jellyfin {
+	return &Jellyfin{Cfg: cfg,
+	HttpClient: httpClient}
 }
 
 func (c *Jellyfin) AddHeader() error {
@@ -81,7 +83,7 @@ func (c *Jellyfin) GetAuth() error {
 func (c *Jellyfin) GetLibrary() error {
 	reqParam := "/Library/VirtualFolders"
 	
-	body, err := util.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -111,7 +113,7 @@ func (c *Jellyfin) AddLibrary() error {
 		}
 	  }`)
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("failed to add library to Jellyfin using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
 	}
 	return nil
@@ -120,7 +122,7 @@ func (c *Jellyfin) AddLibrary() error {
 func (c *Jellyfin) RefreshLibrary() error {
 	reqParam := fmt.Sprintf("/Items/%s/Refresh", c.LibraryID)
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
@@ -129,7 +131,7 @@ func (c *Jellyfin) RefreshLibrary() error {
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	queryParams := fmt.Sprintf("/Items?parentId=%s&fields=Path&mediaTypes=Audio&sortBy=DateCreated&sortOrder=Descending&limit=200", c.LibraryID) // limit 200 recently added audio tracks to search from
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return fmt.Errorf("request failed to get songs from %s library: %s", c.Cfg.LibraryName, err.Error())
 	}
@@ -158,7 +160,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 func (c *Jellyfin) SearchPlaylist() error {
 	queryParams := fmt.Sprintf("/Search/Hints?searchTerm=%s&mediaTypes=Playlist", c.Cfg.PlaylistName)
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -192,7 +194,7 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 		"UserId": "%s"
 		}`, c.Cfg.PlaylistName, songs, c.Cfg.Creds.APIKey)
 
-	body, err := util.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewReader(payload), c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewReader(payload), c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -216,7 +218,7 @@ func (c *Jellyfin) UpdatePlaylist(overview string) error {
 		"ProviderIds":{}
 		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview) // the additional fields have to be added, otherwise JF returns code 400
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
@@ -225,7 +227,7 @@ func (c *Jellyfin) UpdatePlaylist(overview string) error {
 func (c *Jellyfin) DeletePlaylist() error {
 	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
 
-	if _, err := util.MakeRequest("DELETE", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("deleyeJfPlaylist(): %s", err.Error())
 	}
 	return nil

@@ -61,11 +61,13 @@ type Playlist struct {
 type Subsonic struct {
 	Token string
 	Salt string
+	HttpClient *util.HttpClient
 	Cfg config.ClientConfig
 }
 
-func NewSubsonic(cfg config.ClientConfig) *Subsonic {
-	return &Subsonic{Cfg: cfg}
+func NewSubsonic(cfg config.ClientConfig, httpClient *util.HttpClient) *Subsonic {
+	return &Subsonic{Cfg: cfg,
+		HttpClient: httpClient}
 }
 
 func (c *Subsonic) AddHeader() error {
@@ -105,7 +107,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 
 		reqParam := fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(searchQuery))
 
-		body, err := subsonicRequest(reqParam, *c)
+		body, err := c.subsonicRequest(reqParam)
 		if err != nil {
 			return err
 		}
@@ -139,7 +141,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 func (c *Subsonic) RefreshLibrary() error {
 	reqParam := "startScan?f=json"
 	
-	if _, err := subsonicRequest(reqParam, *c); err != nil {
+	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
 	}
 	return nil
@@ -153,7 +155,7 @@ func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 
 	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", c.Cfg.PlaylistName, trackIDs.String())
 
-	body, err := subsonicRequest(reqParam, *c)
+	body, err := c.subsonicRequest(reqParam)
 	if err != nil {
 		return err
 	}
@@ -170,7 +172,7 @@ func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 func (c *Subsonic) SearchPlaylist() error {
 	reqParam := "getPlaylists?f=json"
 
-	body, err := subsonicRequest(reqParam, *c)
+	body, err := c.subsonicRequest(reqParam)
 	if err != nil {
 		return err
 	}
@@ -193,7 +195,7 @@ func (c *Subsonic) SearchPlaylist() error {
 func (c *Subsonic) UpdatePlaylist(comment string) error {
 	reqParam := fmt.Sprintf("updatePlaylist?playlistId=%s&comment=%s&f=json",c.Cfg.PlaylistID, url.QueryEscape(comment))
 
-	if _, err := subsonicRequest(reqParam, *c); err != nil {
+	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
 	}
 	return nil
@@ -202,16 +204,16 @@ func (c *Subsonic) UpdatePlaylist(comment string) error {
 func (c *Subsonic) DeletePlaylist() error {
 	reqParam := fmt.Sprintf("deletePlaylist?id=%s&f=json", c.Cfg.PlaylistID)
 
-	if _, err := subsonicRequest(reqParam, *c); err != nil {
+	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
 	}
 	return nil
 }
 
-func subsonicRequest(reqParams string, c Subsonic) ([]byte, error) {
+func (c *Subsonic) subsonicRequest(reqParams string) ([]byte, error) {
 
 	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s",c.Cfg.URL, reqParams, c.Cfg.Creds.User, c.Token, c.Salt, c.Cfg.Subsonic.Version, c.Cfg.ClientID)
-	body, err := util.MakeRequest("GET", reqURL, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request %s", err.Error())
 	}

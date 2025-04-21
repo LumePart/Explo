@@ -1,11 +1,13 @@
 package client
 
 import (
+	"fmt"
+	"log"
+	"time"
+
 	"explo/src/config"
 	"explo/src/models"
-	"log"
-	"fmt"
-	"time"
+	"explo/src/util"
 )
 
 // Client manages interactions with the selected music system
@@ -29,7 +31,7 @@ type APIClient interface {
 }
 
 // NewClient initializes a client and sets up authentication
-func NewClient(cfg *config.Config) *Client {
+func NewClient(cfg *config.Config, httpClient *util.HttpClient) *Client {
 	c := &Client{
 		System: cfg.System,
 		Cfg: &cfg.ClientCfg,
@@ -37,23 +39,23 @@ func NewClient(cfg *config.Config) *Client {
 	switch c.System {
 	
 	case "jellyfin":
-		c.API = NewJellyfin(cfg.ClientCfg)
+		c.API = NewJellyfin(cfg.ClientCfg, httpClient)
 	
 	case "mpd":
 		c.API = NewMPD(cfg.ClientCfg)
 
 	case "plex":
-		c.API = NewPlex(cfg.ClientCfg)
+		c.API = NewPlex(cfg.ClientCfg, httpClient)
 
 	case "subsonic": 
-		c.API = NewSubsonic(cfg.ClientCfg)
+		c.API = NewSubsonic(cfg.ClientCfg, httpClient)
 	
-
+	default:
+		log.Fatalf("unknown system: %s. Use a supported system (emby, jellyfin, mpd, plex, or subsonic).", c.System)
+	}
 
 	c.systemSetup() // Run setup automatically
 	return c
-}
-return nil
 }
 
 // systemSetup checks needed credentials and initializes the selected system

@@ -41,11 +41,13 @@ type EmbyPlaylist struct {
 
 type Emby struct {
 	LibraryID string
+	HttpClient *util.HttpClient
 	Cfg config.ClientConfig
 }
 
-func NewEmby(cfg config.ClientConfig) *Emby {
-	return &Emby{Cfg: cfg}
+func NewEmby(cfg config.ClientConfig, httpClient *util.HttpClient) *Emby {
+	return &Emby{Cfg: cfg,
+	HttpClient: httpClient}
 }
 
 func (c *Emby) AddHeader() error {
@@ -68,7 +70,7 @@ func (c *Emby) GetAuth() error {
 func (c *Emby) GetLibrary() error {
 	reqParam := "/emby/Library/VirtualFolders"
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -102,7 +104,7 @@ func (c *Emby) AddLibrary() error {
 		}
 	  }`, c.Cfg.LibraryName, c.Cfg.DownloadDir)
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
 		log.Fatalf("failed to add library to Emby using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
 	}
 	return nil
@@ -111,7 +113,7 @@ func (c *Emby) AddLibrary() error {
 func (c *Emby) RefreshLibrary() error {
 	reqParam := fmt.Sprintf("/emby/Items/%s/Refresh", c.LibraryID)
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
@@ -120,7 +122,7 @@ func (c *Emby) RefreshLibrary() error {
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	reqParam := fmt.Sprintf("/Items?parentId=%s&fields=Path&mediaTypes=Audio&sortBy=DateCreated&sortOrder=Descending&limit=200", c.LibraryID) // limit 200 recently added audio tracks to search from
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -148,7 +150,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 func (c *Emby) SearchPlaylist() error {
 	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", c.Cfg.PlaylistName)
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -172,7 +174,7 @@ func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
 	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", c.Cfg.PlaylistName, songIDs)
 
 
-	body, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -196,7 +198,7 @@ func (c *Emby) UpdatePlaylist(overview string) error {
 		"ProviderIds": {}
 		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview) // the additional field has to be added, otherwise Emby returns code 500
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil

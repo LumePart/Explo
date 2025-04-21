@@ -106,13 +106,14 @@ type PlexPlaylist struct {
 type Plex struct {
 	machineID string
 	LibraryID string
+	HttpClient *util.HttpClient
 	Cfg config.ClientConfig
 }
 
-func NewPlex(cfg config.ClientConfig) *Plex {
+func NewPlex(cfg config.ClientConfig, httpClient *util.HttpClient) *Plex {
 	return &Plex{
 		Cfg: cfg,
-	}
+		HttpClient: httpClient}
 }
 
 func (c *Plex) AddHeader() error {
@@ -143,7 +144,7 @@ func (c *Plex) GetAuth() error { // Get user token and server ID from plex
 	}
 
 
-	body, err := util.MakeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), c.Cfg.Creds.Headers)
 	if err != nil {
 		return fmt.Errorf("%s", err.Error())
 	}
@@ -156,7 +157,7 @@ func (c *Plex) GetAuth() error { // Get user token and server ID from plex
 
 	c.Cfg.Creds.APIKey = auth.User.AuthToken
 
-	err = getServer(c)
+	err = c.getServer()
 	if err != nil {
 		return fmt.Errorf("%s", err.Error())
 	}
@@ -166,7 +167,7 @@ func (c *Plex) GetAuth() error { // Get user token and server ID from plex
 func (c *Plex) GetLibrary() error {
 	params := "/library/sections/"
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return fmt.Errorf("failed to make request to plex: %s", err.Error())
 	}
@@ -193,7 +194,7 @@ func (c *Plex) GetLibrary() error {
 func (c *Plex) AddLibrary() error {
 	params := fmt.Sprintf("/library/sections?name=%s&type=artist&scanner=Plex+Music&agent=tv.plex.agents.music&language=en-US&location=%s&prefs[respectTags]=1", c.Cfg.LibraryName, c.Cfg.DownloadDir)
 
-	body, err := util.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -209,7 +210,7 @@ func (c *Plex) AddLibrary() error {
 func (c *Plex) RefreshLibrary() error {
 	params := fmt.Sprintf("/library/sections/%s/refresh", c.LibraryID)
 
-	if _, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return fmt.Errorf("refreshPlexLibrary(): %s", err.Error())
 	}
 	return nil
@@ -219,7 +220,7 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
 		params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
 
-		body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 		if err != nil {
 			log.Printf("search request failed request for '%s': %s", track.Title, err.Error())
 			continue
@@ -239,14 +240,14 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 			track.ID = key
 			track.Present = true
 		}
-}
-return nil
+	}
+	return nil
 }
 
 func (c *Plex) SearchPlaylist() error {
 	params := "/playlists"
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -269,7 +270,7 @@ func (c *Plex) SearchPlaylist() error {
 func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", c.Cfg.PlaylistName, c.machineID, c.LibraryID)
 
-	body, err := util.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
 	}
@@ -282,7 +283,7 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 
 	c.Cfg.PlaylistID = playlist.MediaContainer.Metadata[0].RatingKey
 
-	addtoPlaylist(c, tracks)
+	c.addtoPlaylist(tracks)
 
 	return nil
 }
@@ -290,7 +291,7 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 func (c *Plex) UpdatePlaylist(summary string) error {
 	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(summary))
 
-	if _, err := util.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
@@ -299,16 +300,16 @@ func (c *Plex) UpdatePlaylist(summary string) error {
 func (c *Plex) DeletePlaylist() error {
 	params := fmt.Sprintf("/playlists/%s", c.Cfg.PlaylistID)
 
-	if _, err := util.MakeRequest("DELETE", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
 }
 
-func getServer(c *Plex) error {
+func (c *Plex) getServer() error {
 	params := "/identity"
 
-	body, err := util.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return fmt.Errorf("failed to get server ID: %s", err.Error())
 	}
@@ -333,13 +334,13 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 	return "", fmt.Errorf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album)
 }
 
-func addtoPlaylist(c *Plex, tracks []*models.Track) {
+func (c *Plex) addtoPlaylist(tracks []*models.Track) {
 
 	for _, track := range tracks {
 		if track.ID != "" {
 			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
 
-			if _, err := util.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+			if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 				log.Printf("failed to add %s to playlist: %s", track.Title, err.Error())
 			}
 		}

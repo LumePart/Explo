@@ -8,12 +8,19 @@ import (
 	"explo/src/config"
 	"explo/src/discovery"
 	"explo/src/downloader"
+	"explo/src/util"
 )
 
 type Song struct {
 	Title string
 	Artist string
 	Album string
+}
+
+func initHttpClient() *util.HttpClient {
+	return util.NewHttp(util.HttpClientConfig{
+		Timeout: 10,
+	})
 }
 
 func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, handles deprecation
@@ -25,10 +32,10 @@ func main() {
 
 	cfg := config.ReadEnv()
 	setup(&cfg)
-	client := client.NewClient(&cfg)
-	// VerifyDir?
-	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg)
-	downloader := downloader.NewDownloader(&cfg.DownloadCfg)
+	httpClient := initHttpClient()
+	client := client.NewClient(&cfg, httpClient)
+	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
+	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient)
 
 	tracks, err := discovery.Discover()
 	if err != nil {
