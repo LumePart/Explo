@@ -3,6 +3,7 @@ package discovery
 import (
 	"explo/src/models"
 	cfg "explo/src/config"
+	"explo/src/util"
 )
 
 type DiscoverClient struct {
@@ -13,12 +14,12 @@ type Discovery interface {
 	QueryTracks() ([]*models.Track, error)
 }
 
-func NewDiscoverer(cfg cfg.DiscoveryConfig) *DiscoverClient {
+func NewDiscoverer(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *DiscoverClient {
 	c := &DiscoverClient{cfg: &cfg}
 
 	switch cfg.Discovery {
 	case "listenbrainz":
-		c.Discovery = NewListenBrainz(cfg)
+		c.Discovery = NewListenBrainz(cfg, httpClient)
 	default:
 		return nil
 	}

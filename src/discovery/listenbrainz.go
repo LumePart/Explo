@@ -99,15 +99,17 @@ type Exploration struct {
 }
 
 type ListenBrainz struct {
+	HttpClient *util.HttpClient
 	cfg cfg.Listenbrainz
 	Separator string
 }
 
 
-func NewListenBrainz(cfg cfg.DiscoveryConfig) *ListenBrainz {
+func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *ListenBrainz {
 	return &ListenBrainz{
 		cfg: cfg.Listenbrainz,
 		Separator: cfg.Separator,
+		HttpClient: httpClient,
 	}
 }
 func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
@@ -115,21 +117,21 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 
 	switch c.cfg.Discovery {
 	case "playlist":
-		id, err := getWeeklyExploration(c.cfg.User)
+		id, err := c.getWeeklyExploration(c.cfg.User)
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = parseWeeklyExploration(id, c.Separator, c.cfg.SingleArtist)
+		tracks, err = c.parseWeeklyExploration(id, c.Separator, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
 		}
 		
 	default:
-		mbids, err := getAPIRecommendations(c.cfg.User)
+		mbids, err := c.getAPIRecommendations(c.cfg.User)
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = getTracks(mbids, c.Separator, c.cfg.SingleArtist)
+		tracks, err = c.getTracks(mbids, c.Separator, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
 		}
@@ -137,10 +139,10 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 	return tracks, nil
 }
 
-func getAPIRecommendations(user string) ([]string, error) {
+func (c *ListenBrainz) getAPIRecommendations(user string) ([]string, error) {
 	var mbids []string
 
-	body, err := lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", user))
+	body, err := c.lbRequest(fmt.Sprintf("cf/recommendation/user/%s/recording", user))
 	if err != nil {
 		return mbids, fmt.Errorf("could not get recommendations from API: %s", err.Error())
 	}
@@ -161,10 +163,10 @@ func getAPIRecommendations(user string) ([]string, error) {
 	return mbids, nil
 }
 
-func getTracks(mbids []string, separator string, singleArtist bool) ([]*models.Track, error) {
+func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist bool) ([]*models.Track, error) {
 	strMbids := strings.Join(mbids, ",")
 
-	body, err := lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist", strMbids))
+	body, err := c.lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist", strMbids))
 	if err != nil {
 		return nil, fmt.Errorf("getTracks(): %s", err.Error())
 	}
@@ -213,8 +215,8 @@ func getTracks(mbids []string, separator string, singleArtist bool) ([]*models.T
 
 }
 
-func getWeeklyExploration(user string) (string, error) { // Get user LB playlists and find Weekly Exploration's ID
-	body, err := lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
+func (c *ListenBrainz) getWeeklyExploration(user string) (string, error) { // Get user LB playlists and find Weekly Exploration's ID
+	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
 	if err != nil {
 		return "", fmt.Errorf("getWeeklyExploration(): %s", err.Error())
 	}
@@ -238,8 +240,8 @@ func getWeeklyExploration(user string) (string, error) { // Get user LB playlist
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
-func parseWeeklyExploration(identifier, separator string, singleArtist bool) ([]*models.Track, error) {
-	body, err := lbRequest(fmt.Sprintf("playlist/%s", identifier))
+func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, singleArtist bool) ([]*models.Track, error) {
+	body, err := c.lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
 		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
 	}
@@ -297,12 +299,12 @@ func getFilename(title, artist, separator string) string {
 	return fmt.Sprintf("%s-%s",t,a)
 }
 
-func lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API requests
+func (c *ListenBrainz) lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API requests
 
 
 	reqURL := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)
 	
-	body, err := util.MakeRequest("GET", reqURL, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to ListenBrainz API: %s", err)
 	}
