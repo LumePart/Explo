@@ -98,6 +98,7 @@ type DownloadConfig struct {
 	Youtube           Youtube
 	YoutubeMusic      YoutubeMusic
 	Slskd             Slskd
+	Lidarr          Lidarr
 	ExcludeLocal      bool
 	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
 	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
@@ -131,6 +132,14 @@ type YoutubeMusic struct {
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath  string `env:"YTDLP_PATH"`
 	Filters    Filters
+}
+
+type Lidarr struct {
+	APIKey     string   `env:"LIDARR_API_KEY"`
+	Separator  string   `env:"FILENAME_SEPARATOR" env-default:" "`
+	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
+	Scheme     string   `env:"LIDARR_SCHEME" env-default:"http"`
+	URL        string   `env:"LIDARR_URL"`
 }
 
 type Slskd struct {

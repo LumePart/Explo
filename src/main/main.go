@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -89,7 +90,7 @@ func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, erro
 
 func initHttpClient() *util.HttpClient {
 	return util.NewHttp(util.HttpClientConfig{
-		Timeout: 10,
+		Timeout: time.Duration(cfg.Timeout) * time.Second,
 	})
 }
 
