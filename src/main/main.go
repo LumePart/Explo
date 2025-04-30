@@ -3,6 +3,7 @@ package main
 import (
 	"explo/src/debug"
 	"log"
+	"time"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -17,9 +18,9 @@ type Song struct {
 	Album  string
 }
 
-func initHttpClient() *util.HttpClient {
+func initHttpClient(cfg *config.Config) *util.HttpClient {
 	return util.NewHttp(util.HttpClientConfig{
-		Timeout: 10,
+		Timeout: time.Duration(cfg.Timeout) * time.Second,
 	})
 }
 
@@ -32,11 +33,16 @@ func main() {
 
 	cfg := config.ReadEnv()
 	setup(&cfg)
+<<<<<<< HEAD
 	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg, httpClient)
 	if err != nil {
 		log.Fatal(err)
 	}
+=======
+	httpClient := initHttpClient(&cfg)
+	client := client.NewClient(&cfg, httpClient)
+>>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient)
 

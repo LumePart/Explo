@@ -1,13 +1,17 @@
 package downloader
 
 import (
+	"log"
 	"os"
 	"path"
+<<<<<<< HEAD
 	"log"
 	"strings"
 	"regexp"
 	"fmt"
 	"golang.org/x/sync/errgroup"
+=======
+>>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -15,7 +19,7 @@ import (
 )
 
 type DownloadClient struct {
-	Cfg *cfg.DownloadConfig
+	Cfg         *cfg.DownloadConfig
 	Downloaders []Downloader
 }
 
@@ -25,24 +29,27 @@ type Downloader interface {
 	MonitorDownloads([]*models.Track) error
 }
 
-
 func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *DownloadClient { // get download services from config and append them to DownloadClient
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
 		case "youtube":
 			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
+<<<<<<< HEAD
 		case "slskd":
 			slskdClient := NewSlskd(cfg.Slskd)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
 		default:
 			log.Fatalf("downloader '%s' not supported", service)
+=======
+		case "lidarr":
+			downloader = append(downloader, NewLidarr(cfg.Lidarr, cfg.Discovery, cfg.DownloadDir, httpClient))
+>>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
 		}
 	}
-
 	return &DownloadClient{
-		Cfg: cfg,
+		Cfg:         cfg,
 		Downloaders: downloader}
 }
 
@@ -88,7 +95,7 @@ func (c *DownloadClient) DeleteSongs() {
 	for _, entry := range entries {
 		if !(entry.IsDir()) {
 			err = os.Remove(path.Join(c.Cfg.DownloadDir, entry.Name()))
-			
+
 			if err != nil {
 				log.Printf("failed to remove file: %s", err.Error())
 			}
@@ -106,6 +113,7 @@ func filterTracks(tracks *[]*models.Track) { // only keep tracks that were downl
 	}
 	*tracks = filteredTracks
 }
+<<<<<<< HEAD
 
 func containsLower(str string, substr string) bool {
 
@@ -129,3 +137,5 @@ func getFilename(title, artist string) string {
 
 	return fmt.Sprintf("%s-%s",t,a)
 }
+=======
+>>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
