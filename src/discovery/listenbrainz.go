@@ -204,7 +204,7 @@ func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist 
 		tracks = append(tracks, &models.Track{
 			Album:       recording.Release.Name,
 			Artist:      artist,
-			MainArtist:  recording.Artist.Name,
+			MainArtist:  recording.Artist.Artists[0].Name,
 			CleanTitle:  recording.Recording.Name,
 			Title:       title,
 			File:        getFilename(title, artist, separator),
@@ -277,7 +277,7 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, sing
 
 		tracks = append(tracks, &models.Track{
 			Album:      track.Album,
-			MainArtist: track.Creator,
+			MainArtist: track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName,
 			Artist:     artist,
 			CleanTitle: track.Title,
 			Title:      title,
