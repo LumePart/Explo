@@ -44,16 +44,16 @@ func NewLidarr(cfg cfg.Lidarr, discovery, downloadDir string, httpClient *util.H
 func (c *Lidarr) QueryTrack(track *models.Track) error {
 	ctx := context.Background()
 
-	query := fmt.Sprintf("%s %s", track.Artist, track.Album)
+	query := fmt.Sprintf("%s %s", track.MainArtist, track.Album)
 	albums, _ := c.albumLookup(ctx, query)
 
 	if len(albums) == 0 || len(albums[0].Releases) == 0 {
-		return fmt.Errorf("could not find album for track: %s - %s", track.Title, track.Artist)
+		return fmt.Errorf("could not find album for track: %s - %s", track.Title, track.MainArtist)
 	}
 
 	var err error
 	if albums[0].Id == nil || albums[0].ArtistId == nil {
-		return fmt.Errorf("album or artist ID was nil for track: %s - %s", track.Title, track.Artist)
+		return fmt.Errorf("album or artist ID was nil for track: %s - %s", track.Title, track.MainArtist)
 	}
 	track.Present, err = c.checkExistingTrack(ctx, *albums[0].Id, *albums[0].ArtistId, track)
 	if err != nil {
@@ -76,7 +76,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	}
 	root := rootFolders[0]
 
-	artist, err := c.findArtist(ctx, track.Artist)
+	artist, err := c.findArtist(ctx, track.MainArtist)
 	if err != nil {
 		return err
 	}
