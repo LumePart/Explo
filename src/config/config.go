@@ -83,6 +83,22 @@ type AdminCredentials struct {
 	Password string `env:"ADMIN_SYSTEM_PASSWORD"`
 }
 
+type DiscoveryConfig struct {
+	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	Separator    string `env:"FILENAME_SEPARATOR" env-default:" "`
+	Listenbrainz Listenbrainz
+}
+
+type Lidarr struct {
+	APIKey           string        `env:"LIDARR_API_KEY"`
+	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
+	DownloadAttempts int           `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	Timeout          time.Duration `env:"LIDARR_TIMEOUT" env-default:"20s"`
+	Scheme           string        `env:"LIDARR_SCHEME" env-default:"http"`
+	URL              string        `env:"LIDARR_URL"`
+	Filters          Filters
+}
+
 type SubsonicConfig struct {
 	Version        string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
 	ID             string `env:"CLIENT" env-default:"explo"`
@@ -125,14 +141,6 @@ type YoutubeMusic struct {
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath  string `env:"YTDLP_PATH"`
 	Filters    Filters
-}
-
-type Lidarr struct {
-	APIKey     string   `env:"LIDARR_API_KEY"`
-	Separator  string   `env:"FILENAME_SEPARATOR" env-default:" "`
-	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
-	Scheme     string   `env:"LIDARR_SCHEME" env-default:"http"`
-	URL        string   `env:"LIDARR_URL"`
 }
 
 type Slskd struct {
