@@ -4,8 +4,10 @@ package models
 
 type Track struct {
 	Album      string
+	AlbumMBID  string
 	ID         string
 	Artist     string // All artists as returned by LB
+	ArtistMBID string
 	MainArtist string
 	MainArtistID string
 	CleanTitle string // Title as returned by LB
