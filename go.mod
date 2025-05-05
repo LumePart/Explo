@@ -5,7 +5,6 @@ go 1.24.0
 toolchain go1.24.2
 
 require (
-	github.com/devopsarr/lidarr-go v1.2.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/spf13/pflag v1.0.10
 	github.com/u2takey/ffmpeg-go v0.5.0
