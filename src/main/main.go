@@ -90,7 +90,7 @@ func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, erro
 
 func initHttpClient() *util.HttpClient {
 	return util.NewHttp(util.HttpClientConfig{
-		Timeout: time.Duration(cfg.Timeout) * time.Second,
+		Timeout: 10,
 	})
 }
 
