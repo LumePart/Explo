@@ -3,6 +3,8 @@ on:
     # Sequence of patterns matched against refs/tags
     tags:
       - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+    branches:
+      - dev
 
 name: Latest Release
 
@@ -18,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21.6'
+          go-version: '1.23'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3.7.0
         with:
@@ -28,6 +30,7 @@ jobs:
       contents: write
     name: Create Release
     runs-on: 'ubuntu-latest'
+    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
         # List of GOOS and GOARCH pairs from `go tool dist list`
@@ -41,7 +44,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21.6'
+          go-version: '1.23'
       - name: Get OS and arch info
         run: |
           GOOSARCH=${{matrix.goosarch}}
@@ -66,12 +69,12 @@ jobs:
   build:
     name: Build/publish container image
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') # only build latest from tagged versions
+    needs: release
     permissions:
       contents: read
       packages: write
       id-token: write
-    if: "!contains(github.ref, 'dev')" # skip building container for dev
-    needs: release
 
     steps:
       - name: Checkout repository
@@ -103,6 +106,44 @@ jobs:
           tags: |
             ghcr.io/${{ env.REPO_LC }}:latest
             ghcr.io/${{ env.REPO_LC }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/386
+
+  build-dev:
+    name: Build/publish dev image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Convert repository name to lowercase
+        run: echo "REPO_LC=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push dev image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ env.REPO_LC }}:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/386
