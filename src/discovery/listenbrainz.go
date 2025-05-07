@@ -76,6 +76,7 @@ type Exploration struct {
 		Tracks     []struct {
 			Album      string `json:"album"`
 			Creator    string `json:"creator"`
+			Duration   int `json:"duration"`
 			Extension struct {
 				HTTPSMusicbrainzOrgDocJspfTrack struct {
 					AddedAt            time.Time `json:"added_at"`
@@ -208,6 +209,7 @@ func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist 
 			CleanTitle:  recording.Recording.Name,
 			Title:       title,
 			File:        getFilename(title, artist, separator),
+			Duration:    recording.Recording.Length,
 		})
 	}
 
@@ -282,6 +284,7 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, sing
 			CleanTitle: track.Title,
 			Title:      title,
 			File:       getFilename(title, artist, separator),
+			Duration:   track.Duration,
 		})
 	}
 

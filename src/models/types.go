@@ -11,4 +11,5 @@ type Track struct {
 	Title  string // Title as built in BuildTracks()
 	File   string // File name
 	Present bool // is track present in the system or not
+	Duration int // Track duration in milliseconds (not available for every track)
 }
