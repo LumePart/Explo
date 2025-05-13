@@ -1,8 +1,10 @@
 package config
 
 import (
-	"log"
+	"errors"
 	"fmt"
+	"log"
+	"os"
 	"time"
 	"strings"
 	"github.com/ilyakaznacheev/cleanenv"
@@ -76,9 +78,20 @@ type Listenbrainz struct {
 
 func ReadEnv() Config {
 	var cfg Config
-	if err := cleanenv.ReadConfig("./.env", &cfg); err != nil {
-		log.Fatalf("Failed to load config: %s", err)
+
+	// Try to read from .env file first
+	err := cleanenv.ReadConfig(".env", &cfg)
+	if err != nil {
+		// If the error is because the file doesn't exist, fallback to env vars
+		if errors.Is(err, os.ErrNotExist) {
+			if err := cleanenv.ReadEnv(&cfg); err != nil {
+				log.Fatalf("Failed to load config from env vars: %s", err)
+			}
+		} else {
+			log.Fatalf("Failed to load config: %s", err)
+		}
 	}
+
 	cfg.VerifyDir()
 	return cfg
 }
