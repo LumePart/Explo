@@ -162,6 +162,7 @@ type AddAlbumRequest struct {
 	Images         []Image       `json:"images"`
 	Artist         MinimalArtist `json:"artist"`
 	AddOptions     AddOptions    `json:"addOptions"`
+	Releases       []Release     `json:"releases"`
 }
 
 type RootFolder struct {
@@ -179,43 +180,21 @@ func NewLidarr(cfg cfg.Lidarr, discovery, downloadDir string, httpClient *util.H
 }
 
 func (c *Lidarr) QueryTrack(track *models.Track) error {
-	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Album, track.MainArtist))
-	queryURL := fmt.Sprintf("%s://%s/api/v1/album/lookup?apiKey=%s&term=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, escQuery)
 
-	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	album, err := c.findBestAlbumMatch(track)
 	if err != nil {
-		return fmt.Errorf("failed to lookup tracks: %s", err.Error())
+		return err
 	}
 
-	var albums []Album
-	if err = util.ParseResp(body, &albums); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr body: %s", err.Error())
-	}
-
-	if len(albums) == 0 {
-		return fmt.Errorf("could not find album for track: %s - %s", track.Title, track.MainArtist)
-	}
-	topMatch := albums[0]
-	if len(topMatch.Releases) == 0 {
-		return fmt.Errorf("could not find album releases for track: %s - %s", track.Title, track.MainArtist)
-	}
-
-	if topMatch.Releases[0].ID == 0 || topMatch.ArtistID == 0 {
-		track.AlbumMBID = topMatch.ForeignAlbumID
-		track.ArtistMBID = topMatch.Artist.ForeignArtistID
-		track.Present = false
-		return nil
-	}
-
-	queryURL = fmt.Sprintf("%s://%s/api/v1/track?apiKey=%s&artistId=%v&albumId=%v", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, albums[0].ArtistID, albums[0].Releases[0].AlbumID)
-	body, err = c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	queryURL := fmt.Sprintf("%s://%s/api/v1/track?apiKey=%s&artistId=%v&albumId=%v", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, album.ArtistID, album.Releases[0].AlbumID)
+	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check existing tracks: %w", err)
 	}
 
 	var lidarrTracks []LidarrTrack
 	if err = util.ParseResp(body, &lidarrTracks); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr tracks body: %s", err.Error())
+		return fmt.Errorf("failed to unmarshal query lidarr tracks body: %w", err)
 	}
 
 	for _, t := range lidarrTracks {
@@ -243,18 +222,23 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to lookup root folder: %s", err.Error())
+		return fmt.Errorf("failed to lookup root folder: %w", err)
 	}
 
 	var rootFolders []RootFolder
 	if err = util.ParseResp(body, &rootFolders); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr body: %s", err.Error())
+		return fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
 	}
 
 	if len(rootFolders) == 0 {
 		return fmt.Errorf("no root folders found in Lidarr")
 	}
 	rootFolder := rootFolders[0]
+
+	album, err := c.findBestAlbumMatch(track)
+	if err != nil {
+		return err
+	}
 
 	payload := AddAlbumRequest{
 		ForeignAlbumID: track.AlbumMBID,
@@ -268,6 +252,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 		AddOptions: AddOptions{
 			SearchForNewAlbum: true,
 		},
+		Releases: []Release{album.Releases[0]},
 	}
 
 	body, err = json.Marshal(payload)
@@ -280,6 +265,38 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 		return fmt.Errorf("failed to add album: %w", err)
 	}
 	return nil
+}
+
+func (c *Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
+	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Album, track.MainArtist))
+	queryURL := fmt.Sprintf("%s://%s/api/v1/album/lookup?apiKey=%s&term=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, escQuery)
+
+	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup tracks: %w", err)
+	}
+
+	var albums []Album
+	if err = util.ParseResp(body, &albums); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
+	}
+
+	if len(albums) == 0 {
+		return nil, fmt.Errorf("could not find album for track: %s - %s", track.Title, track.MainArtist)
+	}
+	topMatch := albums[0]
+	if len(topMatch.Releases) == 0 {
+		return nil, fmt.Errorf("could not find album releases for track: %s - %s", track.Title, track.MainArtist)
+	}
+
+	track.AlbumMBID = topMatch.ForeignAlbumID
+	track.ArtistMBID = topMatch.Artist.ForeignArtistID
+
+	if topMatch.Releases[0].ID == 0 || topMatch.ArtistID == 0 {
+		return nil, fmt.Errorf("invalid album or artist ID for track: %s - %s", track.Title, track.MainArtist)
+	}
+
+	return &topMatch, nil
 }
 
 func (c *Lidarr) startQueueWorker(ctx context.Context, track *models.Track) {
@@ -306,12 +323,12 @@ func (c *Lidarr) monitorQueue(track *models.Track) error {
 
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to lookup tracks: %s", err.Error())
+		return fmt.Errorf("failed to lookup tracks: %w", err)
 	}
 
 	var queue LidarrQueue
 	if err = util.ParseResp(body, &queue); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr body: %s", err.Error())
+		return fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
 	}
 
 	for _, record := range queue.Records {
