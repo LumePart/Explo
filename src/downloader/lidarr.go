@@ -160,6 +160,8 @@ type MinimalArtist struct {
 type AddAlbumRequest struct {
 	ForeignAlbumID string        `json:"foreignAlbumId"`
 	Images         []Image       `json:"images"`
+	Monitored      bool          `json:"monitored"`
+	AnyReleaseOk   bool          `json:"anyReleaseOk"`
 	Artist         MinimalArtist `json:"artist"`
 	AddOptions     AddOptions    `json:"addOptions"`
 	Releases       []Release     `json:"releases"`
@@ -243,6 +245,8 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	payload := AddAlbumRequest{
 		ForeignAlbumID: track.AlbumMBID,
 		Images:         []Image{},
+		Monitored:      true,
+		AnyReleaseOk:   true,
 		Artist: MinimalArtist{
 			QualityProfileID:  rootFolder.DefaultQualityProfileId,
 			MetadataProfileID: rootFolder.DefaultMetadataProfileId,
