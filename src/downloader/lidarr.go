@@ -154,6 +154,7 @@ type MinimalArtist struct {
 	ForeignArtistID   string `json:"foreignArtistId"`
 	QualityProfileID  int    `json:"qualityProfileId"`
 	MetadataProfileID int    `json:"metadataProfileId"`
+	Monitored         bool   `json:"monitored"`
 	RootFolderPath    string `json:"rootFolderPath"`
 }
 
@@ -250,6 +251,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 		Artist: MinimalArtist{
 			QualityProfileID:  rootFolder.DefaultQualityProfileId,
 			MetadataProfileID: rootFolder.DefaultMetadataProfileId,
+			Monitored:         false,
 			ForeignArtistID:   track.ArtistMBID,
 			RootFolderPath:    rootFolder.Path,
 		},
