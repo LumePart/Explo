@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"explo/src/config"
 	"explo/src/debug"
@@ -14,11 +13,11 @@ import (
 )
 
 type Paths []struct {
-	Name           string         `json:"Name"`
-	Locations      []string       `json:"Locations"`
-	CollectionType string         `json:"CollectionType"`
-	ItemID         string         `json:"ItemId"`
-	RefreshStatus  string         `json:"RefreshStatus"`
+	Name           string   `json:"Name"`
+	Locations      []string `json:"Locations"`
+	CollectionType string   `json:"CollectionType"`
+	ItemID         string   `json:"ItemId"`
+	RefreshStatus  string   `json:"RefreshStatus"`
 }
 
 type Search struct {
@@ -26,12 +25,12 @@ type Search struct {
 	TotalRecordCount int           `json:"TotalRecordCount"`
 }
 type SearchHints struct {
-	ItemID                  string    `json:"ItemId"`
-	ID                      string    `json:"Id"`
-	Name                    string    `json:"Name"`
-	Album                   string    `json:"Album"`
-	AlbumID                 string    `json:"AlbumId"`
-	AlbumArtist             string    `json:"AlbumArtist"`
+	ItemID      string `json:"ItemId"`
+	ID          string `json:"Id"`
+	Name        string `json:"Name"`
+	Album       string `json:"Album"`
+	AlbumID     string `json:"AlbumId"`
+	AlbumArtist string `json:"AlbumArtist"`
 }
 
 type Audios struct {
@@ -41,12 +40,12 @@ type Audios struct {
 }
 
 type Items struct {
-	Name              string          `json:"Name"`
-	ServerID          string          `json:"ServerId"`
-	ID                string          `json:"Id"`
-	Path			  string		  `json:"Path"`
-	Album             string          `json:"Album,omitempty"`
-	AlbumArtist       string          `json:"AlbumArtist,omitempty"`
+	Name        string `json:"Name"`
+	ServerID    string `json:"ServerId"`
+	ID          string `json:"Id"`
+	Path        string `json:"Path"`
+	Album       string `json:"Album,omitempty"`
+	AlbumArtist string `json:"AlbumArtist,omitempty"`
 }
 
 type JFPlaylist struct {
@@ -54,14 +53,14 @@ type JFPlaylist struct {
 }
 
 type Jellyfin struct {
-	LibraryID string
+	LibraryID  string
 	HttpClient *util.HttpClient
-	Cfg config.ClientConfig
+	Cfg        config.ClientConfig
 }
 
 func NewJellyfin(cfg config.ClientConfig, httpClient *util.HttpClient) *Jellyfin {
 	return &Jellyfin{Cfg: cfg,
-	HttpClient: httpClient}
+		HttpClient: httpClient}
 }
 
 func (c *Jellyfin) AddHeader() error {
@@ -70,8 +69,8 @@ func (c *Jellyfin) AddHeader() error {
 	}
 
 	if c.Cfg.Creds.APIKey != "" {
-	c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", c.Cfg.Creds.APIKey, c.Cfg.ClientID)
-	return nil
+		c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", c.Cfg.Creds.APIKey, c.Cfg.ClientID)
+		return nil
 	}
 	return fmt.Errorf("API_KEY not set")
 }
@@ -82,7 +81,7 @@ func (c *Jellyfin) GetAuth() error {
 
 func (c *Jellyfin) GetLibrary() error {
 	reqParam := "/Library/VirtualFolders"
-	
+
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
@@ -92,7 +91,7 @@ func (c *Jellyfin) GetLibrary() error {
 	if err = util.ParseResp(body, &paths); err != nil {
 		return err
 	}
-	
+
 	for _, path := range paths {
 		if path.Name == c.Cfg.LibraryName {
 			c.LibraryID = path.ItemID
@@ -120,7 +119,7 @@ func (c *Jellyfin) AddLibrary() error {
 }
 
 func (c *Jellyfin) RefreshLibrary() error {
-	reqParam := fmt.Sprintf("/Items/%s/Refresh", c.LibraryID)
+	reqParam := fmt.Sprintf("/Items/%s/Refresh?metadataRefreshMode=FullRefresh", c.LibraryID)
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
@@ -129,37 +128,35 @@ func (c *Jellyfin) RefreshLibrary() error {
 }
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
-	queryParams := fmt.Sprintf("/Items?parentId=%s&fields=Path&mediaTypes=Audio&sortBy=DateCreated&sortOrder=Descending&limit=200", c.LibraryID) // limit 200 recently added audio tracks to search from
-
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
-	if err != nil {
-		return fmt.Errorf("request failed to get songs from %s library: %s", c.Cfg.LibraryName, err.Error())
-	}
-
-	var results Audios
-	if err = util.ParseResp(body, &results); err != nil {
-		return err
-	}
-
 	for _, track := range tracks {
+		queryParams := fmt.Sprintf("/Items?parentId=%s&mediaTypes=Audio&searchTerm=%s&recursive=true", c.LibraryID, url.QueryEscape(track.CleanTitle))
+
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
+		if err != nil {
+			return fmt.Errorf("request failed to get songs from %s library: %s", c.Cfg.LibraryName, err.Error())
+		}
+
+		var results Audios
+		if err = util.ParseResp(body, &results); err != nil {
+			return err
+		}
 
 		for _, item := range results.Items {
-			if strings.Contains(item.Path, track.File) {
+			if track.MainArtist == item.AlbumArtist && item.Name == track.CleanTitle {
 				track.ID = item.ID
 				track.Present = true
 				break
 			}
 		}
 		if !track.Present {
-		debug.Debug(fmt.Sprintf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album))
+			debug.Debug(fmt.Sprintf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album))
 		}
 	}
 	return nil
 }
 
 func (c *Jellyfin) SearchPlaylist() error {
-	queryParams := fmt.Sprintf("/Search/Hints?searchTerm=%s&mediaTypes=Playlist", c.Cfg.PlaylistName)
-
+	queryParams := fmt.Sprintf("/Items?mediaTypes=Playlist&searchTerm=%s&recursive=true", c.Cfg.PlaylistName)
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
@@ -169,7 +166,7 @@ func (c *Jellyfin) SearchPlaylist() error {
 	if err = util.ParseResp(body, &results); err != nil {
 		return err
 	}
-	
+
 	if len(results.SearchHints) != 0 {
 		c.Cfg.PlaylistID = results.SearchHints[0].ID
 		return nil
@@ -237,7 +234,7 @@ func formatJFSongs(tracks []*models.Track) ([]byte, error) { // marshal track ID
 	songIDs := make([]string, 0, len(tracks))
 	for _, track := range tracks {
 		if track.Present {
-			songIDs = append(songIDs,track.ID)
+			songIDs = append(songIDs, track.ID)
 		}
 	}
 	songs, err := json.Marshal(songIDs)

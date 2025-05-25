@@ -12,9 +12,9 @@ import (
 )
 
 type Song struct {
-	Title string
+	Title  string
 	Artist string
-	Album string
+	Album  string
 }
 
 func initHttpClient() *util.HttpClient {
@@ -33,7 +33,10 @@ func main() {
 	cfg := config.ReadEnv()
 	setup(&cfg)
 	httpClient := initHttpClient()
-	client := client.NewClient(&cfg, httpClient)
+	client, err := client.NewClient(&cfg, httpClient)
+	if err != nil {
+		log.Fatal(err)
+	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient)
 
@@ -57,6 +60,6 @@ func main() {
 	if err := client.CreatePlaylist(tracks); err != nil {
 		log.Println(err)
 	} else {
-		log.Printf("[%s] %s playlist created successfully",cfg.System, cfg.ClientCfg.PlaylistName)
+		log.Printf("[%s] %s playlist created successfully", cfg.System, cfg.ClientCfg.PlaylistName)
 	}
 }
