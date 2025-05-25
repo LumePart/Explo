@@ -56,6 +56,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		debug.Debug(fmt.Sprintf("full response: %s", string(body)))
 		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
 	}
 
