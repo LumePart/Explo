@@ -183,33 +183,35 @@ func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist 
 
 	tracks := make([]*models.Track, 0, len(recordings))
 	for _, recording := range recordings {
-		var title string
-		var artist string
-		title = recording.Recording.Name
-		artist = recording.Artist.Name
+		title := recording.Recording.Name
+		artist := recording.Artist.Name
+		mainArtist := recording.Artist.Name
 
-		if singleArtist && len(recording.Artist.Artists) > 1 {
-			var tempTitle strings.Builder
-			joinPhrase := " feat. "
-			for i, artist := range recording.Artist.Artists[1:] {
-				if i > 0 {
-					joinPhrase = ", "
+		if len(recording.Artist.Artists) > 1 {
+			mainArtist = recording.Artist.Artists[0].Name
+			if singleArtist {
+				var tempTitle strings.Builder
+				joinPhrase := " feat. "
+				for i, artist := range recording.Artist.Artists[1:] {
+					if i > 0 {
+						joinPhrase = ", "
+					}
+					tempTitle.WriteString(joinPhrase)
+					tempTitle.WriteString(artist.Name)
 				}
-				tempTitle.WriteString(joinPhrase)
-				tempTitle.WriteString(artist.Name)
+				title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
+				artist = recording.Artist.Artists[0].Name
 			}
-			title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
-			artist = recording.Artist.Artists[0].Name
 		}
 
 		tracks = append(tracks, &models.Track{
 			Album:       recording.Release.Name,
 			Artist:      artist,
-			MainArtist:  recording.Artist.Artists[0].Name,
+			MainArtist:  mainArtist,
 			CleanTitle:  recording.Recording.Name,
 			Title:       title,
-			File:        getFilename(title, artist, separator),
 			Duration:    recording.Recording.Length,
+			File:        getFilename(title, artist, separator),
 		})
 	}
 
@@ -262,29 +264,33 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, sing
 	for _, track := range exploration.Playlist.Tracks {
 		title := track.Title
 		artist := track.Creator
+		mainArtist := track.Creator
 
-		if singleArtist && len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
-			var tempTitle strings.Builder
-			joinPhrase := " feat. "
-			for i, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[1:] {
-				if i > 0 {
-					joinPhrase = ", "
+		if len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
+			mainArtist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+			if singleArtist {
+				var tempTitle strings.Builder
+				joinPhrase := " feat. "
+				for i, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[1:] {
+					if i > 0 {
+						joinPhrase = ", "
+					}
+					tempTitle.WriteString(joinPhrase)
+					tempTitle.WriteString(artist.ArtistCreditName)
 				}
-				tempTitle.WriteString(joinPhrase)
-				tempTitle.WriteString(artist.ArtistCreditName)
+				title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
+				artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 			}
-			title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
-			artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 		}
 
 		tracks = append(tracks, &models.Track{
 			Album:      track.Album,
-			MainArtist: track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName,
+			MainArtist: mainArtist,
 			Artist:     artist,
 			CleanTitle: track.Title,
 			Title:      title,
-			File:       getFilename(title, artist, separator),
 			Duration:   track.Duration,
+			File:       getFilename(title, artist, separator),
 		})
 	}
 
