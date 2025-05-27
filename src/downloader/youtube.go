@@ -76,10 +76,11 @@ func (c *Youtube) GetTrack(track *models.Track) error {
 
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
-	if !track.Present {
-		return fmt.Errorf("failed to download track: %s - %s", track.Title, track.Artist)
+	if track.Present {
+		log.Printf("[youtube] Download finished: %s - %s", track.Artist, track.Title)
+		return nil
 	}
-	return nil
+	return fmt.Errorf("failed to download track: %s - %s", track.Title, track.Artist)
 }
 
 func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to monitor yt-dlp downloads, there is no queue for them
@@ -128,7 +129,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	input := fmt.Sprintf("%s%s_TEMP.mp3", c.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
-		log.Fatalf("Failed to create song file: %s", err.Error())
+		log.Fatalf("failed to create song file: %s", err.Error())
 	}
 
 	defer func() {
@@ -138,7 +139,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	}()
 
 	if _, err = io.Copy(file, stream); err != nil {
-		log.Printf("Failed to copy stream to file: %s", err.Error())
+		log.Printf("failed to copy stream to file: %s", err.Error())
 		_ = os.Remove(input) //nolint:errcheck // best-effort cleanup
 		return false
 	}
@@ -154,7 +155,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	}
 
 	if err = cmd.Run(); err != nil {
-		log.Printf("Failed to convert audio: %s", err.Error())
+		log.Printf("failed to convert audio: %s", err.Error())
 		_ = os.Remove(input) //nolint:errcheck // best-effort cleanup
 		return false
 	}
