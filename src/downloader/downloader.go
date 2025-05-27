@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"log"
+	"sync"
 
 	cfg "explo/src/config"
 	"explo/src/debug"
@@ -36,28 +37,33 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 		Downloaders: downloader}
 }
 
-func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
-	for _, d := range c.Downloaders { // download tracks using downloaders defined in config
-		for _, track := range *tracks {
-			if !track.Present {
-				if err := d.QueryTrack(track); err != nil {
-					debug.Debug(err.Error())
+	func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
+		for _, d := range c.Downloaders {
+			var wg sync.WaitGroup
+	
+			for _, track := range *tracks {
+				if track.Present {
 					continue
 				}
-				if err := d.GetTrack(track); err != nil {
-					debug.Debug(err.Error())
-				}
-
-				if c.Cfg.Discovery == "test" {
-					debug.Debug("test mode enabled: Downloaded 1 song, stopping downloads")
-					filterTracks(tracks)
-					return
-				}
+	
+				wg.Add(1)
+				go func(track *models.Track) {
+					defer wg.Done()
+	
+					if err := d.QueryTrack(track); err != nil {
+						debug.Debug(err.Error())
+						return
+					}
+					if err := d.GetTrack(track); err != nil {
+						debug.Debug(err.Error())
+						return
+					}
+				}(track)
 			}
+			wg.Wait()
 		}
+		filterTracks(tracks)
 	}
-	filterTracks(tracks)
-}
 
 func (c *DownloadClient) DeleteSongs() {
 	entries, err := os.ReadDir(c.Cfg.DownloadDir)
