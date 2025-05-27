@@ -82,6 +82,11 @@ func (c *Youtube) GetTrack(track *models.Track) error {
 	return nil
 }
 
+func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to monitor yt-dlp downloads, there is no queue for them
+	log.Println("[youtube] No further monitoring required")
+	return nil
+ }
+
 func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // gets song under artist topic or personal channel
 
 	for _, v := range videos.Items {

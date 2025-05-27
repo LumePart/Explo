@@ -20,6 +20,7 @@ type DownloadClient struct {
 type Downloader interface {
 	QueryTrack(*models.Track) error
 	GetTrack(*models.Track) error
+	MonitorDownloads([]*models.Track) error
 }
 
 
@@ -61,6 +62,7 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 				}(track)
 			}
 			wg.Wait()
+			d.MonitorDownloads(*tracks)
 		}
 		filterTracks(tracks)
 	}
