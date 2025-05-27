@@ -62,7 +62,9 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 				}(track)
 			}
 			wg.Wait()
-			d.MonitorDownloads(*tracks)
+			if err := d.MonitorDownloads(*tracks); err != nil {
+				log.Printf("track monitoring failed: %s", err.Error())
+			}
 		}
 		filterTracks(tracks)
 	}
