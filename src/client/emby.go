@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"net/url"
 
 	"explo/src/config"
 	"explo/src/debug"
@@ -111,7 +112,7 @@ func (c *Emby) AddLibrary() error {
 }
 
 func (c *Emby) RefreshLibrary() error {
-	reqParam := fmt.Sprintf("/emby/Items/%s/Refresh", c.LibraryID)
+	reqParam := fmt.Sprintf("/emby/Items/%s/Refresh?Recursive=True&MetadataRefreshMode=FullRefresh", c.LibraryID)
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
@@ -120,21 +121,21 @@ func (c *Emby) RefreshLibrary() error {
 }
 
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
-	reqParam := fmt.Sprintf("/Items?parentId=%s&fields=Path&mediaTypes=Audio&sortBy=DateCreated&sortOrder=Descending&limit=200", c.LibraryID) // limit 200 recently added audio tracks to search from
-
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
-	if err != nil {
-		return err
-	}
-
-	var results Audios
-	if err = util.ParseResp(body, &results); err != nil {
-		return err
-	}
-
 	for _, track := range tracks {
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true", url.QueryEscape(track.CleanTitle))
+
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
+		if err != nil {
+			return err
+		}
+
+		var results Audios
+		if err = util.ParseResp(body, &results); err != nil {
+			return err
+		}
+
 		for _, item := range results.Items {
-			if strings.Contains(item.Path, track.File) {
+			if track.MainArtist == item.AlbumArtist && item.Name == track.CleanTitle {
 				track.ID = item.ID
 				track.Present = true
 				break
