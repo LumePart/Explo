@@ -119,7 +119,7 @@ func (c *Jellyfin) AddLibrary() error {
 }
 
 func (c *Jellyfin) RefreshLibrary() error {
-	reqParam := fmt.Sprintf("/Items/%s/Refresh?metadataRefreshMode=FullRefresh", c.LibraryID)
+	reqParam := fmt.Sprintf("/Items/%s/Refresh?metadataRefreshMode=FullRefresh&Recursive=true", c.LibraryID)
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
