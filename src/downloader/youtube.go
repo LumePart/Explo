@@ -91,7 +91,7 @@ func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to 
 func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // gets song under artist topic or personal channel
 
 	for _, v := range videos.Items {
-		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && filter(track, v.Snippet.Title, cfg.FilterList) {
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && filter(track, v.Snippet.Title, cfg.Filters.FilterList) {
 			return v.ID.VideoID
 		}
 	}
@@ -172,7 +172,7 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 	}
 	// If official video isn't found, try the first suitable channel
 	for _, video := range videos.Items {
-		if filter(track, video.Snippet.Title, cfg.FilterList) {
+		if filter(track, video.Snippet.Title, cfg.Filters.FilterList) {
 			return video.ID.VideoID
 		}
 	}

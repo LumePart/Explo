@@ -55,12 +55,19 @@ type DownloadConfig struct {
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
 
+type Filters struct {
+	Extensions []string `env:"EXTENSIONS" env-default:"flac,mp3"`
+	MinBitDepth int `env:"MIN_BIT_DEPTH" env-default:"8"`
+	MinBitRate int `env:"MIN_BITRATE" env-default:"256"`
+	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
+}
+
 type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
 	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath string `env:"YTDLP_PATH"`
-	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
+	Filters Filters
 }
 
 type DiscoveryConfig struct {
