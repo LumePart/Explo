@@ -5,6 +5,7 @@ import (
 	"path"
 	"log"
 	"sync"
+	"strings"
 
 	cfg "explo/src/config"
 	"explo/src/debug"
@@ -94,4 +95,12 @@ func filterTracks(tracks *[]*models.Track) { // only keep tracks that were downl
 		}
 	}
 	*tracks = filteredTracks
+}
+
+func containsLower(str string, substr string) bool {
+
+	return strings.Contains(
+        strings.ToLower(str),
+        strings.ToLower(substr),
+    )
 }

@@ -204,11 +204,3 @@ func filter(track models.Track, videoTitle string, filterList []string) bool { /
 	}
 	return true
 }
-
-func containsLower(str string, substr string) bool {
-
-	return strings.Contains(
-		strings.ToLower(str),
-		strings.ToLower(substr),
-	)
-}
