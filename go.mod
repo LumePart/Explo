@@ -1,6 +1,6 @@
 module explo
 
-go 1.22.11
+go 1.24.3
 
 require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
