@@ -6,6 +6,7 @@ import (
 	"log"
 	"sync"
 	"strings"
+	"regexp"
 
 	cfg "explo/src/config"
 	"explo/src/debug"
@@ -103,4 +104,9 @@ func containsLower(str string, substr string) bool {
         strings.ToLower(str),
         strings.ToLower(substr),
     )
+}
+
+func sanitizeName(s string) string { // return string with only letters and digits
+	var sanitizer = regexp.MustCompile(`[^\p{L}\d]+`)
+	return sanitizer.ReplaceAllString(s, "")
 }
