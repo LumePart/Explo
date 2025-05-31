@@ -70,6 +70,14 @@ type Youtube struct {
 	Filters Filters
 }
 
+type Slskd struct {
+	APIKey string `env:"SLSKD_API_KEY"`
+	URL string `env:"SLSKD_URL"`
+	Retry int `env:"SLSKD_RETRY" env-default:"5"`
+	Timeout time.Duration `env:"SLSKD_TIMEOUT" env-default:"20s"`
+	Filters Filters
+}
+
 type DiscoveryConfig struct {
 	Discovery string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
 	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
