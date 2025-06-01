@@ -15,7 +15,8 @@ import (
 	"time"
 )
 
-type	EndedAt         time.Time `json:"endedAt"`
+type Search struct {
+	EndedAt         time.Time `json:"endedAt"`
 	FileCount       int       `json:"fileCount"`
 	ID              string    `json:"id"`
 	IsComplete      bool      `json:"isComplete"`
@@ -437,49 +438,3 @@ func abs(x int) int { // Helper track to return absolute difference between trac
 	}
 	return x
 }
-	}
-	}
-	return true
-}
-
-func (c Slskd) deleteDownload(user, ID string) error {
-	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s?remove=true", user, ID)
-
-	_, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams, nil, c.Headers)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func abs(x int) int { // Helper track to return absolute difference between tracks
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-
-
-ue
-}
-
-func (c Slskd) deleteDownload(user, ID string) error {
-	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s?remove=true", user, ID)
-
-	_, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams, nil, c.Headers)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func abs(x int) int { // Helper track to return absolute difference between tracks
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-
-
