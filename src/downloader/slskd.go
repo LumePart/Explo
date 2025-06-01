@@ -15,8 +15,7 @@ import (
 	"time"
 )
 
-type Search struct {
-	EndedAt 		time.Time `json:"endedAt"`
+type	EndedAt         time.Time `json:"endedAt"`
 	FileCount       int       `json:"fileCount"`
 	ID              string    `json:"id"`
 	IsComplete      bool      `json:"isComplete"`
@@ -29,26 +28,26 @@ type Search struct {
 }
 
 type SearchResults []struct {
-	FileCount         int     `json:"fileCount"`
+	FileCount         int    `json:"fileCount"`
 	Files             []File `json:"files"`
-	HasFreeUploadSlot bool    `json:"hasFreeUploadSlot"`
-	LockedFileCount   int     `json:"lockedFileCount"`
-	LockedFiles       []any   `json:"lockedFiles"`
-	QueueLength       int     `json:"queueLength"`
-	Token             int     `json:"token"`
-	UploadSpeed       int     `json:"uploadSpeed"`
-	Username          string  `json:"username"`
+	HasFreeUploadSlot bool   `json:"hasFreeUploadSlot"`
+	LockedFileCount   int    `json:"lockedFileCount"`
+	LockedFiles       []any  `json:"lockedFiles"`
+	QueueLength       int    `json:"queueLength"`
+	Token             int    `json:"token"`
+	UploadSpeed       int    `json:"uploadSpeed"`
+	Username          string `json:"username"`
 }
 type File struct {
-	BitRate   int    `json:"bitRate"`
-	BitDepth  int    `json:"bitDepth"`
-	Code      int    `json:"code"`
-	Extension string `json:"extension"`
-	Name  json.RawMessage `json:"filename"`
-	Length    int    `json:"length"`
-	Size      int    `json:"size"`
-	IsLocked  bool   `json:"isLocked"`
-	Username string // Save user from SearchResults to here during collection
+	BitRate   int             `json:"bitRate"`
+	BitDepth  int             `json:"bitDepth"`
+	Code      int             `json:"code"`
+	Extension string          `json:"extension"`
+	Name      json.RawMessage `json:"filename"`
+	Length    int             `json:"length"`
+	Size      int             `json:"size"`
+	IsLocked  bool            `json:"isLocked"`
+	Username  string          // Save user from SearchResults to here during collection
 }
 
 type DownloadStatus []struct {
@@ -56,47 +55,47 @@ type DownloadStatus []struct {
 	Directories []Directories `json:"directories"`
 }
 type DownloadFiles struct {
-	ID               string    `json:"id"`
-	Username         string    `json:"username"`
-	Direction        string    `json:"direction"`
-	Filename         json.RawMessage    `json:"filename"`
-	Size             int       `json:"size"`
-	StartOffset      int       `json:"startOffset"`
-	State            string    `json:"state"`
-	RequestedAt      string    `json:"requestedAt"`
-	EnqueuedAt       string    `json:"enqueuedAt"`
-	StartedAt        time.Time `json:"startedAt"`
-	EndedAt          time.Time `json:"endedAt"`
-	BytesTransferred int       `json:"bytesTransferred"`
-	AverageSpeed     float64   `json:"averageSpeed"`
-	BytesRemaining   int       `json:"bytesRemaining"`
-	ElapsedTime      string    `json:"elapsedTime"`
-	PercentComplete  float64   `json:"percentComplete"`
-	RemainingTime    string    `json:"remainingTime"`
+	ID               string          `json:"id"`
+	Username         string          `json:"username"`
+	Direction        string          `json:"direction"`
+	Filename         json.RawMessage `json:"filename"`
+	Size             int             `json:"size"`
+	StartOffset      int             `json:"startOffset"`
+	State            string          `json:"state"`
+	RequestedAt      string          `json:"requestedAt"`
+	EnqueuedAt       string          `json:"enqueuedAt"`
+	StartedAt        time.Time       `json:"startedAt"`
+	EndedAt          time.Time       `json:"endedAt"`
+	BytesTransferred int             `json:"bytesTransferred"`
+	AverageSpeed     float64         `json:"averageSpeed"`
+	BytesRemaining   int             `json:"bytesRemaining"`
+	ElapsedTime      string          `json:"elapsedTime"`
+	PercentComplete  float64         `json:"percentComplete"`
+	RemainingTime    string          `json:"remainingTime"`
 }
 type Directories struct {
-	Directory string  `json:"directory"`
-	FileCount int     `json:"fileCount"`
+	Directory string          `json:"directory"`
+	FileCount int             `json:"fileCount"`
 	Files     []DownloadFiles `json:"files"`
 }
 
 type DownloadMonitor struct {
-    LastBytesTransferred int
-	Counter int
-	PlaceInQueue int
-	Skipped bool
-    LastUpdated time.Time
+	LastBytesTransferred int
+	Counter              int
+	PlaceInQueue         int
+	Skipped              bool
+	LastUpdated          time.Time
 }
 
 type Slskd struct {
-	Headers map[string]string
+	Headers    map[string]string
 	HttpClient *util.HttpClient
-	Cfg config.Slskd
+	Cfg        config.Slskd
 }
 
 func NewSlskd(cfg config.Slskd) *Slskd {
 	return &Slskd{Cfg: cfg,
-	HttpClient: util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout})}
+		HttpClient: util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout})}
 }
 
 func (c *Slskd) AddHeader() {
@@ -153,7 +152,7 @@ func (c *Slskd) GetTrack(track *models.Track) error {
 	return nil
 }
 
-func (c Slskd) searchTrack(track *models.Track) (string, error)  {
+func (c Slskd) searchTrack(track *models.Track) (string, error) {
 	reqParams := "/api/v0/searches"
 
 	payload := fmt.Appendf(nil, `{"searchText": "%s - %s"}`, track.CleanTitle, track.Artist)
@@ -237,12 +236,12 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 						continue
 					}
 
-					if track.Duration > 0 && abs(track.Duration / 1000 - file.Length) > 10 { // skip song if track lengths have a 10s+ difference
+					if track.Duration > 0 && abs(track.Duration/1000-file.Length) > 10 { // skip song if track lengths have a 10s+ difference
 						continue
 					}
 
 					sanitizedFilename := sanitizeName(string(file.Name))
-					if ((containsLower(sanitizedFilename, sanitizedArtist) || containsLower(sanitizedFilename, sanitizedAlbum)) && containsLower(sanitizedFilename, sanitizedTitle)) {
+					if (containsLower(sanitizedFilename, sanitizedArtist) || containsLower(sanitizedFilename, sanitizedAlbum)) && containsLower(sanitizedFilename, sanitizedTitle) {
 						file.Username = result.Username
 						if !yield(file) {
 							return
@@ -330,29 +329,28 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 
 			for _, track := range tracks {
 
+				key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
 
-                key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
-
-                // Initialize tracker if not present
-                if _, exists := progressMap[key]; !exists {
-                    progressMap[key] = &DownloadMonitor{
-                        LastBytesTransferred: 0,
-						Counter: 0,
-                        LastUpdated: currentTime,
-                    }
-                }
+				// Initialize tracker if not present
+				if _, exists := progressMap[key]; !exists {
+					progressMap[key] = &DownloadMonitor{
+						LastBytesTransferred: 0,
+						Counter:              0,
+						LastUpdated:          currentTime,
+					}
+				}
 
 				if track.Present || progressMap[key].Skipped {
 					continue
 				}
 
-                // Find the corresponding file in the download status
+				// Find the corresponding file in the download status
 				fileStatus := c.findFile(status, *track)
 
 				tracker := progressMap[key]
-                if fileStatus.Size == 0 {
+				if fileStatus.Size == 0 {
 					tracker.Counter++
-				
+
 					if tracker.Counter >= 2 {
 						debug.Debug(fmt.Sprintf("[slskd] %s by %s not found in queue after retries, skipping track", track.CleanTitle, track.MainArtist))
 						tracker.Skipped = true
@@ -368,13 +366,13 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					continue
 
 				} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred {
-                    tracker.LastBytesTransferred = fileStatus.BytesTransferred
-                    tracker.LastUpdated = currentTime
-                	debug.Debug(fmt.Sprintf("[slskd] progress updated for %s: %d bytes transferred", track.File, fileStatus.BytesTransferred))
+					tracker.LastBytesTransferred = fileStatus.BytesTransferred
+					tracker.LastUpdated = currentTime
+					debug.Debug(fmt.Sprintf("[slskd] progress updated for %s: %d bytes transferred", track.File, fileStatus.BytesTransferred))
 					continue
 
-                } else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") {
-                    log.Printf("[slskd] %s failed to download, skipping track", track.File)
+				} else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") {
+					log.Printf("[slskd] %s failed to download, skipping track", track.File)
 					tracker.Skipped = true
 					if err = c.deleteSearch(track.ID); err != nil {
 						debug.Debug(fmt.Sprintf("failed to delete search request: %s", err.Error()))
@@ -384,31 +382,31 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 						debug.Debug(fmt.Sprintf("failed to delete download: %s", err.Error()))
 					}
 					continue
-                }
-            }
-			
-            // Exit condition: all tracks have been processed or skipped
-            if c.tracksProcessed(tracks, progressMap) {
+				}
+			}
+
+			// Exit condition: all tracks have been processed or skipped
+			if c.tracksProcessed(tracks, progressMap) {
 				log.Printf("[slskd] %d out of %d tracks have been downloaded", successDownloads, len(tracks))
 				return nil
 			}
-        }
-    }
+		}
+	}
 }
 
 func (c Slskd) findFile(status DownloadStatus, track models.Track) DownloadFiles {
-    for _, userStatus := range status {
-        if userStatus.Username != track.MainArtistID {
-            continue
-            }
-        for _, dir := range userStatus.Directories {
-            for _, file := range dir.Files {
-                if string(file.Filename) == track.File {
-                    return file
-                }
-            }
-        }
-    }
+	for _, userStatus := range status {
+		if userStatus.Username != track.MainArtistID {
+			continue
+		}
+		for _, dir := range userStatus.Directories {
+			for _, file := range dir.Files {
+				if string(file.Filename) == track.File {
+					return file
+				}
+			}
+		}
+	}
 	return DownloadFiles{}
 }
 
@@ -421,6 +419,49 @@ func (c Slskd) tracksProcessed(tracks []*models.Track, progressMap map[string]*D
 		}
 	}
 	return true
+}
+
+func (c Slskd) deleteDownload(user, ID string) error {
+	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s?remove=true", user, ID)
+
+	_, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams, nil, c.Headers)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func abs(x int) int { // Helper track to return absolute difference between tracks
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+	}
+	}
+	return true
+}
+
+func (c Slskd) deleteDownload(user, ID string) error {
+	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s?remove=true", user, ID)
+
+	_, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams, nil, c.Headers)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func abs(x int) int { // Helper track to return absolute difference between tracks
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+
+
+ue
 }
 
 func (c Slskd) deleteDownload(user, ID string) error {
