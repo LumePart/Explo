@@ -134,7 +134,7 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 	if err != nil {
 		return err
 	}
-	file, err := c.filterTrack(track, files)
+	file, err := c.filterFiles(files)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 	}
 }
 
-func (c Slskd) filterTrack(track *models.Track, files []File) (File, error) { // return first file that passes checks
+func (c Slskd) filterFiles(files []File) (File, error) { // return first file that passes checks
 	for _, extension := range c.Cfg.Filters.Extensions { // looping the Extensions list allows for priority based filtering (i.e flac before mp3 etc...)
 		for _, file := range files {
 			if file.Extension != extension { // if extension not matched, skip file
