@@ -346,22 +346,8 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					continue
 				}
 
-                // Find the corresponding file in the status
-                var fileStatus DownloadFiles
-				Found:
-                for _, userStatus := range status {
-                    if userStatus.Username != track.MainArtistID {
-                        continue
-                    }
-                    for _, dir := range userStatus.Directories {
-                        for _, file := range dir.Files {
-                            if string(file.Filename) == track.File {
-                                fileStatus = file
-                                break Found
-                            }
-                        }
-                    }
-                }
+                // Find the corresponding file in the download status
+				fileStatus := c.findFile(status, *track)
 
 				tracker := progressMap[key]
                 if fileStatus.Size == 0 {
@@ -400,24 +386,41 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					continue
                 }
             }
-
-			// Check if all tracks have been processed
-			allDone := true
-			for _, track := range tracks {
-				key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
-				tracker, exists := progressMap[key]
-				if !track.Present && (!exists || !tracker.Skipped) {
-					allDone = false
-					break
-				}
-			}
+			
             // Exit condition: all tracks have been processed or skipped
-            if allDone {
+            if c.tracksProcessed(tracks, progressMap) {
 				log.Printf("[slskd] %d out of %d tracks have been downloaded", successDownloads, len(tracks))
 				return nil
 			}
         }
     }
+}
+
+func (c Slskd) findFile(status DownloadStatus, track models.Track) DownloadFiles {
+    for _, userStatus := range status {
+        if userStatus.Username != track.MainArtistID {
+            continue
+            }
+        for _, dir := range userStatus.Directories {
+            for _, file := range dir.Files {
+                if string(file.Filename) == track.File {
+                    return file
+                }
+            }
+        }
+    }
+	return DownloadFiles{}
+}
+
+func (c Slskd) tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMonitor) bool { // Checks if all tracks are processed (either downloaded or skipped)
+	for _, track := range tracks {
+		key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
+		tracker, exists := progressMap[key]
+		if !track.Present && (!exists || (exists && !tracker.Skipped)) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c Slskd) deleteDownload(user, ID string) error {
