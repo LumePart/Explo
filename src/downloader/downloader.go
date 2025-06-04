@@ -33,7 +33,9 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 		case "youtube":
 			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
 		case "slskd":
-			downloader = append(downloader, NewSlskd(cfg.Slskd))
+			slskdClient := NewSlskd(cfg.Slskd)
+			slskdClient.AddHeader()
+			downloader = append(downloader, slskdClient)
 		default:
 			log.Fatalf("downloader '%s' not supported", service)
 		}
