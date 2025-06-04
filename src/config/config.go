@@ -51,6 +51,7 @@ type SubsonicConfig struct {
 type DownloadConfig struct {
 	DownloadDir string `env:"DOWNLOAD_DIR"`
 	Youtube Youtube
+	Slskd Slskd
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
