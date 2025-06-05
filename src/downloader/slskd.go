@@ -341,7 +341,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					}
 				}
 
-				if track.Present || progressMap[key].Skipped {
+				if track.Present || progressMap[key].Skipped || track.ID != "" {
 					continue
 				}
 
