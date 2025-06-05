@@ -122,6 +122,9 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 		return err
 	}
 	if !completed {
+		if delErr := c.deleteSearch(ID); delErr != nil {
+			debug.Debug(delErr.Error())
+		}
 		return fmt.Errorf("search not completed for %s, skipping track", trackDetails)
 	}
 
