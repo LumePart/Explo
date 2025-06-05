@@ -114,21 +114,23 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 	}
 	trackDetails := fmt.Sprintf("%s - %s", track.CleanTitle, track.Artist)
 	log.Printf("initiating search for %s", trackDetails)
+
+	defer func() { // Delete search if ID is empty
+		if track.ID == "" {
+			if delErr := c.deleteSearch(ID); delErr != nil {
+				debug.Debug(fmt.Sprintf("[slskd] failed to delete search: %s", delErr.Error()))
+			}
+		}
+	}()
+
 	completed, err := c.searchStatus(ID, trackDetails, 0)
 	if err != nil {
-		if delErr := c.deleteSearch(ID); delErr != nil {
-			debug.Debug(delErr.Error())
-		}
 		return err
 	}
 	if !completed {
-		if delErr := c.deleteSearch(ID); delErr != nil {
-			debug.Debug(delErr.Error())
-		}
 		return fmt.Errorf("search not completed for %s, skipping track", trackDetails)
 	}
 
-	track.ID = ID
 	results, err := c.searchResults(ID)
 	if err != nil {
 		return err
@@ -142,6 +144,7 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 		return err
 	}
 
+	track.ID = ID
 	track.File = string(file.Name)
 	track.Size = file.Size
 	track.MainArtistID = file.Username
