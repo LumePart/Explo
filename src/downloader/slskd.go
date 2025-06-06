@@ -153,8 +153,13 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 }
 
 func (c *Slskd) GetTrack(track *models.Track) error {
-	if err := c.queueDownload(*track); err != nil {
-		return err
+	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s", track.MainArtistID)
+
+	payload := fmt.Appendf(nil, `[{"filename": %s, "size": %d}]`, track.File, track.Size)
+
+	_, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(payload), c.Headers)
+	if err != nil {
+		return fmt.Errorf("failed to queue download: %s", err.Error())
 	}
 	return nil
 }
@@ -286,17 +291,6 @@ func (c Slskd) filterFiles(files []File) (File, error) { // return first file th
 	return File{}, fmt.Errorf("no files found that match filters")
 }
 
-func (c Slskd) queueDownload(track models.Track) error {
-	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s", track.MainArtistID)
-
-	payload := fmt.Appendf(nil, `[{"filename": %s, "size": %d}]`, track.File, track.Size)
-
-	_, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(payload), c.Headers)
-	if err != nil {
-		return fmt.Errorf("failed to queue download: %s", err.Error())
-	}
-	return nil
-}
 
 func (c Slskd) getDownloadStatus() (DownloadStatus, error) {
 	reqParams := "/api/v0/transfers/downloads"
