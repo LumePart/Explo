@@ -293,7 +293,7 @@ func (c Slskd) queueDownload(track models.Track) error {
 
 	_, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(payload), c.Headers)
 	if err != nil {
-		return fmt.Errorf("failed to queue download: %w", err)
+		return fmt.Errorf("failed to queue download: %s", err.Error())
 	}
 	return nil
 }
