@@ -372,7 +372,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					debug.Debug(fmt.Sprintf("[slskd] progress updated for %s: %d bytes transferred", track.File, fileStatus.BytesTransferred))
 					continue
 
-				} else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") {
+				} else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
 					log.Printf("[slskd] %s failed to download, skipping track", track.File)
 					tracker.Skipped = true
 					if err = c.deleteSearch(track.ID); err != nil {
