@@ -423,12 +423,18 @@ func (c Slskd) tracksProcessed(tracks []*models.Track, progressMap map[string]*D
 }
 
 func (c Slskd) deleteDownload(user, ID string) error {
-	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s?remove=true", user, ID)
+	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s", user, ID)
 
-	_, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams, nil, c.Headers)
-	if err != nil {
-		return err
+	// cancel download
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?remove=false", nil, c.Headers); err != nil {
+		return fmt.Errorf("soft delete failed: %s", err.Error())
 	}
+
+	// delete download
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?remove=true", nil, c.Headers); err != nil {
+		return fmt.Errorf("hard delete failed: %s", err.Error())
+	}
+
 	return nil
 }
 
