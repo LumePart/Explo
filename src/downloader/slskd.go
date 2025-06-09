@@ -266,7 +266,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 	if len(files) != 0 {
 		return files, nil
 	} else {
-		return nil, fmt.Errorf("no tracks passed collection")
+		return nil, fmt.Errorf("no tracks passed collection for %s - %s", track.MainArtist, track.CleanTitle)
 	}
 }
 
