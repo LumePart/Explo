@@ -415,7 +415,7 @@ func (c Slskd) tracksProcessed(tracks []*models.Track, progressMap map[string]*D
 	for _, track := range tracks {
 		key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
 		tracker, exists := progressMap[key]
-		if !track.Present && (!exists || (exists && !tracker.Skipped)) {
+		if !track.Present && exists && !tracker.Skipped {
 			return false
 		}
 	}
