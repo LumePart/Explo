@@ -332,6 +332,10 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 
 				key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
 
+				if track.Present || track.MainArtistID == "" || (progressMap[key] != nil && progressMap[key].Skipped)  {
+					continue
+				}
+
 				// Initialize tracker if not present
 				if _, exists := progressMap[key]; !exists {
 					progressMap[key] = &DownloadMonitor{
@@ -339,10 +343,6 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 						Counter:              0,
 						LastUpdated:          currentTime,
 					}
-				}
-
-				if track.Present || progressMap[key].Skipped || track.ID == "" {
-					continue
 				}
 
 				// Find the corresponding file in the download status
