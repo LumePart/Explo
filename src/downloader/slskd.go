@@ -379,7 +379,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 						debug.Debug(fmt.Sprintf("failed to delete search request: %s", err.Error()))
 					}
 
-					if err = c.deleteDownload(track.MainArtistID, track.ID); err != nil {
+					if err = c.deleteDownload(track.MainArtistID, fileStatus.ID); err != nil {
 						debug.Debug(fmt.Sprintf("failed to delete download: %s", err.Error()))
 					}
 					continue
