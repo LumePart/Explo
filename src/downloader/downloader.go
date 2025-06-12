@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"regexp"
+	"fmt"
 	"golang.org/x/sync/errgroup"
 
 	cfg "explo/src/config"
@@ -118,4 +119,14 @@ func containsLower(str string, substr string) bool {
 func sanitizeName(s string) string { // return string with only letters and digits
 	var sanitizer = regexp.MustCompile(`[^\p{L}\d]+`)
 	return sanitizer.ReplaceAllString(s, "")
+}
+
+func getFilename(title, artist, separator string) string {
+
+	// Remove illegal characters for file naming
+	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
+	t := re.ReplaceAllString(title, separator)
+	a := re.ReplaceAllString(artist, separator)
+
+	return fmt.Sprintf("%s-%s",t,a)
 }

@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -211,7 +210,6 @@ func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist 
 			CleanTitle:  recording.Recording.Name,
 			Title:       title,
 			Duration:    recording.Recording.Length,
-			File:        getFilename(title, artist, separator),
 		})
 	}
 
@@ -290,22 +288,11 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, sing
 			CleanTitle: track.Title,
 			Title:      title,
 			Duration:   track.Duration,
-			File:       getFilename(title, artist, separator),
 		})
 	}
 
 	return tracks, nil
 
-}
-
-func getFilename(title, artist, separator string) string {
-
-	// Remove illegal characters for file naming
-	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
-	t := re.ReplaceAllString(title, separator)
-	a := re.ReplaceAllString(artist, separator)
-
-	return fmt.Sprintf("%s-%s",t,a)
 }
 
 func (c *ListenBrainz) lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API requests
