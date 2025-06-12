@@ -121,12 +121,12 @@ func sanitizeName(s string) string { // return string with only letters and digi
 	return sanitizer.ReplaceAllString(s, "")
 }
 
-func getFilename(title, artist, separator string) string {
+func getFilename(title, artist string) string {
 
 	// Remove illegal characters for file naming
 	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
-	t := re.ReplaceAllString(title, separator)
-	a := re.ReplaceAllString(artist, separator)
+	t := re.ReplaceAllString(title, "_")
+	a := re.ReplaceAllString(artist, "_")
 
 	return fmt.Sprintf("%s-%s",t,a)
 }
