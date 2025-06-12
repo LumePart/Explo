@@ -73,7 +73,8 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
-
+	
+	track.File = getFilename(track.Title, track.Artist)
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
