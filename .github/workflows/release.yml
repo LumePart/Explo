@@ -120,6 +120,9 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    concurrency:
+      group: dev-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout repository
