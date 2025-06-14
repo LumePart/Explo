@@ -8,7 +8,6 @@ COPY ./ .
 
 # Build the Go binary based on the target architecture
 ARG TARGETARCH
-RUN echo "GOOS=linux, GOARCH=$TARGETARCH" && ls -R ./src/main
 RUN GOOS=linux GOARCH=$TARGETARCH go build -o explo ./src/main/
 
 FROM alpine
