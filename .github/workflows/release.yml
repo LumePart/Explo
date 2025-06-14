@@ -111,6 +111,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/386
+          build-args: |
+            TARGETARCH
 
   build-dev:
     name: Build/publish dev image
@@ -152,3 +154,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/386
+          build-args: |
+            TARGETARCH
