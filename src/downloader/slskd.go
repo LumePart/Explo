@@ -255,7 +255,8 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 				for _, file := range result.Files {
 					file.Extension = strings.TrimPrefix(strings.ToLower(file.Extension), ".")
 					if file.Extension == "" {
-						file.Extension = strings.TrimPrefix(strings.ToLower(filepath.Ext(string(file.Name))), ".")
+						extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(string(file.Name))), ".")
+						file.Extension = sanitizeName(extension) // sanitize extension incase of bad chars
 					}
 
 					if !slices.Contains(c.Cfg.Filters.Extensions, file.Extension) {
