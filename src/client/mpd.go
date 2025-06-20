@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"path/filepath"
 
 	"explo/src/config"
 	"explo/src/debug"
@@ -34,7 +36,32 @@ func (c *MPD) AddLibrary() error {
 	return nil
 }
 
-func (c *MPD) SearchSongs(_ []*models.Track) error {
+func (c *MPD) SearchSongs(tracks []*models.Track) error {
+	for i := range tracks {
+		if tracks[i].File == "" {
+			continue
+		}
+	
+		if c.Cfg.DownloadDir != "" {
+			fullName := tracks[i].File + ".mp3"
+			if fullPath, err := c.findTrack(fullName, c.Cfg.DownloadDir); err == nil {
+				tracks[i].File = fullPath
+				tracks[i].Present = true
+				continue
+			} else {
+				fmt.Printf("Track not found in DownloadDir: %s\n", fullName)
+			}
+		}
+		if c.Cfg.SlskdDir != "" {
+			baseName := filepath.Base(normalizePath(tracks[i].File))
+			if fullPath, err := c.findTrack(baseName, c.Cfg.SlskdDir); err == nil {
+				tracks[i].File = fullPath
+				tracks[i].Present = true
+			} else {
+				fmt.Printf("Track not found in SlskdDir: %s\n", baseName)
+			}
+		}
+	}
 	return nil
 }
 
@@ -49,10 +76,11 @@ func (c *MPD) CreatePlaylist(tracks []*models.Track) error {
 	}
 
 	for _, track := range tracks {
-		fullFile := fmt.Sprintf("%s%s.mp3\n",c.Cfg.DownloadDir, track.File)
-		_, err := f.Write([]byte(fullFile))
-		if err != nil {
-			debug.Debug(fmt.Sprintf("failed to write song to file: %s", err.Error()))
+		if track.Present {
+			_, err := f.Write([]byte(track.File+"\n"))
+			if err != nil {
+				debug.Debug(fmt.Sprintf("failed to write song to file: %s", err.Error()))
+			}
 		}
 	}
 	return nil
@@ -79,4 +107,29 @@ func (c *MPD) DeletePlaylist() error {
 		return nil
 	}
 	return fmt.Errorf("playlist not found")
+}
+
+func (c MPD) findTrack(name, path string) (string, error) {
+	var foundPath string
+    errorFound := errors.New("file found")
+    err := filepath.WalkDir(path, func(currentPath string, d os.DirEntry, err error) error {
+    if err != nil {
+        return err
+    }
+    if d.Name() == name {
+		foundPath = currentPath
+        return errorFound
+    }
+    return nil
+   })
+   if errors.Is(err, errorFound) {
+		return foundPath, nil
+   }
+
+   return "", fmt.Errorf("no file found named %s in %s: %s", name, path, err)
+}
+
+func normalizePath(p string) string { //  SLSKD path to linux-style path (for filepath.Base())
+	p = strings.ReplaceAll(p, `\`, `/`) 
+	return filepath.Base(p)
 }
