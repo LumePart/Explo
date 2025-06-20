@@ -200,6 +200,15 @@ func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist 
 				}
 				title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
 				artist = recording.Artist.Artists[0].Name
+			} else {
+				var tempArtist strings.Builder
+				for i , artist := range recording.Artist.Artists {
+					if i > 0 {
+						tempArtist.WriteString(separator)
+					}
+						tempArtist.WriteString(artist.Name)
+				}
+				artist = tempArtist.String()
 			}
 		}
 
@@ -278,6 +287,15 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, sing
 				}
 				title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
 				artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+			} else {
+				var tempArtist strings.Builder
+				for i , artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists {
+					if i > 0 {
+						tempArtist.WriteString(separator)
+					}
+						tempArtist.WriteString(artist.ArtistCreditName)
+				}
+				artist = tempArtist.String()
 			}
 		}
 
