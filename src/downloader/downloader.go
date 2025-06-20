@@ -50,7 +50,7 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 	func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 		for _, d := range c.Downloaders {
 			var g errgroup.Group
-			g.SetLimit(10)
+			g.SetLimit(5)
 			
 			for _, track := range *tracks {
 				if track.Present {

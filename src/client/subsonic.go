@@ -36,6 +36,7 @@ type SubResponse struct {
 			Song []struct {
 				ID          string    `json:"id"`
 				Title       string    `json:"title"`
+				Artist        string    `json:"artist"`
 			} `json:"song"`
 		} `json:"searchResult3,omitempty"`
 		Playlists     struct {
@@ -103,7 +104,7 @@ func (c *Subsonic) AddLibrary() error {
 
 func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		searchQuery := fmt.Sprintf("%s %s %s", track.Title, track.Artist, track.Album)
+		searchQuery := fmt.Sprintf("%s %s", track.Title, track.MainArtist)
 
 		reqParam := fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(searchQuery))
 
@@ -125,7 +126,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 			track.Present = true
 		default:
 			for i, song := range resp.SubsonicResponse.SearchResult3.Song {
-				if song.Title == track.Title || song.Title == track.CleanTitle {
+				if strings.Contains(song.Artist, track.MainArtist) && (song.Title == track.Title || song.Title == track.CleanTitle) {
 					track.ID = song.ID
 					track.Present = true
 					break

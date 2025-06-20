@@ -391,6 +391,8 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 				log.Printf("[slskd] %d out of %d tracks have been downloaded", successDownloads, len(tracks))
 				return nil
 			}
+		default:
+			continue
 		}
 	}
 }
