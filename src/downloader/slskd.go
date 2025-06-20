@@ -168,7 +168,7 @@ func (c *Slskd) GetTrack(track *models.Track) error {
 
 	DLpayload, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to Unmarshal payload: %s", err.Error())
+		return fmt.Errorf("failed to marshal payload: %s", err.Error())
 	}
 
 	_, err = c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(DLpayload), c.Headers)
