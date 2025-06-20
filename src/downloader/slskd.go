@@ -136,7 +136,12 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 		return fmt.Errorf("search not completed for %s, skipping track", trackDetails)
 	}
 
-	results, err := c.searchResults(ID)
+	track.ID = ID
+	return nil
+}
+
+func (c *Slskd) GetTrack(track *models.Track) error {
+	results, err := c.searchResults(track.ID)
 	if err != nil {
 		return err
 	}
@@ -144,36 +149,12 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 	if err != nil {
 		return err
 	}
-	file, err := c.filterFiles(files)
+	filterFiles, err := c.filterFiles(files)
 	if err != nil {
 		return err
 	}
-
-	track.ID = ID
-	track.File = file.Name
-	track.Size = file.Size
-	track.MainArtistID = file.Username
-
-	return nil
-}
-
-func (c *Slskd) GetTrack(track *models.Track) error {
-	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s", track.MainArtistID)
-	payload := []DownloadPayload{
-		{
-			Filename: track.File,
-			Size: track.Size,
-		},
-	}
-
-	DLpayload, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %s", err.Error())
-	}
-
-	_, err = c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(DLpayload), c.Headers)
-	if err != nil {
-		return fmt.Errorf("failed to queue download: %s", err.Error())
+	if err := c.queueDownload(filterFiles, track); err != nil {
+		return err
 	}
 	return nil
 }
@@ -285,10 +266,12 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 	}
 }
 
-func (c Slskd) filterFiles(files []File) (File, error) { // return first file that passes checks
-	for _, extension := range c.Cfg.Filters.Extensions { // looping the Extensions list allows for priority based filtering (i.e flac before mp3 etc...)
+func (c Slskd) filterFiles(files []File) ([]File, error) {
+	var filtered []File
+
+	for _, ext := range c.Cfg.Filters.Extensions {
 		for _, file := range files {
-			if file.Extension != extension { // if extension not matched, skip file
+			if file.Extension != ext {
 				continue
 			}
 
@@ -300,10 +283,46 @@ func (c Slskd) filterFiles(files []File) (File, error) { // return first file th
 				continue
 			}
 
-			return file, nil
+			filtered = append(filtered, file)
+			if len(filtered) >= c.Cfg.DownloadAttempts {
+				return filtered, nil
+			}
 		}
 	}
-	return File{}, fmt.Errorf("no files found that match filters")
+
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no files found that match filters")
+	}
+	return filtered, nil
+}
+
+func (c Slskd) queueDownload(files []File, track *models.Track) error {
+	for i, file := range files {
+		reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s", file.Username)
+		payload := []DownloadPayload{
+			{
+				Filename: file.Name,
+				Size: file.Size,
+			},
+		}
+
+		DLpayload, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("failed to marshal payload: %s", err.Error())
+		}
+
+		_, err = c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(DLpayload), c.Headers)
+		if err != nil {
+			debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s': %s", i + 1, len(files), file.Name, err.Error()))
+			continue
+		}
+		track.MainArtistID = file.Username
+		track.Size = file.Size
+		track.File = file.Name
+
+		return nil
+	}
+	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
 }
 
 
