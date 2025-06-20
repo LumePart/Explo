@@ -76,7 +76,7 @@ type Slskd struct {
 	APIKey string `env:"SLSKD_API_KEY"`
 	URL string `env:"SLSKD_URL"`
 	Retry int `env:"SLSKD_RETRY" env-default:"5"` // Number of times to check search status before skipping the track
-	DownloadAttempts int `env:"SLSKD_DL_ATTEMPTS" env-default:"2"` // Max number of files to attempt downloading per track
+	DownloadAttempts int `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
 	Timeout time.Duration `env:"SLSKD_TIMEOUT" env-default:"20s"`
 	Filters Filters
 }
