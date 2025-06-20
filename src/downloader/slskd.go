@@ -2,7 +2,6 @@ package downloader
 
 import (
 	"bytes" // Could be moved to util for all clients
-	"encoding/json"
 	"explo/src/config"
 	"explo/src/debug"
 	"explo/src/models"
@@ -44,7 +43,7 @@ type File struct {
 	BitDepth  int             `json:"bitDepth"`
 	Code      int             `json:"code"`
 	Extension string          `json:"extension"`
-	Name      json.RawMessage `json:"filename"`
+	Name      string		  `json:"filename"`
 	Length    int             `json:"length"`
 	Size      int             `json:"size"`
 	IsLocked  bool            `json:"isLocked"`
@@ -59,7 +58,7 @@ type DownloadFiles struct {
 	ID               string          `json:"id"`
 	Username         string          `json:"username"`
 	Direction        string          `json:"direction"`
-	Filename         json.RawMessage `json:"filename"`
+	Filename         string 		 `json:"filename"`
 	Size             int             `json:"size"`
 	StartOffset      int             `json:"startOffset"`
 	State            string          `json:"state"`
@@ -145,7 +144,7 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 	}
 
 	track.ID = ID
-	track.File = string(file.Name)
+	track.File = file.Name
 	track.Size = file.Size
 	track.MainArtistID = file.Username
 
