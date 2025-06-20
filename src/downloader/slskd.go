@@ -6,6 +6,7 @@ import (
 	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
+	"encoding/json"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -48,6 +49,11 @@ type File struct {
 	Size      int             `json:"size"`
 	IsLocked  bool            `json:"isLocked"`
 	Username  string          // Save user from SearchResults to here during collection
+}
+
+type DownloadPayload struct {
+	Filename string `json:"filename"`
+	Size     int    `json:"size"`
 }
 
 type DownloadStatus []struct {
@@ -153,10 +159,19 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 
 func (c *Slskd) GetTrack(track *models.Track) error {
 	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s", track.MainArtistID)
+	payload := []DownloadPayload{
+		{
+			Filename: track.File,
+			Size: track.Size,
+		},
+	}
 
-	payload := fmt.Appendf(nil, `[{"filename": %s, "size": %d}]`, track.File, track.Size)
+	DLpayload, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to Unmarshal payload: %s", err.Error())
+	}
 
-	_, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(payload), c.Headers)
+	_, err = c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(DLpayload), c.Headers)
 	if err != nil {
 		return fmt.Errorf("failed to queue download: %s", err.Error())
 	}
