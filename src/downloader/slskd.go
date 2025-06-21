@@ -312,15 +312,15 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 		}
 
 		_, err = c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewBuffer(DLpayload), c.Headers)
-		if err != nil {
-			debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s': %s", i + 1, len(files), file.Name, err.Error()))
-			continue
+		if err == nil {
+			track.MainArtistID = file.Username
+			track.Size = file.Size
+			track.File = file.Name
+			return nil
 		}
-		track.MainArtistID = file.Username
-		track.Size = file.Size
-		track.File = file.Name
-
-		return nil
+		
+		debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s': %s", i + 1, len(files), file.Name, err.Error()))
+		continue
 	}
 	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
 }
