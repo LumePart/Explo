@@ -318,8 +318,8 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 			track.File = file.Name
 			return nil
 		}
-		
-		debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s': %s", i + 1, len(files), file.Name, err.Error()))
+
+		debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s - %s': %s", i + 1, len(files), track.CleanTitle, track.Artist, err.Error()))
 		continue
 	}
 	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
@@ -407,7 +407,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					continue
 
 				} else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
-					log.Printf("[slskd] %s failed to download, skipping track", track.File)
+					log.Printf("[slskd] no progress on %s in %v, skipping track", track.File, monitorDuration)
 					tracker.Skipped = true
 					if err = c.deleteSearch(track.ID); err != nil {
 						debug.Debug(fmt.Sprintf("failed to delete search request: %s", err.Error()))
