@@ -66,7 +66,6 @@ type Filters struct {
 
 type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
-	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath string `env:"YTDLP_PATH"`
 	Filters Filters
@@ -83,7 +82,6 @@ type Slskd struct {
 
 type DiscoveryConfig struct {
 	Discovery string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
-	Separator string `env:"FILENAME_SEPARATOR" env-default:" "`
 	Listenbrainz Listenbrainz
 }
 type Listenbrainz struct {

@@ -108,7 +108,6 @@ type ListenBrainz struct {
 func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *ListenBrainz {
 	return &ListenBrainz{
 		cfg: cfg.Listenbrainz,
-		Separator: cfg.Separator,
 		HttpClient: httpClient,
 	}
 }
@@ -121,7 +120,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = c.parseWeeklyExploration(id, c.Separator, c.cfg.SingleArtist)
+		tracks, err = c.parseWeeklyExploration(id, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +130,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = c.getTracks(mbids, c.Separator, c.cfg.SingleArtist)
+		tracks, err = c.getTracks(mbids, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +162,7 @@ func (c *ListenBrainz) getAPIRecommendations(user string) ([]string, error) {
 	return mbids, nil
 }
 
-func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist bool) ([]*models.Track, error) {
+func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.Track, error) {
 	strMbids := strings.Join(mbids, ",")
 
 	body, err := c.lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist", strMbids))
@@ -200,15 +199,6 @@ func (c *ListenBrainz) getTracks(mbids []string, separator string, singleArtist 
 				}
 				title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
 				artist = recording.Artist.Artists[0].Name
-			} else {
-				var tempArtist strings.Builder
-				for i , artist := range recording.Artist.Artists {
-					if i > 0 {
-						tempArtist.WriteString(separator)
-					}
-						tempArtist.WriteString(artist.Name)
-				}
-				artist = tempArtist.String()
 			}
 		}
 
@@ -251,7 +241,7 @@ func (c *ListenBrainz) getWeeklyExploration(user string) (string, error) { // Ge
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
-func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, singleArtist bool) ([]*models.Track, error) {
+func (c *ListenBrainz) parseWeeklyExploration(identifier string, singleArtist bool) ([]*models.Track, error) {
 	body, err := c.lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
 		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
@@ -287,15 +277,6 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier, separator string, sing
 				}
 				title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
 				artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
-			} else {
-				var tempArtist strings.Builder
-				for i , artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists {
-					if i > 0 {
-						tempArtist.WriteString(separator)
-					}
-						tempArtist.WriteString(artist.ArtistCreditName)
-				}
-				artist = tempArtist.String()
 			}
 		}
 
