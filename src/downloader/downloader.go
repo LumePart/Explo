@@ -10,7 +10,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	cfg "explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -60,11 +59,11 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 				g.Go(func() error {
 		
 					if err := d.QueryTrack(track); err != nil {
-						debug.Debug(err.Error())
+						log.Println(err.Error())
 						return nil
 					}
 					if err := d.GetTrack(track); err != nil {
-						debug.Debug(err.Error())
+						log.Println(err.Error())
 						return nil
 					}
 					return nil
