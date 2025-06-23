@@ -326,7 +326,7 @@ func (c *Plex) getServer() error {
 func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
 
 	for _, result := range searchResults.MediaContainer.SearchResult {
-		if result.Metadata.Type == "track" && result.Metadata.Title == track.Title && result.Metadata.ParentTitle == track.Album {
+		if result.Metadata.Type == "track" && (result.Metadata.Title == track.Title || result.Metadata.Title  ==  track.CleanTitle) && result.Metadata.ParentTitle == track.Album {
 			return result.Metadata.Key, nil
 		}
 	}
