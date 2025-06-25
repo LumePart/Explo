@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"path/filepath"
 
 	"explo/src/config"
@@ -53,7 +52,7 @@ func (c *MPD) SearchSongs(tracks []*models.Track) error {
 			}
 		}
 		if c.Cfg.SlskdDir != "" {
-			baseName := filepath.Base(normalizePath(tracks[i].File))
+			baseName := filepath.Base(tracks[i].File)
 			if fullPath, err := c.findTrack(baseName, c.Cfg.SlskdDir); err == nil {
 				tracks[i].File = fullPath
 				tracks[i].Present = true
@@ -127,9 +126,4 @@ func (c MPD) findTrack(name, path string) (string, error) {
    }
 
    return "", fmt.Errorf("no file found named %s in %s: %s", name, path, err)
-}
-
-func normalizePath(p string) string { //  SLSKD path to linux-style path (for filepath.Base())
-	p = strings.ReplaceAll(p, `\`, `/`) 
-	return filepath.Base(p)
 }

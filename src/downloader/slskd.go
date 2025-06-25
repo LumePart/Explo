@@ -399,6 +399,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 				if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {
 					track.Present = true
 					log.Printf("[slskd] %s downloaded successfully", track.File)
+					track.File = getPath(track.File)
 					delete(progressMap, key)
 					successDownloads += 1
 					continue
@@ -475,4 +476,11 @@ func (c Slskd) deleteDownload(user, ID string) error {
 	}
 
 	return nil
+}
+
+func getPath(p string) string { //  parse filepath to downloaded format
+	p = strings.ReplaceAll(p, `\`, `/`)
+	parent := filepath.Base(filepath.Dir(p))
+	file := filepath.Base(p)
+	return fmt.Sprintf("%s/%s", parent, file)
 }
