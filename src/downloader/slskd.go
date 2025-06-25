@@ -322,6 +322,9 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 		debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s - %s': %s", i + 1, len(files), track.CleanTitle, track.Artist, err.Error()))
 		continue
 	}
+	if err := c.deleteSearch(track.ID); err != nil {
+		debug.Debug(fmt.Sprintf("failed to delete search: %s", err.Error()))
+	}
 	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
 }
 

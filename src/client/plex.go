@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 
-	"explo/src/debug"
-	"explo/src/util"
 	"explo/src/config"
+	"explo/src/debug"
 	"explo/src/models"
+	"explo/src/util"
 )
 
 type LoginPayload struct {
@@ -117,10 +118,10 @@ func NewPlex(cfg config.ClientConfig, httpClient *util.HttpClient) *Plex {
 }
 
 func (c *Plex) AddHeader() error {
-
 	if c.Cfg.Creds.Headers == nil {
-	c.Cfg.Creds.Headers = make(map[string]string)
-	c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = c.Cfg.ClientID
+		c.Cfg.Creds.Headers = make(map[string]string)
+		c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = c.Cfg.ClientID
+		return nil
 	}
 
 	if c.Cfg.Creds.APIKey != "" {
@@ -326,7 +327,8 @@ func (c *Plex) getServer() error {
 func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
 
 	for _, result := range searchResults.MediaContainer.SearchResult {
-		if result.Metadata.Type == "track" && (result.Metadata.Title == track.Title || result.Metadata.Title  ==  track.CleanTitle) && result.Metadata.ParentTitle == track.Album {
+		if result.Metadata.Type == "track" && (result.Metadata.Title == track.Title || result.Metadata.Title  ==  track.CleanTitle) && (result.Metadata.ParentTitle == track.Album || 
+		(strings.Contains(result.Metadata.OriginalTitle, track.MainArtist) || strings.Contains(result.Metadata.GrandparentTitle, track.MainArtist)))  {
 			return result.Metadata.Key, nil
 		}
 	}
