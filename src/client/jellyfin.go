@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"explo/src/config"
 	"explo/src/debug"
@@ -129,7 +130,7 @@ func (c *Jellyfin) RefreshLibrary() error {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		queryParams := fmt.Sprintf("/Items?parentId=%s&mediaTypes=Audio&searchTerm=%s&recursive=true", c.LibraryID, url.QueryEscape(track.CleanTitle))
+		queryParams := fmt.Sprintf("/Items?parentId=%s&mediaTypes=Audio&searchTerm=%s&recursive=true&Fields=Path", c.LibraryID, url.QueryEscape(track.CleanTitle))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -142,7 +143,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		}
 
 		for _, item := range results.Items {
-			if track.MainArtist == item.AlbumArtist && item.Name == track.CleanTitle {
+			if track.MainArtist == item.AlbumArtist && (item.Name == track.CleanTitle || strings.Contains(item.Path, track.File)) {
 				track.ID = item.ID
 				track.Present = true
 				break

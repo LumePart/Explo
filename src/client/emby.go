@@ -122,7 +122,7 @@ func (c *Emby) RefreshLibrary() error {
 
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true", url.QueryEscape(track.CleanTitle))
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -135,7 +135,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 		}
 
 		for _, item := range results.Items {
-			if track.MainArtist == item.AlbumArtist && item.Name == track.CleanTitle {
+			if track.MainArtist == item.AlbumArtist && (item.Name == track.CleanTitle || strings.Contains(item.Path, track.File)) {
 				track.ID = item.ID
 				track.Present = true
 				break
