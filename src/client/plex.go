@@ -65,6 +65,7 @@ type PlexSearch struct {
 				Media                []struct {
 					ID            int    `json:"id"`
 					Duration      int    `json:"duration"`
+					File          string `json:"file"`
 					AudioChannels int    `json:"audioChannels"`
 					AudioCodec    string `json:"audioCodec"`
 					Container     string `json:"container"`
@@ -325,11 +326,28 @@ func (c *Plex) getServer() error {
 }
 
 func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
-
 	for _, result := range searchResults.MediaContainer.SearchResult {
-		if result.Metadata.Type == "track" && (result.Metadata.Title == track.Title || result.Metadata.Title  ==  track.CleanTitle) && (result.Metadata.ParentTitle == track.Album || 
-		(strings.Contains(result.Metadata.OriginalTitle, track.MainArtist) || strings.Contains(result.Metadata.GrandparentTitle, track.MainArtist)))  {
-			return result.Metadata.Key, nil
+		md := result.Metadata
+		if md.Type != "track" {
+			continue
+		}
+
+		// Direct match on title and artist/album
+		titleMatch := md.Title == track.Title || md.Title == track.CleanTitle
+		albumMatch := md.ParentTitle == track.Album
+		artistMatch := strings.Contains(md.OriginalTitle, track.MainArtist) || strings.Contains(md.GrandparentTitle, track.MainArtist)
+
+		if titleMatch && (albumMatch || artistMatch) {
+			return md.Key, nil
+		}
+
+		// Duration and filename fallback
+		if len(md.Media) > 0 {
+			media := md.Media[0]
+			durationDiff := util.Abs(media.Duration - track.Duration)
+			if durationDiff < 10000 && strings.Contains(media.File, track.File) {
+				return md.Key, nil
+			}
 		}
 	}
 	debug.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
