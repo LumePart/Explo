@@ -319,7 +319,7 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 			return nil
 		}
 
-		debug.Debug(fmt.Sprintf("[%d/%d] failed to queue download for '%s - %s': %s", i + 1, len(files), track.CleanTitle, track.Artist, err.Error()))
+		log.Printf("[%d/%d] failed to queue download for '%s - %s': %s", i + 1, len(files), track.CleanTitle, track.Artist, err.Error())
 		continue
 	}
 	if err := c.deleteSearch(track.ID); err != nil {
@@ -390,7 +390,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					tracker.Counter++
 
 					if tracker.Counter >= 2 {
-						debug.Debug(fmt.Sprintf("[slskd] %s by %s not found in queue after retries, skipping track", track.CleanTitle, track.MainArtist))
+						log.Printf("[slskd] %s by %s not found in queue after retries, skipping track", track.CleanTitle, track.MainArtist)
 						tracker.Skipped = true
 					}
 					continue
@@ -407,7 +407,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 				} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred {
 					tracker.LastBytesTransferred = fileStatus.BytesTransferred
 					tracker.LastUpdated = currentTime
-					debug.Debug(fmt.Sprintf("[slskd] progress updated for %s: %d bytes transferred", track.File, fileStatus.BytesTransferred))
+					log.Printf("[slskd] progress updated for %s: %d bytes transferred", track.File, fileStatus.BytesTransferred)
 					continue
 
 				} else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
@@ -456,6 +456,7 @@ func (c Slskd) tracksProcessed(tracks []*models.Track, progressMap map[string]*D
 		key := fmt.Sprintf("%s|%s", track.MainArtistID, track.File)
 		tracker, exists := progressMap[key]
 		if !track.Present && exists && !tracker.Skipped {
+			log.Printf("%s still present", track.File)
 			return false
 		}
 	}
