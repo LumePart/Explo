@@ -52,12 +52,11 @@ func (c *MPD) SearchSongs(tracks []*models.Track) error {
 			}
 		}
 		if c.Cfg.SlskdDir != "" {
-			baseName := filepath.Base(tracks[i].File)
-			if fullPath, err := c.findTrack(baseName, c.Cfg.SlskdDir); err == nil {
+			if fullPath, err := c.findTrack(tracks[i].File, c.Cfg.SlskdDir); err == nil {
 				tracks[i].File = fullPath
 				tracks[i].Present = true
 			} else {
-				fmt.Printf("Track not found in SlskdDir: %s\n", baseName)
+				fmt.Printf("Track not found in SlskdDir: %s\n", tracks[i].File)
 			}
 		}
 	}
