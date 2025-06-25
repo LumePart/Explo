@@ -244,7 +244,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 						continue
 					}
 
-					if track.Duration > 0 && abs(track.Duration/1000-file.Length) > 10 { // skip song if track lengths have a 10s+ difference
+					if track.Duration > 0 && util.Abs(track.Duration/1000-file.Length) > 10 { // skip song if track lengths have a 10s+ difference
 						continue
 					}
 
@@ -475,11 +475,4 @@ func (c Slskd) deleteDownload(user, ID string) error {
 	}
 
 	return nil
-}
-
-func abs(x int) int { // Helper track to return absolute difference between tracks
-	if x < 0 {
-		return -x
-	}
-	return x
 }
