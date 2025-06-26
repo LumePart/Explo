@@ -1,61 +1,41 @@
 # Explo - Discover Weekly for Self-Hosted Music Systems
 
-**Explo** is an alternative to Spotify's "Discover Weekly". It automates music discovery by downloading recommended tracks based on your listening history. Using [ListenBrainz](https://listenbrainz.org/) for recommendations and Youtube for downloading.
+**Explo** bridges the gap between music discovery and self-hosted music systems. It serves as a self-hosted alternative to Spotify’s *Discover Weekly*, automating music discovery based on your listening history.
 
-Explo offers two discovery modes:
+Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine to retrieve personalized tracks and downloads them directly into your music library.
 
-1. Playlist Discovery (default): Retrieves songs from a ListenBrainz-generated playlist.
-2. API Discovery: Uses the ListenBrainz API for recommendations (Note: API recommendations don't update often).
+---
 
 ## Features
 
-- Supports **Emby**, **Jellyfin**, **MPD**, **Plex** and **Subsonic-API-based systems**.
-- Automatically fetches recommendations and downloads the tracks.
-- Adds metadata (title, artist, album) to the downloaded files.
-- Creates a "Discover Weekly" playlist with the latest songs.
-- Keeps past playlists by default for easy access.
+- Fetches weekly music recommendations based on your listening history
+- Downloads tracks using YouTube, Soulseek (or both!)
+- Adds metadata (title, artist, album) to each file (youtube downloads)
+- Creates a “Discover Weekly” playlist in your music system
+- Keeps previous playlists for later listening
 
-## Getting Started
+---
 
-### Prerequisites
+## Documentation
 
-- A self-hosted music system like Emby, Jellyfin, MPD, Plex, or any Subsonic-API compatible system (e.g., Navidrome, Airsonic).
-- A [YouTube Data API](https://developers.google.com/youtube/v3/getting-started) key.
-- [ListenBrainz scrobbling](https://listenbrainz.org/add-data/) set up
+See the [Wiki Home](https://github.com/LumePart/Explo/wiki) for an overview of supported systems and next steps.
 
-### Installation
+Or jump directly to:
 
-#### Docker
-
-1. Download [docker-compose.yaml](https://github.com/LumePart/Explo/blob/main/docker-compose.yaml) file to your system and configure volume mappings
-2. Make a ``.env`` file in the directory defined in docker-compose and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
-3. Launch the container with `docker compose up -d`
-
-#### Binary
-
-Make sure ffmpeg and yt-dlp are installed on the system and accessible via $PATH. Alternatively, you can specify their paths in the ``.env`` file.
-
-1. Download the [latest release](https://github.com/LumePart/Explo/releases/latest) and ensure it's executable
-2. Make a ``.env`` file in the same directory as the binary and configure it ([refer to sample.env](https://github.com/LumePart/Explo/blob/main/sample.env) for options)
-3. Add a Cron job to run Explo weekly:
-```bash
-crontab -e
-```
-Insert this to the last line to execute Explo every tuesday at 00:15 (ListenBrainz updates its discovery database on Mondays)
-```bash
-15 0 * * 2 cd /path/to/explo && ./explo-linux-amd64
-```
-**PS!** To test if everything is correct change ``LISTENBRAINZ_DISCOVERY`` to ``test`` and run the program manually
+- [Getting Started](https://github.com/LumePart/Explo/wiki/2.-Getting-Started) – Installation and setup guide  
+- [Configuration Parameters](https://github.com/LumePart/Explo/wiki/3.-Configuration-Parameters) – Environment variable reference  
+- [System Notes](https://github.com/LumePart/Explo/wiki/4.-System-Notes) – Known issues and system-specific tips  
+- [FAQ](https://github.com/LumePart/Explo/wiki/6.-FAQ) – Common questions
 
 ## Acknowledgements
 
 Explo uses the following 3rd-party libraries:
 
-- [ffmpeg-go](https://github.com/u2takey/ffmpeg-go): A Go wrapper for FFmpeg.
+- [ffmpeg-go](https://github.com/u2takey/ffmpeg-go): A Go wrapper for FFmpeg
 
-- [goutubedl](https://github.com/wader/goutubedl): A Go wrapper for yt-dlp.
+- [goutubedl](https://github.com/wader/goutubedl): A Go wrapper for yt-dlp
 
-- [godotenv](https://github.com/joho/godotenv): A library for loading configuration from .env files.
+- [godotenv](https://github.com/joho/godotenv): A library for loading configuration from .env files
 
 ## Contributing
 
