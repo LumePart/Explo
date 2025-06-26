@@ -37,6 +37,8 @@ type SubResponse struct {
 				ID          string    `json:"id"`
 				Title       string    `json:"title"`
 				Artist        string    `json:"artist"`
+				Duration      int       `json:"duration"`
+				Path          string    `json:"path"`
 			} `json:"song"`
 		} `json:"searchResult3,omitempty"`
 		Playlists     struct {
@@ -105,7 +107,6 @@ func (c *Subsonic) AddLibrary() error {
 func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
 		searchQuery := fmt.Sprintf("%s %s", track.Title, track.MainArtist)
-
 		reqParam := fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(searchQuery))
 
 		body, err := c.subsonicRequest(reqParam)
@@ -114,26 +115,43 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 		}
 
 		var resp SubResponse
-    	if err := util.ParseResp(body, &resp); err != nil {
-        return err
+		if err := util.ParseResp(body, &resp); err != nil {
+			return err
 		}
 
-		switch len(resp.SubsonicResponse.SearchResult3.Song) {
-		case 0:
-			debug.Debug(fmt.Sprintf("no results found for %s", searchQuery))
-		case 1:
-			track.ID = resp.SubsonicResponse.SearchResult3.Song[0].ID
+		songs := resp.SubsonicResponse.SearchResult3.Song
+		if len(songs) == 0 {
+			debug.Debug(fmt.Sprintf("[subsonic] no results found for %s", searchQuery))
+			continue
+		}
+
+		if len(songs) == 1 {
+			track.ID = songs[0].ID
 			track.Present = true
-		default:
-			for i, song := range resp.SubsonicResponse.SearchResult3.Song {
-				if strings.Contains(song.Artist, track.MainArtist) && (song.Title == track.Title || song.Title == track.CleanTitle) {
-					track.ID = song.ID
-					track.Present = true
-					break
-				} else if i == len(resp.SubsonicResponse.SearchResult3.Song) -1 {
-					debug.Debug(fmt.Sprintf("multiple songs found for: %s, but titles do not match with the actual track", searchQuery))
-				}
+			continue
+		}
+
+		for _, song := range songs {
+			artistMatch := strings.Contains(strings.ToLower(song.Artist), strings.ToLower(track.MainArtist))
+			titleMatch := strings.EqualFold(song.Title, track.Title) || strings.EqualFold(song.Title, track.CleanTitle)
+			durationMatch := util.Abs(song.Duration - (track.Duration / 1000)) < 10
+			pathMatch := strings.Contains(strings.ToLower(song.Path), strings.ToLower(track.File))
+
+			if artistMatch && titleMatch {
+				track.ID = song.ID
+				track.Present = true
+				break
 			}
+
+			if durationMatch && pathMatch {
+				track.ID = song.ID
+				track.Present = true
+				break
+			}
+		}
+
+		if !track.Present {
+			debug.Debug(fmt.Sprintf("[subsonic] multiple results for %s but none matched criteria", searchQuery))
 		}
 	}
 	return nil
