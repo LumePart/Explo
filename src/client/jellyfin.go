@@ -41,12 +41,14 @@ type Audios struct {
 }
 
 type Items struct {
-	Name        string `json:"Name"`
-	ServerID    string `json:"ServerId"`
-	ID          string `json:"Id"`
-	Path        string `json:"Path"`
-	Album       string `json:"Album,omitempty"`
-	AlbumArtist string `json:"AlbumArtist,omitempty"`
+	Name        string   `json:"Name"`
+	ServerID    string   `json:"ServerId"`
+	ID          string   `json:"Id"`
+	Path        string   `json:"Path"`
+	Album       string   `json:"Album,omitempty"`
+	AlbumArtist string   `json:"AlbumArtist,omitempty"`
+	Artists     []string `json:"Artists"`
+
 }
 
 type JFPlaylist struct {
@@ -130,11 +132,11 @@ func (c *Jellyfin) RefreshLibrary() error {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		queryParams := fmt.Sprintf("/Items?parentId=%s&mediaTypes=Audio&searchTerm=%s&recursive=true&Fields=Path", c.LibraryID, url.QueryEscape(track.CleanTitle))
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))
 
-		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
-			return fmt.Errorf("request failed to get songs from %s library: %s", c.Cfg.LibraryName, err.Error())
+			return err
 		}
 
 		var results Audios
@@ -143,14 +145,23 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		}
 
 		for _, item := range results.Items {
-			if track.MainArtist == item.AlbumArtist && (item.Name == track.CleanTitle || strings.Contains(item.Path, track.File)) {
+			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && (strings.EqualFold(item.Name, track.CleanTitle) || strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File))) {
+				track.ID = item.ID
+				track.Present = true
+				break
+			}
+
+			if len(item.Artists) > 0 &&
+				strings.Contains(strings.ToLower(item.Artists[0]), strings.ToLower(track.MainArtist)) &&
+				strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)) {
 				track.ID = item.ID
 				track.Present = true
 				break
 			}
 		}
+
 		if !track.Present {
-			debug.Debug(fmt.Sprintf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album))
+			debug.Debug(fmt.Sprintf("[jellyfin] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
 		}
 	}
 	return nil
