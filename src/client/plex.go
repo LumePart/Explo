@@ -333,9 +333,9 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		}
 
 		// Direct match on title and artist/album
-		titleMatch := md.Title == track.Title || md.Title == track.CleanTitle
-		albumMatch := md.ParentTitle == track.Album
-		artistMatch := strings.Contains(md.OriginalTitle, track.MainArtist) || strings.Contains(md.GrandparentTitle, track.MainArtist)
+		titleMatch := strings.EqualFold(md.Title, track.Title) || strings.EqualFold(md.Title, track.CleanTitle)
+		albumMatch := strings.EqualFold(md.ParentTitle, track.Album)
+		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), strings.ToLower(track.MainArtist)) || strings.Contains(strings.ToLower(md.GrandparentTitle), strings.ToLower(track.MainArtist))
 
 		if titleMatch && (albumMatch || artistMatch) {
 			return md.Key, nil
@@ -344,8 +344,9 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		// Duration and filename fallback
 		if len(md.Media) > 0 {
 			media := md.Media[0]
-			durationDiff := util.Abs(media.Duration - track.Duration)
-			if durationDiff < 10000 && strings.Contains(media.File, track.File) {
+			pathMatch := strings.Contains(strings.ToLower(media.File), strings.ToLower(track.File))
+			durationDiff := util.Abs(media.Duration - track.Duration) < 10000
+			if durationDiff && pathMatch {
 				return md.Key, nil
 			}
 		}
