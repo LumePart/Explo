@@ -58,7 +58,7 @@ jobs:
           echo "GOARCH=$GOARCH" >> $GITHUB_ENV
       - name: Build binary
         run: |
-          go build -o "$BINARY_NAME" -v ./src/
+          go build -o "$BINARY_NAME" -v ./src/main/
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
