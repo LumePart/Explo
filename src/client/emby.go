@@ -23,7 +23,7 @@ type EmbyPaths []struct {
 }
 
 type EmbyItemSearch struct {
-	Items            []Items `json:"Items"`
+	Items            []EmbyItems `json:"Items"`
 	TotalRecordCount int     `json:"TotalRecordCount"`
 }
 
@@ -34,6 +34,7 @@ type EmbyItems struct {
 	Path			  string		  `json:"Path"`
 	Album             string          `json:"Album,omitempty"`
 	AlbumArtist       string          `json:"AlbumArtist,omitempty"`
+	Artists           []string  	  `json:"Artists"`
 }
 
 type EmbyPlaylist struct {
@@ -129,20 +130,29 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
-		var results Audios
+		var results EmbyItemSearch
 		if err = util.ParseResp(body, &results); err != nil {
 			return err
 		}
 
 		for _, item := range results.Items {
-			if track.MainArtist == item.AlbumArtist && (item.Name == track.CleanTitle || strings.Contains(item.Path, track.File)) {
+			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && strings.EqualFold(item.Name, track.CleanTitle) {
+				track.ID = item.ID
+				track.Present = true
+				break
+			}
+
+			if len(item.Artists) > 0 &&
+				strings.Contains(strings.ToLower(item.Artists[0]), strings.ToLower(track.MainArtist)) &&
+				strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)) {
 				track.ID = item.ID
 				track.Present = true
 				break
 			}
 		}
+
 		if !track.Present {
-		debug.Debug(fmt.Sprintf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album))
+			debug.Debug(fmt.Sprintf("[emby] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
 		}
 	}
 	return nil
