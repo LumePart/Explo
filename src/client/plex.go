@@ -220,7 +220,7 @@ func (c *Plex) RefreshLibrary() error {
 
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.Title))
+		params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.CleanTitle))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 		if err != nil {
