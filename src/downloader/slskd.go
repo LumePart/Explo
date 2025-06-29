@@ -470,7 +470,7 @@ func (c Slskd) deleteDownload(user, ID string) error {
 	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?remove=false", nil, c.Headers); err != nil {
 		return fmt.Errorf("soft delete failed: %s", err.Error())
 	}
-	time.Sleep(500) // Small buffer between soft and hard delete
+	time.Sleep(1 * time.Second) // Small buffer between soft and hard delete
 	// delete download
 	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?remove=true", nil, c.Headers); err != nil {
 		return fmt.Errorf("hard delete failed: %s", err.Error())
