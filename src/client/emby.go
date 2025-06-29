@@ -142,7 +142,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 				break
 			}
 
-			if len(item.Artists) > 0 &&
+			if track.File != "" && len(item.Artists) > 0 &&
 				strings.Contains(strings.ToLower(item.Artists[0]), strings.ToLower(track.MainArtist)) &&
 				strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)) {
 				track.ID = item.ID

@@ -143,7 +143,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 				break
 			}
 
-			if durationMatch && pathMatch {
+			if track.File != "" && durationMatch && pathMatch {
 				track.ID = song.ID
 				track.Present = true
 				break
