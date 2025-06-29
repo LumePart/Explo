@@ -65,7 +65,13 @@ type PlexSearch struct {
 				Media                []struct {
 					ID            int    `json:"id"`
 					Duration      int    `json:"duration"`
-					File          string `json:"file"`
+					Part          []struct {
+						ID        int    `json:"id"`
+						Key       string `json:"key"`
+						Duration  int    `json:"duration"`
+						File      string `json:"file"`
+						Size      int    `json:"size"`
+					} `json:"Part"`
 					AudioChannels int    `json:"audioChannels"`
 					AudioCodec    string `json:"audioCodec"`
 					Container     string `json:"container"`
@@ -325,34 +331,38 @@ func (c *Plex) getServer() error {
 	return nil
 }
 
-func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) { // match track with Plex search result
+func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) {
+	loweredArtist := strings.ToLower(track.MainArtist)
+
 	for _, result := range searchResults.MediaContainer.SearchResult {
 		md := result.Metadata
 		if md.Type != "track" {
 			continue
 		}
 
-		// Direct match on title and artist/album
 		titleMatch := strings.EqualFold(md.Title, track.Title) || strings.EqualFold(md.Title, track.CleanTitle)
 		albumMatch := strings.EqualFold(md.ParentTitle, track.Album)
-		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), strings.ToLower(track.MainArtist)) || strings.Contains(strings.ToLower(md.GrandparentTitle), strings.ToLower(track.MainArtist))
+		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
 
 		if titleMatch && (albumMatch || artistMatch) {
 			return md.Key, nil
 		}
 
-		// Duration and filename fallback
-		if len(md.Media) > 0 {
-			media := md.Media[0]
-			pathMatch := strings.Contains(strings.ToLower(media.File), strings.ToLower(track.File))
-			durationDiff := util.Abs(media.Duration - track.Duration) < 10000
-			if durationDiff && pathMatch {
-				return md.Key, nil
-			}
+		if track.File == "" || len(md.Media) == 0 || len(md.Media[0].Part) == 0 {
+			continue
+		}
+
+		media := md.Media[0]
+		pathMatch := strings.Contains(strings.ToLower(media.Part[0].File), strings.ToLower(track.File))
+		durationMatch := util.Abs(media.Duration - track.Duration) < 10000 // duration within 10s
+
+		if durationMatch && pathMatch {
+			return md.Key, nil
 		}
 	}
+
 	debug.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
-	return "", fmt.Errorf("failed to find '%s' by '%s' in %s album", track.Title, track.Artist, track.Album)
+	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
 }
 
 func (c *Plex) addtoPlaylist(tracks []*models.Track) {
