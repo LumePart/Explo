@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	cfg "explo/src/config"
+	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 
@@ -141,7 +142,9 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 
 	if _, err = io.Copy(file, stream); err != nil {
 		log.Printf("failed to copy stream to file: %s", err.Error())
-		_ = os.Remove(input) //nolint:errcheck // best-effort cleanup
+		if err = os.Remove(input); err != nil {
+			debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
+		}
 		return false
 	}
 
@@ -157,10 +160,14 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 
 	if err = cmd.Run(); err != nil {
 		log.Printf("failed to convert audio: %s", err.Error())
-		_ = os.Remove(input) //nolint:errcheck // best-effort cleanup
+		if err = os.Remove(input); err != nil {
+			debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
+		}
 		return false
 	}
-	_ = os.Remove(input) //nolint:errcheck // best-effort cleanup
+	if err = os.Remove(input); err != nil {
+		debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
+	}
 	return true
 }
 
