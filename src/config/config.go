@@ -18,14 +18,14 @@ type Config struct {
 	Persist      bool   `env:"PERSIST" env-default:"true"`
 	System       string `env:"EXPLO_SYSTEM"`
 	Debug        bool   `env:"DEBUG" env-default:"false"`
-	Timeout      int    `env:"TIMEOUT" env-default:"10"`
 }
 
 type ClientConfig struct {
 	ClientID     string `env:"CLIENT_ID" env-default:"explo"`
 	LibraryName  string `env:"LIBRARY_NAME" env-default:"Explo"`
 	URL          string `env:"SYSTEM_URL"`
-	DownloadDir  string `env:"DOWNLOAD_DIR"`
+	DownloadDir  string `env:"DOWNLOAD_DIR"  env-default:"/data/"`
+	SlskdDir     string `env:"SLSKD_DIR"`
 	PlaylistDir  string `env:"PLAYLIST_DIR"`
 	PlaylistName string
 	PlaylistID   string
@@ -99,11 +99,10 @@ type Slskd struct {
 }
 
 type Youtube struct {
-	APIKey     string   `env:"YOUTUBE_API_KEY"`
-	Separator  string   `env:"FILENAME_SEPARATOR" env-default:" "`
-	FfmpegPath string   `env:"FFMPEG_PATH"`
-	YtdlpPath  string   `env:"YTDLP_PATH"`
-	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
+	APIKey     string `env:"YOUTUBE_API_KEY"`
+	FfmpegPath string `env:"FFMPEG_PATH"`
+	YtdlpPath  string `env:"YTDLP_PATH"`
+	Filters    Filters
 }
 
 func ReadEnv() Config {

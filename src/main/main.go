@@ -3,7 +3,6 @@ package main
 import (
 	"explo/src/debug"
 	"log"
-	"time"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -18,9 +17,9 @@ type Song struct {
 	Album  string
 }
 
-func initHttpClient(cfg *config.Config) *util.HttpClient {
+func initHttpClient() *util.HttpClient {
 	return util.NewHttp(util.HttpClientConfig{
-		Timeout: time.Duration(cfg.Timeout) * time.Second,
+		Timeout: 10,
 	})
 }
 
@@ -33,7 +32,7 @@ func main() {
 
 	cfg := config.ReadEnv()
 	setup(&cfg)
-	httpClient := initHttpClient(&cfg)
+	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg, httpClient)
 	if err != nil {
 		log.Fatal(err)
