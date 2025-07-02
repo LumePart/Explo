@@ -33,16 +33,11 @@ func main() {
 
 	cfg := config.ReadEnv()
 	setup(&cfg)
-<<<<<<< HEAD
-	httpClient := initHttpClient()
+	httpClient := initHttpClient(&cfg)
 	client, err := client.NewClient(&cfg, httpClient)
 	if err != nil {
 		log.Fatal(err)
 	}
-=======
-	httpClient := initHttpClient(&cfg)
-	client := client.NewClient(&cfg, httpClient)
->>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient)
 

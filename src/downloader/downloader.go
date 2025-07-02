@@ -1,17 +1,14 @@
 package downloader
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path"
-<<<<<<< HEAD
-	"log"
-	"strings"
 	"regexp"
-	"fmt"
+	"strings"
+
 	"golang.org/x/sync/errgroup"
-=======
->>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -35,17 +32,12 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 		switch service {
 		case "youtube":
 			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
-<<<<<<< HEAD
 		case "slskd":
 			slskdClient := NewSlskd(cfg.Slskd)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
 		default:
 			log.Fatalf("downloader '%s' not supported", service)
-=======
-		case "lidarr":
-			downloader = append(downloader, NewLidarr(cfg.Lidarr, cfg.Discovery, cfg.DownloadDir, httpClient))
->>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
 		}
 	}
 	return &DownloadClient{
@@ -53,35 +45,35 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 		Downloaders: downloader}
 }
 
-	func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
-		for _, d := range c.Downloaders {
-			var g errgroup.Group
-			g.SetLimit(5)
-			
-			for _, track := range *tracks {
-				if track.Present {
-					continue
-				}
-					
-				g.Go(func() error {
-		
-					if err := d.QueryTrack(track); err != nil {
-						log.Println(err.Error())
-						return nil
-					}
-					if err := d.GetTrack(track); err != nil {
-						log.Println(err.Error())
-						return nil
-					}
+func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
+	for _, d := range c.Downloaders {
+		var g errgroup.Group
+		g.SetLimit(5)
+
+		for _, track := range *tracks {
+			if track.Present {
+				continue
+			}
+
+			g.Go(func() error {
+
+				if err := d.QueryTrack(track); err != nil {
+					log.Println(err.Error())
 					return nil
-				})
+				}
+				if err := d.GetTrack(track); err != nil {
+					log.Println(err.Error())
+					return nil
+				}
+				return nil
+			})
 		}
 		if err := g.Wait(); err != nil {
 			return
 		}
-		
+
 		if err := d.MonitorDownloads(*tracks); err != nil {
-				log.Printf("track monitoring failed: %s", err.Error())
+			log.Printf("track monitoring failed: %s", err.Error())
 		}
 	}
 	filterTracks(tracks)
@@ -113,14 +105,13 @@ func filterTracks(tracks *[]*models.Track) { // only keep tracks that were downl
 	}
 	*tracks = filteredTracks
 }
-<<<<<<< HEAD
 
 func containsLower(str string, substr string) bool {
 
 	return strings.Contains(
-        strings.ToLower(str),
-        strings.ToLower(substr),
-    )
+		strings.ToLower(str),
+		strings.ToLower(substr),
+	)
 }
 
 func sanitizeName(s string) string { // return string with only letters and digits
@@ -135,7 +126,5 @@ func getFilename(title, artist string) string {
 	t := re.ReplaceAllString(title, "_")
 	a := re.ReplaceAllString(artist, "_")
 
-	return fmt.Sprintf("%s-%s",t,a)
+	return fmt.Sprintf("%s-%s", t, a)
 }
-=======
->>>>>>> 3f855d8 (Implement initial support for Lidarr downloader)
