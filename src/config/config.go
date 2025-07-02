@@ -21,7 +21,6 @@ type Config struct {
 	Persist      bool   `env:"PERSIST" env-default:"true"`
 	System       string `env:"EXPLO_SYSTEM"`
 	Debug        bool   `env:"DEBUG" env-default:"false"`
-	Timeout      int    `env:"TIMEOUT" env-default:"10"`
 }
 
 type Flags struct {
