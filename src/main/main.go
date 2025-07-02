@@ -5,7 +5,6 @@ import (
 	"log"
 	"log/slog"
 	"os"
-	"time"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -20,9 +19,9 @@ type Song struct {
 	Album  string
 }
 
-func initHttpClient(cfg *config.Config) *util.HttpClient {
+func initHttpClient() *util.HttpClient {
 	return util.NewHttp(util.HttpClientConfig{
-		Timeout: time.Duration(cfg.Timeout) * time.Second,
+		Timeout: 10,
 	})
 }
 

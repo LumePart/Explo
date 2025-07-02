@@ -22,7 +22,10 @@ type Config struct {
 	Persist      bool
 	System       string `env:"EXPLO_SYSTEM"`
 	Debug        bool   `env:"DEBUG" env-default:"false"`
+<<<<<<< HEAD
 	LogLevel     string `env:"LOG_LEVEL" env-default:"INFO"`
+=======
+>>>>>>> 2065c16 (Remove timeout from main.go)
 }
 
 type Flags struct {
