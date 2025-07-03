@@ -1,12 +1,13 @@
 package downloader
 
 import (
+	"fmt"
+	"log"
 	"os"
 	"path"
-	"log"
-	"strings"
 	"regexp"
-	"fmt"
+	"strings"
+
 	"golang.org/x/sync/errgroup"
 
 	cfg "explo/src/config"
@@ -15,7 +16,7 @@ import (
 )
 
 type DownloadClient struct {
-	Cfg *cfg.DownloadConfig
+	Cfg         *cfg.DownloadConfig
 	Downloaders []Downloader
 }
 
@@ -24,7 +25,6 @@ type Downloader interface {
 	GetTrack(*models.Track) error
 	MonitorDownloads([]*models.Track) error
 }
-
 
 func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *DownloadClient { // get download services from config and append them to DownloadClient
 	var downloader []Downloader
@@ -40,41 +40,40 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 			log.Fatalf("downloader '%s' not supported", service)
 		}
 	}
-
 	return &DownloadClient{
-		Cfg: cfg,
+		Cfg:         cfg,
 		Downloaders: downloader}
 }
 
-	func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
-		for _, d := range c.Downloaders {
-			var g errgroup.Group
-			g.SetLimit(5)
-			
-			for _, track := range *tracks {
-				if track.Present {
-					continue
-				}
-					
-				g.Go(func() error {
-		
-					if err := d.QueryTrack(track); err != nil {
-						log.Println(err.Error())
-						return nil
-					}
-					if err := d.GetTrack(track); err != nil {
-						log.Println(err.Error())
-						return nil
-					}
+func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
+	for _, d := range c.Downloaders {
+		var g errgroup.Group
+		g.SetLimit(5)
+
+		for _, track := range *tracks {
+			if track.Present {
+				continue
+			}
+
+			g.Go(func() error {
+
+				if err := d.QueryTrack(track); err != nil {
+					log.Println(err.Error())
 					return nil
-				})
+				}
+				if err := d.GetTrack(track); err != nil {
+					log.Println(err.Error())
+					return nil
+				}
+				return nil
+			})
 		}
 		if err := g.Wait(); err != nil {
 			return
 		}
-		
+
 		if err := d.MonitorDownloads(*tracks); err != nil {
-				log.Printf("track monitoring failed: %s", err.Error())
+			log.Printf("track monitoring failed: %s", err.Error())
 		}
 	}
 	filterTracks(tracks)
@@ -88,7 +87,7 @@ func (c *DownloadClient) DeleteSongs() {
 	for _, entry := range entries {
 		if !(entry.IsDir()) {
 			err = os.Remove(path.Join(c.Cfg.DownloadDir, entry.Name()))
-			
+
 			if err != nil {
 				log.Printf("failed to remove file: %s", err.Error())
 			}
@@ -110,9 +109,9 @@ func filterTracks(tracks *[]*models.Track) { // only keep tracks that were downl
 func containsLower(str string, substr string) bool {
 
 	return strings.Contains(
-        strings.ToLower(str),
-        strings.ToLower(substr),
-    )
+		strings.ToLower(str),
+		strings.ToLower(substr),
+	)
 }
 
 func sanitizeName(s string) string { // return string with only letters and digits
@@ -127,5 +126,5 @@ func getFilename(title, artist string) string {
 	t := re.ReplaceAllString(title, "_")
 	a := re.ReplaceAllString(artist, "_")
 
-	return fmt.Sprintf("%s-%s",t,a)
+	return fmt.Sprintf("%s-%s", t, a)
 }
