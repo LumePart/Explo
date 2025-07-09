@@ -96,12 +96,14 @@ type DownloadMonitor struct {
 type Slskd struct {
 	Headers    map[string]string
 	HttpClient *util.HttpClient
+	DownloadDir string
 	Cfg        config.Slskd
 }
 
-func NewSlskd(cfg config.Slskd) *Slskd {
+func NewSlskd(cfg config.Slskd, downloadDir string) *Slskd {
 	return &Slskd{Cfg: cfg,
-		HttpClient: util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout})}
+		HttpClient: util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
+		DownloadDir: downloadDir,}
 }
 
 func (c *Slskd) AddHeader() {
@@ -399,8 +401,14 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 				if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {
 					track.Present = true
 					log.Printf("[slskd] %s downloaded successfully", track.File)
-					track.File = parsePath(track.File)
+					file, path := parsePath(track.File)
+					if c.Cfg.MigrateDL {
+						if err = moveDownload(c.Cfg.SlskdDir, c.DownloadDir, path, file); err != nil {
+							debug.Debug(err.Error())
+						}
+					}
 					delete(progressMap, key)
+					track.File = file
 					successDownloads += 1
 					continue
 
@@ -479,8 +487,8 @@ func (c Slskd) deleteDownload(user, ID string) error {
 	return nil
 }
 
-func parsePath(p string) string { // parse filepath to downloaded format and return filename
+func parsePath(p string) (string, string) { // parse filepath to downloaded format, return filename and parent dir
 	p = strings.ReplaceAll(p, `\`, `/`)
-	return filepath.Base(p)
+	return filepath.Base(p), filepath.Base(filepath.Dir(p))
 
 }
