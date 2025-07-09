@@ -78,6 +78,7 @@ type Slskd struct {
 	URL string `env:"SLSKD_URL"`
 	Retry int `env:"SLSKD_RETRY" env-default:"5"` // Number of times to check search status before skipping the track
 	DownloadAttempts int `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	SlskdDir string `env:"SLSKD_DIR"`
 	Timeout time.Duration `env:"SLSKD_TIMEOUT" env-default:"20s"`
 	Filters Filters
 }

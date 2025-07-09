@@ -7,6 +7,8 @@ import (
 	"strings"
 	"regexp"
 	"fmt"
+	"path/filepath"
+	"io"
 	"golang.org/x/sync/errgroup"
 
 	cfg "explo/src/config"
@@ -33,7 +35,7 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 		case "youtube":
 			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
 		case "slskd":
-			slskdClient := NewSlskd(cfg.Slskd)
+			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
 		default:
@@ -128,4 +130,50 @@ func getFilename(title, artist string) string {
 	a := re.ReplaceAllString(artist, "_")
 
 	return fmt.Sprintf("%s-%s",t,a)
+}
+
+func moveDownload(srcDir, destDir, Trackpath, file string) error { // Move download from the source dir to the dest dir (download dir)
+	trackDir := filepath.Join(srcDir, Trackpath)
+	srcFile := filepath.Join(trackDir, file)
+
+	info, err := os.Stat(srcFile)
+	if err != nil {
+		return fmt.Errorf("stat error: %s", err.Error())
+	}
+
+	in, err := os.Open(srcFile)
+	if err != nil {
+		return fmt.Errorf("couldn't open source file: %s", err.Error())
+	}
+	defer in.Close()
+
+	dstDir := filepath.Join(destDir, Trackpath)
+	if err = os.MkdirAll(dstDir, os.ModePerm); err != nil {
+		return fmt.Errorf("couldn't make download directory: %s", err.Error())
+	}
+
+	dstFile := filepath.Join(dstDir, file)
+	out, err := os.Create(dstFile)
+	if err != nil {
+		return fmt.Errorf("couldn't create destination file: %s", err.Error())
+	}
+	defer out.Close()
+
+	if _, err = io.Copy(out, in); err != nil {
+		return fmt.Errorf("copy failed: %s", err.Error())
+	}
+
+	if err = out.Sync(); err != nil {
+		return fmt.Errorf("sync failed: %s", err.Error())
+	}
+
+	if err = os.Chmod(dstFile, info.Mode()); err != nil {
+		return fmt.Errorf("chmod failed: %s", err.Error())
+	}
+
+	if err = os.Remove(srcFile); err != nil {
+		return fmt.Errorf("failed to delete original file: %s", err.Error())
+	}
+
+	return nil
 }
