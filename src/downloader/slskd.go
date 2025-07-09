@@ -402,8 +402,10 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					track.Present = true
 					log.Printf("[slskd] %s downloaded successfully", track.File)
 					file, path := parsePath(track.File)
-					if err = moveDownload(c.Cfg.SlskdDir, c.DownloadDir, path, file); err != nil {
-						debug.Debug(err.Error())
+					if c.Cfg.MigrateDL {
+						if err = moveDownload(c.Cfg.SlskdDir, c.DownloadDir, path, file); err != nil {
+							debug.Debug(err.Error())
+						}
 					}
 					delete(progressMap, key)
 					track.File = file
