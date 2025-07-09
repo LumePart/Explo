@@ -132,8 +132,8 @@ func getFilename(title, artist string) string {
 	return fmt.Sprintf("%s-%s",t,a)
 }
 
-func moveDownload(srcDir, destDir, Trackpath, file string) error { // Move download from the source dir to the dest dir (download dir)
-	trackDir := filepath.Join(srcDir, Trackpath)
+func moveDownload(srcDir, destDir, trackPath, file string) error { // Move download from the source dir to the dest dir (download dir)
+	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, file)
 
 	info, err := os.Stat(srcFile)
@@ -145,9 +145,8 @@ func moveDownload(srcDir, destDir, Trackpath, file string) error { // Move downl
 	if err != nil {
 		return fmt.Errorf("couldn't open source file: %s", err.Error())
 	}
-	defer in.Close()
 
-	dstDir := filepath.Join(destDir, Trackpath)
+	dstDir := filepath.Join(destDir, trackPath)
 	if err = os.MkdirAll(dstDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
 	}
@@ -157,10 +156,20 @@ func moveDownload(srcDir, destDir, Trackpath, file string) error { // Move downl
 	if err != nil {
 		return fmt.Errorf("couldn't create destination file: %s", err.Error())
 	}
-	defer out.Close()
+
+	defer func() {
+		if err = out.Close(); err != nil {
+			log.Printf("failed to close destination file: %s", err.Error())
+		}
+	}()
 
 	if _, err = io.Copy(out, in); err != nil {
+		in.Close()
 		return fmt.Errorf("copy failed: %s", err.Error())
+	}
+
+	if err = in.Close(); err != nil {
+		return fmt.Errorf("failed to close source file %q: %s", srcFile, err.Error())
 	}
 
 	if err = out.Sync(); err != nil {
