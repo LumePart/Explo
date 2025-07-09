@@ -6,6 +6,7 @@ import (
 	"time"
 
 	cfg "explo/src/config"
+	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -238,6 +239,7 @@ func (c *ListenBrainz) getWeeklyExploration(user string) (string, error) { // Ge
 			return id[len(id)-1], nil
 		}
 	}
+	debug.Debug(fmt.Sprintf("playlist output: %v", playlists))
 	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
 }
 
