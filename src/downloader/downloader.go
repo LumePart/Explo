@@ -146,6 +146,12 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 		return fmt.Errorf("couldn't open source file: %s", err.Error())
 	}
 
+	defer func() {
+		if cerr := in.Close(); cerr != nil {
+			log.Printf("warning: failed to close source file: %s", cerr)
+		}
+	}()
+
 	dstDir := filepath.Join(destDir, trackPath)
 	if err = os.MkdirAll(dstDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
@@ -164,12 +170,7 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 	}()
 
 	if _, err = io.Copy(out, in); err != nil {
-		in.Close()
 		return fmt.Errorf("copy failed: %s", err.Error())
-	}
-
-	if err = in.Close(); err != nil {
-		return fmt.Errorf("failed to close source file %q: %s", srcFile, err.Error())
 	}
 
 	if err = out.Sync(); err != nil {
