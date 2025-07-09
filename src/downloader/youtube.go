@@ -75,7 +75,7 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 	
-	track.File = getFilename(track.Title, track.Artist)
+	track.File = getFilename(track.Title, track.Artist)+".opus"
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
@@ -128,7 +128,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		}
 	}()
 
-	input := fmt.Sprintf("%s%s_TEMP.mp3", c.DownloadDir, track.File)
+	input := fmt.Sprintf("%s%s.tmp", c.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
 		log.Fatalf("failed to create song file: %s", err.Error())
@@ -148,7 +148,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
-	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s.mp3", c.DownloadDir, track.File), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s", c.DownloadDir, track.File), ffmpeg.KwArgs{
 		"map":      "0:a",
 		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
 		"loglevel": "error",
