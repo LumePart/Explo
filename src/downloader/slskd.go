@@ -410,6 +410,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					delete(progressMap, key)
 					track.File = file
 					successDownloads += 1
+					c.cleanupTrack(track, fileStatus.ID)
 					continue
 
 				} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred {
@@ -421,13 +422,7 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 				} else if currentTime.Sub(tracker.LastUpdated) > monitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
 					log.Printf("[slskd] no progress on %s in %v, skipping track", track.File, monitorDuration)
 					tracker.Skipped = true
-					if err = c.deleteSearch(track.ID); err != nil {
-						debug.Debug(fmt.Sprintf("failed to delete search request: %s", err.Error()))
-					}
-
-					if err = c.deleteDownload(track.MainArtistID, fileStatus.ID); err != nil {
-						debug.Debug(fmt.Sprintf("failed to delete download: %s", err.Error()))
-					}
+					c.cleanupTrack(track, fileStatus.ID)
 					continue
 				}
 			}
@@ -485,6 +480,15 @@ func (c Slskd) deleteDownload(user, ID string) error {
 	}
 
 	return nil
+}
+
+func (c *Slskd) cleanupTrack(track *models.Track, fileID string) {
+    if err := c.deleteSearch(track.ID); err != nil {
+        debug.Debug(fmt.Sprintf("[slskd] failed to delete search request: %v", err))
+    }
+    if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
+       	debug.Debug(fmt.Sprintf("[slskd] failed to delete download: %v", err))
+    }
 }
 
 func parsePath(p string) (string, string) { // parse filepath to downloaded format, return filename and parent dir
