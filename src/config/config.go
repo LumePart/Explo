@@ -24,7 +24,6 @@ type ClientConfig struct {
 	LibraryName string `env:"LIBRARY_NAME" env-default:"Explo"`
 	URL string `env:"SYSTEM_URL"`
 	DownloadDir string `env:"DOWNLOAD_DIR" env-default:"/data/"`
-	SlskdDir string `env:"SLSKD_DIR"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	PlaylistName string
 	PlaylistID string
