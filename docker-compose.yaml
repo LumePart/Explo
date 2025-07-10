@@ -9,4 +9,5 @@ services:
       # - /path/to/slskd/downloads:/slskd/ # if using slskd and MIGRATE_DOWNLOADS is set to true in .env
       # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD.
     environment:
-      - CRON_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight (UTC time)
+      - TZ=UTC # Change this to the timezone set in ListenBrainz (default is UTC)
+      - CRON_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight
