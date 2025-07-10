@@ -118,6 +118,7 @@ func (cfg *Config) VerifyDir() {
 	if cfg.System == "mpd" {
 		cfg.ClientCfg.PlaylistDir = fixDir(cfg.ClientCfg.PlaylistDir)
 	}
+	cfg.DownloadCfg.Slskd.SlskdDir = fixDir(cfg.DownloadCfg.Slskd.SlskdDir)
 	cfg.DownloadCfg.DownloadDir = fixDir(cfg.DownloadCfg.DownloadDir)
 }
 
