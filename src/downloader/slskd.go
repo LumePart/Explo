@@ -405,6 +405,8 @@ func (c *Slskd) MonitorDownloads(tracks []*models.Track) error {
 					if c.Cfg.MigrateDL {
 						if err = moveDownload(c.Cfg.SlskdDir, c.DownloadDir, path, file); err != nil {
 							debug.Debug(err.Error())
+						} else {
+							debug.Debug("track moved successfully")
 						}
 					}
 					delete(progressMap, key)
