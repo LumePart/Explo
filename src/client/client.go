@@ -92,15 +92,17 @@ func (c *Client) systemSetup() error {
 		if (c.Cfg.Creds.User == "" || c.Cfg.Creds.Password == "") && c.Cfg.Creds.APIKey == "" {
 			return fmt.Errorf("Plex USER/PASSWORD or API_KEY is required")
 		}
+		if err := c.API.AddHeader(); err != nil {
+			return err
+		}
+
 		if c.Cfg.Creds.APIKey == "" {
-			if err := c.API.AddHeader(); err != nil {
-				return err
-			}
 			if err := c.API.GetAuth(); err != nil {
 				return err
 			}
 
 		}
+		
 		if err := c.API.AddHeader(); err != nil {
 			return err
 		}
