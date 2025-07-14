@@ -345,7 +345,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
 
 		if titleMatch && (albumMatch || artistMatch) {
-			return md.RatingKey, nil
+			return md.Key, nil
 		}
 
 		if track.File == "" || len(md.Media) == 0 || len(md.Media[0].Part) == 0 {
@@ -357,7 +357,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		durationMatch := util.Abs(media.Duration - track.Duration) < 10000 // duration within 10s
 
 		if durationMatch && pathMatch {
-			return md.RatingKey, nil
+			return md.Key, nil
 		}
 	}
 
@@ -366,15 +366,13 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 }
 
 func (c *Plex) addtoPlaylist(tracks []*models.Track) {
-	var IDs []string
 	for _, track := range tracks {
 		if track.ID != "" {
-			IDs = append(IDs, track.ID)
-		}
-	}
-	params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library/library/metadata/%s/", c.Cfg.PlaylistID, c.machineID, strings.Join(IDs,","))
+			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
 
-	if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
-		log.Printf("failed to add tracks to playlist: %s", err.Error())
+			if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+				log.Printf("failed to add %s to playlist: %s", track.Title, err.Error())
+			}
+		}
 	}
 }
