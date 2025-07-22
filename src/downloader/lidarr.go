@@ -2,13 +2,13 @@ package downloader
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
+	"strconv"
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -16,6 +16,7 @@ import (
 )
 
 type Lidarr struct {
+	Headers     map[string]string
 	DownloadDir string
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Lidarr
@@ -174,22 +175,47 @@ type RootFolder struct {
 	DefaultQualityProfileId  int    `json:"defaultQualityProfileId"`
 }
 
-func NewLidarr(cfg cfg.Lidarr, discovery, downloadDir string, httpClient *util.HttpClient) *Lidarr { // init downloader cfg for lidarr
+func NewLidarr(cfg cfg.Lidarr, downloadDir string) *Lidarr { // init downloader cfg for lidarr
 	return &Lidarr{
-		DownloadDir: downloadDir,
-		HttpClient:  httpClient,
 		Cfg:         cfg,
+		HttpClient:  util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
+		DownloadDir: downloadDir,
 	}
 }
 
+func (c *Lidarr) AddHeader() {
+	if c.Headers == nil {
+		c.Headers = make(map[string]string)
+	}
+	c.Headers["X-API-Key"] = c.Cfg.APIKey
+}
+
+func (c *Lidarr) GetConf() (MonitorConfig, error) {
+	return MonitorConfig{
+		CheckInterval:   c.Cfg.MonitorConfig.Interval,
+		MonitorDuration: c.Cfg.MonitorConfig.Duration,
+		MigrateDownload: c.Cfg.MigrateDL,
+		ToDir:           c.DownloadDir,
+		FromDir:         c.Cfg.LidarrDir,
+		Service:         "Lidarr",
+	}, nil
+}
+
 func (c *Lidarr) QueryTrack(track *models.Track) error {
+
+	slog.Debug("querying track", 
+	    "title", track.Title,
+	    "artist", track.Artist,
+	    "album", track.Album,
+	)
+	slog.Debug(fmt.Sprintf("looking for track %s by %s on album %s", track.Title, track.Artist, track.Album))
 
 	album, err := c.findBestAlbumMatch(track)
 	if err != nil {
 		return err
 	}
 
-	queryURL := fmt.Sprintf("%s://%s/api/v1/track?apiKey=%s&artistId=%v&albumId=%v", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, album.ArtistID, album.Releases[0].AlbumID)
+	queryURL := fmt.Sprintf("%s/api/v1/track?apiKey=%s&artistId=%v&albumId=%v", c.Cfg.URL, c.Cfg.APIKey, album.ArtistID, album.Releases[0].AlbumID)
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check existing tracks: %w", err)
@@ -211,17 +237,19 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	return nil
 }
 
-func (c *Lidarr) GetTrack(track *models.Track) error {
-	ctx := context.Background()
+func (c Lidarr) GetTrack(track *models.Track) error {
 
+	slog.Debug("downloading track", 
+	    "title", track.Title,
+	    "artist", track.Artist,
+	    "album", track.Album,
+	)
 	if track.Present {
 		return nil
 	}
 
-	c.startQueueWorker(ctx, track)
-
 	// Get the defaults from the root dir
-	queryURL := fmt.Sprintf("%s://%s/api/v1/rootfolder?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey)
+	queryURL := fmt.Sprintf("%s/api/v1/rootfolder?apiKey=%s", c.Cfg.URL, c.Cfg.APIKey)
 
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
@@ -244,7 +272,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	}
 
 	payload := AddAlbumRequest{
-		ForeignAlbumID: track.AlbumMBID,
+		ForeignAlbumID: track.MusicBrainzAlbumID,
 		Images:         []Image{},
 		Monitored:      true,
 		AnyReleaseOk:   true,
@@ -252,7 +280,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 			QualityProfileID:  rootFolder.DefaultQualityProfileId,
 			MetadataProfileID: rootFolder.DefaultMetadataProfileId,
 			Monitored:         false,
-			ForeignArtistID:   track.ArtistMBID,
+			ForeignArtistID:   track.MusicBrainzArtistID,
 			RootFolderPath:    rootFolder.Path,
 		},
 		AddOptions: AddOptions{
@@ -265,7 +293,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	if err != nil {
 		return fmt.Errorf("marshal error: %w", err)
 	}
-	queryURL = fmt.Sprintf("%s://%s/api/v1/album?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey)
+	queryURL = fmt.Sprintf("%s/api/v1/album?apiKey=%s", c.Cfg.URL, c.Cfg.APIKey)
 	_, err = c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(body), nil)
 	if err != nil {
 		return fmt.Errorf("failed to add album: %w", err)
@@ -273,9 +301,9 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	return nil
 }
 
-func (c *Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
+func (c Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Album, track.MainArtist))
-	queryURL := fmt.Sprintf("%s://%s/api/v1/album/lookup?apiKey=%s&term=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, escQuery)
+	queryURL := fmt.Sprintf("%s/api/v1/album/lookup?apiKey=%s&term=%s", c.Cfg.URL, c.Cfg.APIKey, escQuery)
 
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
 	if err != nil {
@@ -295,8 +323,8 @@ func (c *Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 		return nil, fmt.Errorf("could not find album releases for track: %s - %s", track.Title, track.MainArtist)
 	}
 
-	track.AlbumMBID = topMatch.ForeignAlbumID
-	track.ArtistMBID = topMatch.Artist.ForeignArtistID
+	track.MusicBrainzAlbumID = topMatch.ForeignAlbumID
+	track.MusicBrainzArtistID = topMatch.Artist.ForeignArtistID
 
 	if topMatch.Releases[0].ID == 0 || topMatch.ArtistID == 0 {
 		return nil, fmt.Errorf("invalid album or artist ID for track: %s - %s", track.Title, track.MainArtist)
@@ -305,66 +333,66 @@ func (c *Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 	return &topMatch, nil
 }
 
-func (c *Lidarr) startQueueWorker(ctx context.Context, track *models.Track) {
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ctx.Done():
-				log.Println("Queue worker stopped")
-				return
-			case <-ticker.C:
-				if err := c.monitorQueue(track); err != nil {
-					log.Printf("Queue worker error: %v", err)
-				}
-			}
-		}
-	}()
-}
+func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
+	req := fmt.Sprintf("/api/v1/queue?apiKey=%s", c.Cfg.APIKey)
 
-func (c *Lidarr) monitorQueue(track *models.Track) error {
-	queryURL := fmt.Sprintf("%s://%s/api/v1/queue?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey)
-
-	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to lookup tracks: %w", err)
+		return nil, err
 	}
 
 	var queue LidarrQueue
-	if err = util.ParseResp(body, &queue); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
+	if err := util.ParseResp(body, &queue); err != nil {
+		return nil, err
 	}
 
+	statuses := make(map[string]FileStatus)
+
 	for _, record := range queue.Records {
-		// skip invalid or incomplete entries
-		if record.Size == 0 || record.SizeLeft == 0 {
-			continue
+		// MVP assumption: record.Title matches track.File closely enough
+		statuses[record.Title] = FileStatus{
+			ID:               strconv.FormatInt(record.ID, 10),
+			State:            record.Status,
+			BytesRemaining:   int(record.SizeLeft),
+			BytesTransferred: int(record.Size - record.SizeLeft),
+			PercentComplete:  percent(record.Size, record.SizeLeft),
 		}
+	}
 
-		// Check if download is older than 15 minutes and has not progressed
-		age := time.Since(record.Added)
+	if len(statuses) == 0 {
+		return nil, fmt.Errorf("no queue items found")
+	}
 
-		if age > 15*time.Minute && record.Size == record.SizeLeft {
-			log.Printf("Removing stale download: %s (no progress in %v)", record.Title, age)
+	return statuses, nil
+}
 
-			deleteURL := fmt.Sprintf("%s://%s/api/v1/queue/%v?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, record.ID, c.Cfg.APIKey)
+func percent(total, remaining int64) float64 {
+	if total == 0 {
+		return 0
+	}
+	return float64(total-remaining) / float64(total) * 100
+}
 
-			_, err = c.HttpClient.MakeRequest("DELETE", deleteURL, nil, nil)
-			if err != nil {
-				return fmt.Errorf("failed to delete record %d from queue: %v", record.ID, err)
-			}
-			continue
-		}
+func (c Lidarr) deleteDownload(ID string) error {
+	reqParams := fmt.Sprintf("/api/v1/queue/%s?apiKey=%s", ID, c.Cfg.APIKey)
 
-		if record.SizeLeft == 0 && record.TrackHasFileCount > 0 {
-			log.Printf("Marking downloaded tracks from album %d as present", record.AlbumID)
+	// cancel download
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"/removeFromClient=false", nil, nil); err != nil {
+		return fmt.Errorf("soft delete failed: %w", err)
+	}
+	time.Sleep(1 * time.Second) // Small buffer between soft and hard delete
+	// delete download
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"/removeFromClient=true", nil, nil); err != nil {
+		return fmt.Errorf("hard delete failed: %w", err)
+	}
 
-			if track.Album == record.Artist[0].Album.ForeignAlbumID {
-				track.Present = true
-			}
-		}
+	return nil
+}
+
+func (c *Lidarr) Cleanup(track models.Track, fileID string) error {
+	if err := c.deleteDownload(fileID); err != nil {
+		slog.Debug(fmt.Sprintf("[lidarr] failed to delete download: %v", err))
 	}
 	return nil
 }

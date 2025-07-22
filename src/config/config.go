@@ -83,20 +83,21 @@ type AdminCredentials struct {
 	Password string `env:"ADMIN_SYSTEM_PASSWORD"`
 }
 
-type DiscoveryConfig struct {
-	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
-	Separator    string `env:"FILENAME_SEPARATOR" env-default:" "`
-	Listenbrainz Listenbrainz
-}
-
 type Lidarr struct {
 	APIKey           string        `env:"LIDARR_API_KEY"`
 	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
 	DownloadAttempts int           `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
-	Timeout          time.Duration `env:"LIDARR_TIMEOUT" env-default:"20s"`
-	Scheme           string        `env:"LIDARR_SCHEME" env-default:"http"`
+	LidarrDir        string        `env:"LIDARR_DIR" env-default:"/lidarr/"`
+	MigrateDL        bool          `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
+	Timeout          int           `env:"LIDARR_TIMEOUT" env-default:"20"`
 	URL              string        `env:"LIDARR_URL"`
 	Filters          Filters
+	MonitorConfig    LidarrMon
+}
+
+type LidarrMon struct {
+	Interval time.Duration `env:"SLSKD_MONITOR_INTERVAL" env-default:"1m"`
+	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
 }
 
 type SubsonicConfig struct {
