@@ -22,10 +22,7 @@ type Config struct {
 	Persist      bool
 	System       string `env:"EXPLO_SYSTEM"`
 	Debug        bool   `env:"DEBUG" env-default:"false"`
-<<<<<<< HEAD
 	LogLevel     string `env:"LOG_LEVEL" env-default:"INFO"`
-=======
->>>>>>> 2065c16 (Remove timeout from main.go)
 }
 
 type Flags struct {
@@ -71,6 +68,8 @@ type Lidarr struct {
 	APIKey           string        `env:"LIDARR_API_KEY"`
 	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
 	DownloadAttempts int           `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	LidarrDir        string        `env:"LIDARR_DIR" env-default:"/lidarr/"`
+	MigrateDL        bool          `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
 	Timeout          time.Duration `env:"LIDARR_TIMEOUT" env-default:"20s"`
 	Scheme           string        `env:"LIDARR_SCHEME" env-default:"http"`
 	URL              string        `env:"LIDARR_URL"`
@@ -143,6 +142,10 @@ type Listenbrainz struct {
 }
 
 func (cfg *Config) ReadEnv() {
+}
+
+func ReadEnv() Config {
+	var cfg Config
 
 	// Try to read from .env file first
 	err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg)

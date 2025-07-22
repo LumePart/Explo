@@ -2,15 +2,14 @@ package downloader
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 	"time"
 
 	cfg "explo/src/config"
+	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -174,15 +173,15 @@ type RootFolder struct {
 	DefaultQualityProfileId  int    `json:"defaultQualityProfileId"`
 }
 
-func NewLidarr(cfg cfg.Lidarr, discovery, downloadDir string, httpClient *util.HttpClient) *Lidarr { // init downloader cfg for lidarr
-	return &Lidarr{
+func NewLidarr(cfg cfg.Lidarr, discovery, downloadDir string, httpClient *util.HttpClient) Lidarr { // init downloader cfg for lidarr
+	return Lidarr{
 		DownloadDir: downloadDir,
 		HttpClient:  httpClient,
 		Cfg:         cfg,
 	}
 }
 
-func (c *Lidarr) QueryTrack(track *models.Track) error {
+func (c Lidarr) QueryTrack(track *models.Track) error {
 
 	album, err := c.findBestAlbumMatch(track)
 	if err != nil {
@@ -211,14 +210,11 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	return nil
 }
 
-func (c *Lidarr) GetTrack(track *models.Track) error {
-	ctx := context.Background()
+func (c Lidarr) GetTrack(track *models.Track) error {
 
 	if track.Present {
 		return nil
 	}
-
-	c.startQueueWorker(ctx, track)
 
 	// Get the defaults from the root dir
 	queryURL := fmt.Sprintf("%s://%s/api/v1/rootfolder?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey)
@@ -273,7 +269,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	return nil
 }
 
-func (c *Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
+func (c Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Album, track.MainArtist))
 	queryURL := fmt.Sprintf("%s://%s/api/v1/album/lookup?apiKey=%s&term=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey, escQuery)
 
@@ -305,66 +301,73 @@ func (c *Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 	return &topMatch, nil
 }
 
-func (c *Lidarr) startQueueWorker(ctx context.Context, track *models.Track) {
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				log.Println("Queue worker stopped")
-				return
-			case <-ticker.C:
-				if err := c.monitorQueue(track); err != nil {
-					log.Printf("Queue worker error: %v", err)
-				}
-			}
-		}
-	}()
+func (c Lidarr) MonitorDownloads(tracks []*models.Track) error {
+	monitorCfg := MonitorConfig{
+		CheckInterval:   1 * time.Minute,
+		MonitorDuration: 15 * time.Minute,
+		MigrateDownload: c.Cfg.MigrateDL,
+		FromDir:         c.Cfg.LidarrDir,
+		ToDir:           c.DownloadDir,
+	}
+	err := Monitor(
+		tracks,
+		c.getDownloadStatus,
+		func(t *models.Track, id string) { c.cleanupTrack(t, id) },
+		moveDownload,
+		monitorCfg,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (c *Lidarr) monitorQueue(track *models.Track) error {
-	queryURL := fmt.Sprintf("%s://%s/api/v1/queue?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, c.Cfg.APIKey)
+func (c Lidarr) getDownloadStatus() (DownloadStatus, error) {
+	reqParams := "/api/v0/transfers/downloads"
 
-	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParams, nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to lookup tracks: %w", err)
+		return nil, err
 	}
 
-	var queue LidarrQueue
-	if err = util.ParseResp(body, &queue); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
+	var status DownloadStatus
+	if err := util.ParseResp(body, &status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
+func (c Lidarr) cleanupTrack(track *models.Track, fileID string) {
+	if err := c.deleteSearch(track.ID); err != nil {
+		debug.Debug(fmt.Sprintf("[slskd] failed to delete search request: %v", err))
+	}
+	if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
+		debug.Debug(fmt.Sprintf("[slskd] failed to delete download: %v", err))
+	}
+}
+
+func (c Lidarr) deleteSearch(ID string) error {
+	reqParams := fmt.Sprintf("/api/v0/searches/%s", ID)
+
+	_, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams, nil, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c Lidarr) deleteDownload(user, ID string) error {
+	reqParams := fmt.Sprintf("/api/v0/transfers/downloads/%s/%s", user, ID)
+
+	// cancel download
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?remove=false", nil, nil); err != nil {
+		return fmt.Errorf("soft delete failed: %s", err.Error())
+	}
+	time.Sleep(1 * time.Second) // Small buffer between soft and hard delete
+	// delete download
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?remove=true", nil, nil); err != nil {
+		return fmt.Errorf("hard delete failed: %s", err.Error())
 	}
 
-	for _, record := range queue.Records {
-		// skip invalid or incomplete entries
-		if record.Size == 0 || record.SizeLeft == 0 {
-			continue
-		}
-
-		// Check if download is older than 15 minutes and has not progressed
-		age := time.Since(record.Added)
-
-		if age > 15*time.Minute && record.Size == record.SizeLeft {
-			log.Printf("Removing stale download: %s (no progress in %v)", record.Title, age)
-
-			deleteURL := fmt.Sprintf("%s://%s/api/v1/queue/%v?apiKey=%s", c.Cfg.Scheme, c.Cfg.URL, record.ID, c.Cfg.APIKey)
-
-			_, err = c.HttpClient.MakeRequest("DELETE", deleteURL, nil, nil)
-			if err != nil {
-				return fmt.Errorf("failed to delete record %d from queue: %v", record.ID, err)
-			}
-			continue
-		}
-
-		if record.SizeLeft == 0 && record.TrackHasFileCount > 0 {
-			log.Printf("Marking downloaded tracks from album %d as present", record.AlbumID)
-
-			if track.Album == record.Artist[0].Album.ForeignAlbumID {
-				track.Present = true
-			}
-		}
-	}
 	return nil
 }
