@@ -60,10 +60,19 @@ type DiscoveryConfig struct {
 	Listenbrainz Listenbrainz
 }
 
+type Filters struct {
+	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"`
+	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
+	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
+	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
+}
+
 type Lidarr struct {
 	APIKey           string        `env:"LIDARR_API_KEY"`
 	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
 	DownloadAttempts int           `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	LidarrDir        string        `env:"LIDARR_DIR" env-default:"/lidarr/"`
+	MigrateDL        bool          `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
 	Timeout          time.Duration `env:"LIDARR_TIMEOUT" env-default:"20s"`
 	Scheme           string        `env:"LIDARR_SCHEME" env-default:"http"`
 	URL              string        `env:"LIDARR_URL"`
@@ -87,13 +96,6 @@ type DownloadConfig struct {
 	ExcludeLocal bool
 	Discovery    string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services     []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
-}
-
-type Filters struct {
-	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"`
-	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
-	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
-	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
 }
 
 type Youtube struct {
@@ -134,6 +136,10 @@ type Listenbrainz struct {
 }
 
 func (cfg *Config) ReadEnv() {
+}
+
+func ReadEnv() Config {
+	var cfg Config
 
 	// Try to read from .env file first
 	err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg)
