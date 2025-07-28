@@ -50,7 +50,6 @@ type DiscoveryConfig struct {
 
 type DownloadConfig struct {
 	DownloadDir string `env:"DOWNLOAD_DIR"  env-default:"/data/"`
-	Lidarr      Lidarr
 	Slskd       Slskd
 	Youtube     Youtube
 	Discovery   string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
@@ -62,18 +61,6 @@ type Filters struct {
 	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
 	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
 	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
-}
-
-type Lidarr struct {
-	APIKey           string        `env:"LIDARR_API_KEY"`
-	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
-	DownloadAttempts int           `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
-	LidarrDir        string        `env:"LIDARR_DIR" env-default:"/lidarr/"`
-	MigrateDL        bool          `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
-	Timeout          time.Duration `env:"LIDARR_TIMEOUT" env-default:"20s"`
-	Scheme           string        `env:"LIDARR_SCHEME" env-default:"http"`
-	URL              string        `env:"LIDARR_URL"`
-	Filters          Filters
 }
 
 type Listenbrainz struct {
