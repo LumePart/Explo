@@ -345,6 +345,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
 
 		if titleMatch && (albumMatch || artistMatch) {
+			debug.Debug(fmt.Sprintf("matched track via metadata: %s by %s Plex Key: %s", track.Title, track.Artist, md.Key))
 			return md.Key, nil
 		}
 
@@ -357,6 +358,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		durationMatch := util.Abs(media.Duration - track.Duration) < 10000 // duration within 10s
 
 		if durationMatch && pathMatch {
+			debug.Debug(fmt.Sprintf("matched track via path: %s by %s Plex Key: %s", track.Title, track.Artist, md.Key))
 			return md.Key, nil
 		}
 	}
