@@ -54,19 +54,6 @@ type Credentials struct {
 	Salt     string
 }
 
-type DiscoveryConfig struct {
-	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
-	Separator    string `env:"FILENAME_SEPARATOR" env-default:" "`
-	Listenbrainz Listenbrainz
-}
-
-type Filters struct {
-	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"`
-	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
-	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
-	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
-}
-
 type Lidarr struct {
 	APIKey           string        `env:"LIDARR_API_KEY"`
 	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
@@ -96,6 +83,13 @@ type DownloadConfig struct {
 	ExcludeLocal bool
 	Discovery    string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services     []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
+}
+
+type Filters struct {
+	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"`
+	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
+	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
+	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
 }
 
 type Youtube struct {
@@ -128,6 +122,11 @@ type SlskdMon struct {
 	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
 }
 
+type DiscoveryConfig struct {
+	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	Listenbrainz Listenbrainz
+}
+
 type Listenbrainz struct {
 	Discovery      string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User           string `env:"LISTENBRAINZ_USER"`
@@ -135,10 +134,7 @@ type Listenbrainz struct {
 	SingleArtist   bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 
-func (cfg *Config) ReadEnv() {
-}
-
-func ReadEnv() Config {
+func ReadEnv() {
 	var cfg Config
 
 	// Try to read from .env file first
