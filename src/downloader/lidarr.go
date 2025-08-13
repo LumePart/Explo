@@ -301,6 +301,21 @@ func (c Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 	return &topMatch, nil
 }
 
+func (c Lidarr) getDownloadStatus() (DownloadStatus, error) {
+	reqParams := "/api/v0/transfers/downloads"
+
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParams, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var status DownloadStatus
+	if err := util.ParseResp(body, &status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
 func (c Lidarr) MonitorDownloads(tracks []*models.Track) error {
 	monitorCfg := MonitorConfig{
 		CheckInterval:   1 * time.Minute,
@@ -320,21 +335,6 @@ func (c Lidarr) MonitorDownloads(tracks []*models.Track) error {
 		return err
 	}
 	return nil
-}
-
-func (c Lidarr) getDownloadStatus() (DownloadStatus, error) {
-	reqParams := "/api/v0/transfers/downloads"
-
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParams, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var status DownloadStatus
-	if err := util.ParseResp(body, &status); err != nil {
-		return nil, err
-	}
-	return status, nil
 }
 
 func (c Lidarr) cleanupTrack(track *models.Track, fileID string) {
