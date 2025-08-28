@@ -2,11 +2,11 @@ package downloader
 
 import (
 	"bytes" // Could be moved to util for all clients
+	"encoding/json"
 	"explo/src/config"
 	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
-	"encoding/json"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -40,15 +40,15 @@ type SearchResults []struct {
 	Username          string `json:"username"`
 }
 type File struct {
-	BitRate   int             `json:"bitRate"`
-	BitDepth  int             `json:"bitDepth"`
-	Code      int             `json:"code"`
-	Extension string          `json:"extension"`
-	Name      string		  `json:"filename"`
-	Length    int             `json:"length"`
-	Size      int             `json:"size"`
-	IsLocked  bool            `json:"isLocked"`
-	Username  string          // Save user from SearchResults to here during collection
+	BitRate   int    `json:"bitRate"`
+	BitDepth  int    `json:"bitDepth"`
+	Code      int    `json:"code"`
+	Extension string `json:"extension"`
+	Name      string `json:"filename"`
+	Length    int    `json:"length"`
+	Size      int    `json:"size"`
+	IsLocked  bool   `json:"isLocked"`
+	Username  string // Save user from SearchResults to here during collection
 }
 
 type DownloadPayload struct {
@@ -94,16 +94,16 @@ type DownloadMonitor struct {
 }
 
 type Slskd struct {
-	Headers    map[string]string
-	HttpClient *util.HttpClient
+	Headers     map[string]string
+	HttpClient  *util.HttpClient
 	DownloadDir string
-	Cfg        config.Slskd
+	Cfg         config.Slskd
 }
 
 func NewSlskd(cfg config.Slskd, downloadDir string) *Slskd {
 	return &Slskd{Cfg: cfg,
-		HttpClient: util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
-		DownloadDir: downloadDir,}
+		HttpClient:  util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
+		DownloadDir: downloadDir}
 }
 
 func (c *Slskd) AddHeader() {
@@ -315,7 +315,7 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 		payload := []DownloadPayload{
 			{
 				Filename: file.Name,
-				Size: file.Size,
+				Size:     file.Size,
 			},
 		}
 
@@ -332,7 +332,7 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 			return nil
 		}
 
-		log.Printf("[%d/%d] failed to queue download for '%s - %s': %s", i + 1, len(files), track.CleanTitle, track.Artist, err.Error())
+		log.Printf("[%d/%d] failed to queue download for '%s - %s': %s", i+1, len(files), track.CleanTitle, track.Artist, err.Error())
 		continue
 	}
 	if err := c.deleteSearch(track.ID); err != nil {
