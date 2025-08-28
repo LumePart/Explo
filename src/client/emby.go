@@ -197,7 +197,7 @@ func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
 	return nil
 }
 
-func (c *Emby) UpdatePlaylist(overview string) error {
+func (c *Emby) UpdatePlaylist() error {
 	time.Sleep(5 * time.Second) // small buffer between playlist creation and updating, Emby doesn't update playlist otherwise
 	reqParam := fmt.Sprintf("/emby/Items/%s", c.Cfg.PlaylistID)
 
@@ -207,7 +207,7 @@ func (c *Emby) UpdatePlaylist(overview string) error {
 		"Name": "%s",
 		"Overview": "%s",
 		"ProviderIds": {}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview) // the additional field has to be added, otherwise Emby returns code 500
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr) // the additional field has to be added, otherwise Emby returns code 500
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err

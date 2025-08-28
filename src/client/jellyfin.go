@@ -215,7 +215,7 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	return nil
 }
 
-func (c *Jellyfin) UpdatePlaylist(overview string) error {
+func (c *Jellyfin) UpdatePlaylist() error {
 	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
 	payload := fmt.Appendf(nil, `
 		{
@@ -225,7 +225,7 @@ func (c *Jellyfin) UpdatePlaylist(overview string) error {
 		"Genres":[],
 		"Tags":[],
 		"ProviderIds":{}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, overview) // the additional fields have to be added, otherwise JF returns code 400
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr) // the additional fields have to be added, otherwise JF returns code 400
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err

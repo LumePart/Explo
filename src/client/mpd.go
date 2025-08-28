@@ -85,7 +85,7 @@ func (c *MPD) SearchPlaylist() error {
 	}
 }
 
-func (c *MPD) UpdatePlaylist(description string) error {
+func (c *MPD) UpdatePlaylist() error {
 	return nil
 }
 

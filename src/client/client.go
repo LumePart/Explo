@@ -26,7 +26,7 @@ type APIClient interface {
 	RefreshLibrary() error
 	CreatePlaylist([]*models.Track) error
 	SearchPlaylist() error
-	UpdatePlaylist(string) error
+	UpdatePlaylist() error
 	DeletePlaylist() error
 }
 
@@ -146,8 +146,7 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 		return fmt.Errorf("[%s] failed to create playlist: %s", c.System, err.Error())
 	}
 
-	description := "Created by Explo using recommendations from ListenBrainz"
-	if err := c.API.UpdatePlaylist(description); err != nil {
+	if err := c.API.UpdatePlaylist(); err != nil {
 		return fmt.Errorf("[%s] failed to update playlist: %s", c.System, err.Error())
 	}
 	return nil

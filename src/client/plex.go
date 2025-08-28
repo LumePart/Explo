@@ -296,8 +296,8 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 	return nil
 }
 
-func (c *Plex) UpdatePlaylist(summary string) error {
-	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(summary))
+func (c *Plex) UpdatePlaylist() error {
+	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
 
 	if _, err := c.HttpClient.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return err

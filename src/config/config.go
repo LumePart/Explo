@@ -26,6 +26,7 @@ type ClientConfig struct {
 	DownloadDir string `env:"DOWNLOAD_DIR" env-default:"/data/"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	PlaylistName string
+	PlaylistDescr string
 	PlaylistID string
 	Sleep int `env:"SLEEP" env-default:"2"`
 	Creds Credentials
@@ -152,11 +153,12 @@ func fixDir(dir string) string {
 	}
 }
  */
-func (cfg *Config) GetPlaylistName() { // Generate playlist name depending if user wants to keep it or not
+func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
 	playlistName := "Discover-Weekly"
 	if cfg.Persist {
 		year, week := time.Now().ISOWeek()
 		playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
 	}
+	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf("Created for %s by Explo, using ListenBrainz recommendations.", cfg.DiscoveryCfg.Listenbrainz.User)
 	cfg.ClientCfg.PlaylistName = playlistName
 }
