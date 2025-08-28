@@ -24,7 +24,7 @@ type DownloadClient struct {
 type Downloader interface {
 	QueryTrack(*models.Track) error
 	GetTrack(*models.Track) error
-	MonitorDownloads([]*models.Track) error
+	Monitor
 }
 
 
@@ -75,8 +75,11 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 			return
 		}
 		
-		if err := d.MonitorDownloads(*tracks); err != nil {
-				log.Printf("track monitoring failed: %s", err.Error())
+		if m, ok := d.(Monitor); ok {
+			err := c.MonitorDownloads(*tracks, m)
+			if err != nil {
+				log.Println(err.Error())
+			}
 		}
 	}
 	filterTracks(tracks)

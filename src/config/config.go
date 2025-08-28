@@ -81,6 +81,12 @@ type Slskd struct {
 	MigrateDL bool `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
 	Timeout time.Duration `env:"SLSKD_TIMEOUT" env-default:"20s"`
 	Filters Filters
+	MonitorConfig SlskdMon
+}
+
+type SlskdMon struct {
+	Interval time.Duration `env:"SLSKD_MONITOR_INTERVAL" env-default:"1m"`
+	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
 }
 
 type DiscoveryConfig struct {

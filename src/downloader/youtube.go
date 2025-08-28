@@ -49,6 +49,10 @@ func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util
 		HttpClient:  httpClient}
 }
 
+func (c *Youtube) GetConf() MonitorConfig {
+	return MonitorConfig{}
+}
+
 func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for the song
 
 	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Title, track.Artist))
@@ -211,4 +215,12 @@ func filter(track models.Track, videoTitle string, filterList []string) bool { /
 		}
 	}
 	return true
+}
+
+func (c *Youtube) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
+	return nil, fmt.Errorf("no monitoring required")
+}
+
+func (c *Youtube) Cleanup(track models.Track, ID string) error {
+	return nil
 }
