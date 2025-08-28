@@ -43,6 +43,9 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 
 	progressMap := make(map[string]*DownloadMonitor)
 	monCfg := m.GetConf()
+	if monCfg.CheckInterval == 0 || monCfg.MonitorDuration == 0 {
+		return fmt.Errorf("no monitoring config set, skipping monitoring")
+	}
 
 	ticker := time.NewTicker(monCfg.CheckInterval)
 	defer ticker.Stop()
