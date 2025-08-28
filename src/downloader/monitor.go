@@ -98,7 +98,9 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				delete(progressMap, key)
 				track.File = file
 				successDownloads += 1
-				m.Cleanup(*track, fileStatus.ID)
+				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
+					debug.Debug(err.Error())
+				}
 				continue
 
 			} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred {
@@ -110,7 +112,9 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 			} else if currentTime.Sub(tracker.LastUpdated) > monCfg.MonitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
 				log.Printf("[%s/monitor] no progress on %s in %v, skipping track", monCfg.Service, track.File, monCfg.MonitorDuration)
 				tracker.Skipped = true
-				m.Cleanup(*track, fileStatus.ID)
+				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
+					debug.Debug(err.Error())
+				}
 				continue
 			}
 		}
