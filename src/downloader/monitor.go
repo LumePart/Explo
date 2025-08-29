@@ -53,8 +53,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 	for range ticker.C {
 		statuses, err := m.GetDownloadStatus(tracks)
 		if err != nil {
-			log.Printf("Error fetching download status: %s", err.Error())
-			continue
+			return fmt.Errorf("error fetching download status: %s", err.Error())
 		}
 
 		currentTime := time.Now().Local()
