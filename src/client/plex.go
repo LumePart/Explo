@@ -230,7 +230,7 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 		if err != nil {
-			log.Printf("search request failed request for '%s': %s", track.Title, err.Error())
+			log.Printf("search request failed for '%s': %s", track.Title, err.Error())
 			continue
 		}
 		
