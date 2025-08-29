@@ -15,10 +15,6 @@ type Monitor interface {
 	Cleanup(models.Track, string) error
 }
 
-/* type DownloadStatusFetcher func() (DownloadStatus, error)
-type CleanupFunc func(track *models.Track, fileID string)
-type MoveFunc func(from, to, path, file string) error
- */
 type MonitorConfig struct {
 	CheckInterval   time.Duration
 	MonitorDuration time.Duration
@@ -128,22 +124,6 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 	}
 	return nil
 }
-
-/* func findFile(statuses []FileStatus, track models.Track) DownloadFiles {
-	for _, status := range statuses {
-		if userStatus.Username != track.MainArtistID {
-			continue
-		}
-		for _, dir := range userStatus.Directories {
-			for _, file := range dir.Files {
-				if string(file.Filename) == track.File {
-					return file
-				}
-			}
-		}
-	}
-	return DownloadFiles{}
-} */
 
 func tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMonitor) bool { // Checks if all tracks are processed (either downloaded or skipped)
 	for _, track := range tracks {
