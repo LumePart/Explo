@@ -49,8 +49,8 @@ func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util
 		HttpClient:  httpClient}
 }
 
-func (c *Youtube) GetConf() MonitorConfig {
-	return MonitorConfig{}
+func (c *Youtube) GetConf() (MonitorConfig, error) {
+	return MonitorConfig{}, fmt.Errorf("[youtube] no monitoring required")
 }
 
 func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for the song

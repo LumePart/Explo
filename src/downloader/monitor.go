@@ -11,7 +11,7 @@ import (
 
 type Monitor interface {
 	GetDownloadStatus([]*models.Track) (map[string]FileStatus, error)
-	GetConf() MonitorConfig
+	GetConf() (MonitorConfig, error)
 	Cleanup(models.Track, string) error
 }
 
@@ -42,9 +42,9 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 	var successDownloads int
 
 	progressMap := make(map[string]*DownloadMonitor)
-	monCfg := m.GetConf()
-	if monCfg.CheckInterval == 0 || monCfg.MonitorDuration == 0 {
-		return fmt.Errorf("no monitoring config set, skipping monitoring")
+	monCfg, err := m.GetConf()
+	if err != nil {
+		return err
 	}
 
 	ticker := time.NewTicker(monCfg.CheckInterval)

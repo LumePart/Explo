@@ -114,7 +114,7 @@ func (c *Slskd) AddHeader() {
 
 }
 
-func (c *Slskd) GetConf() MonitorConfig {
+func (c *Slskd) GetConf() (MonitorConfig, error) {
 	return  MonitorConfig{
 		CheckInterval: c.Cfg.MonitorConfig.Interval,
 		MonitorDuration: c.Cfg.MonitorConfig.Duration,
@@ -122,7 +122,7 @@ func (c *Slskd) GetConf() MonitorConfig {
 		ToDir: c.DownloadDir,
 		FromDir: c.Cfg.SlskdDir,
 		Service: "slskd",
-	}
+	}, nil
 }
 
 func (c *Slskd) QueryTrack(track *models.Track) error {
