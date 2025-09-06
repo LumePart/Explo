@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 	"strings"
+	"time"
+
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
@@ -54,6 +55,7 @@ type SubsonicConfig struct {
 type DownloadConfig struct {
 	DownloadDir string `env:"DOWNLOAD_DIR" env-default:"/data/"`
 	Youtube Youtube
+	YoutubeMusic YoutubeMusic
 	Slskd Slskd
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
@@ -68,6 +70,12 @@ type Filters struct {
 
 type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
+	FfmpegPath string `env:"FFMPEG_PATH"`
+	YtdlpPath string `env:"YTDLP_PATH"`
+	Filters Filters
+}
+
+type YoutubeMusic struct {
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath string `env:"YTDLP_PATH"`
 	Filters Filters

@@ -32,6 +32,8 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
+		case "youtubeMusic":
+			downloader = append(downloader, NewYoutubeMusic(cfg.YoutubeMusic, cfg.Discovery, cfg.DownloadDir, httpClient))
 		case "youtube":
 			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
 		case "slskd":
