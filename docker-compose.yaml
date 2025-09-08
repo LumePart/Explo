@@ -7,7 +7,7 @@ services:
       - /path/to/.env:/opt/explo/.env
       - /path/to/musiclibrary/explo:/data/ # has to be in the same path you have your music system pointed to (it's recommended to put explo under a subfolder)
       # - /path/to/slskd/downloads:/slskd/ # if using slskd and MIGRATE_DOWNLOADS is set to true in .env
-      # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD.
+      # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD. Both paths should be as defined in .env (e.g /my/playlists/:/my/playlists/)
     environment:
       - TZ=UTC # Change this to the timezone set in ListenBrainz (default is UTC)
       - CRON_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight
