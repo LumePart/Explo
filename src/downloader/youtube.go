@@ -2,11 +2,13 @@ package downloader
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 
 	cfg "explo/src/config"
@@ -36,6 +38,11 @@ type Item struct {
 	Snippet Snippet `json:"snippet"`
 }
 
+type YTMusicSearchResult struct {
+	VideoID string `json:"videoId"`
+	Title   string `json:"title"`
+}
+
 type Youtube struct {
 	DownloadDir string
 	HttpClient  *util.HttpClient
@@ -55,7 +62,13 @@ func (c *Youtube) GetConf() (MonitorConfig, error) {
 
 func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for the song
 
-	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Title, track.Artist))
+	query := fmt.Sprintf("%s - %s", track.Title, track.Artist)
+	if c.Cfg.APIKey == "" { // if no API key set, use Python YT Music module
+		err := queryYTMusic(track, query)
+		return err
+	}
+
+	escQuery := url.PathEscape(query)
 	queryURL := fmt.Sprintf("https://youtube.googleapis.com/youtube/v3/search?part=snippet&q=%s&type=video&videoCategoryId=10&key=%s", escQuery, c.Cfg.APIKey)
 
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
@@ -76,10 +89,36 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 	return nil
 }
 
+func queryYTMusic(track *models.Track, query string) error {
+
+	debug.Debug(fmt.Sprintf("Querying YTMusic for track %s", query))
+
+	cmd := exec.Command("python3", "search_ytmusic.py", query, "1")
+
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("ytmusicapi subprocess failed: %w", err)
+	}
+
+	var results []YTMusicSearchResult
+	if err := json.Unmarshal(out, &results); err != nil {
+		return fmt.Errorf("failed to parse ytmusicapi JSON: %w", err)
+	}
+
+	if len(results) == 0 {
+		return fmt.Errorf("no YouTube Music track found for: %s", query)
+	}
+
+	track.ID = results[0].VideoID
+	//log.Printf("Matched track %s => videoId %s", query, track.ID) keeping this until I improve logging (good trace)
+
+	return nil
+}
+
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
-	
-	track.File = getFilename(track.Title, track.Artist)+".opus"
+
+	track.File = getFilename(track.Title, track.Artist) + ".opus"
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
@@ -92,7 +131,7 @@ func (c *Youtube) GetTrack(track *models.Track) error {
 func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to monitor yt-dlp downloads, there is no queue for them
 	log.Println("[youtube] No further monitoring required")
 	return nil
- }
+}
 
 func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // gets song under artist topic or personal channel
 
