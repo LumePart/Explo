@@ -56,12 +56,22 @@ type Metadata struct {
 
 type Recordings map[string]Metadata
 
-type Playlists struct {
-	Playlist []struct {
-		Data struct {
+type CreatedFor struct {
+	Playlists     []struct {
+		Playlist struct {
+			Creator    string    `json:"creator"`
 			Date       time.Time `json:"date"`
-			Identifier string    `json:"identifier"`
-			Title      string    `json:"title"`
+			Extension  struct {
+				HTTPSJspfPlaylist struct {
+					AdditionalMetadata struct {
+						AlgorithmMetadata struct {
+							SourcePatch string `json:"source_patch"`
+						} `json:"algorithm_metadata"`
+					} `json:"additional_metadata"`
+					CreatedFor     string    `json:"created_for"`
+				} `json:"https://musicbrainz.org/doc/jspf#playlist"`
+			} `json:"extension"`
+			Identifier string `json:"identifier"`
 		} `json:"playlist"`
 	} `json:"playlists"`
 }
@@ -78,7 +88,7 @@ type Exploration struct {
 			Creator    string `json:"creator"`
 			Duration   int `json:"duration"`
 			Extension struct {
-				HTTPSMusicbrainzOrgDocJspfTrack struct {
+				HTTPSJspfTrack struct {
 					AddedAt            time.Time `json:"added_at"`
 					AddedBy            string    `json:"added_by"`
 					AdditionalMetadata struct {
@@ -103,6 +113,7 @@ type ListenBrainz struct {
 	HttpClient *util.HttpClient
 	cfg cfg.Listenbrainz
 	Separator string
+	ImportPlaylist string
 }
 
 
@@ -117,11 +128,11 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 
 	switch c.cfg.Discovery {
 	case "playlist":
-		id, err := c.getWeeklyExploration(c.cfg.User)
+		id, err := c.getImportPlaylist(c.cfg.User)
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = c.parseWeeklyExploration(id, c.cfg.SingleArtist)
+		tracks, err = c.parsePlaylist(id, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
 		}
@@ -217,42 +228,42 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 }
 
-func (c *ListenBrainz) getWeeklyExploration(user string) (string, error) { // Get user LB playlists and find Weekly Exploration's ID
+func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get user LB playlists and find wanted playlists ID
 	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
 	if err != nil {
-		return "", fmt.Errorf("getWeeklyExploration(): %s", err.Error())
+		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 	}
 
-	var playlists Playlists
+	var playlists CreatedFor
 	err = util.ParseResp(body, &playlists)
 	if err != nil {
-		return "", fmt.Errorf("getWeeklyExploration(): %s", err.Error())
+		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 	}
 
-	for _, playlist := range playlists.Playlist {
+	for _, playlist := range playlists.Playlists {
 
 		_, currentWeek := time.Now().Local().ISOWeek()
-		_, creationWeek := playlist.Data.Date.Local().ISOWeek()
+		_, creationWeek := playlist.Playlist.Date.Local().ISOWeek()
 
-		if strings.Contains(playlist.Data.Title, "Weekly Exploration") && currentWeek == creationWeek {
-			id := strings.Split(playlist.Data.Identifier, "/")
+		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.ImportPlaylist && currentWeek == creationWeek {
+			id := strings.Split(playlist.Playlist.Identifier, "/")
 			return id[len(id)-1], nil
 		}
 	}
 	debug.Debug(fmt.Sprintf("playlist output: %v", playlists))
-	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
+	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one this week", c.ImportPlaylist)
 }
 
-func (c *ListenBrainz) parseWeeklyExploration(identifier string, singleArtist bool) ([]*models.Track, error) {
+func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*models.Track, error) {
 	body, err := c.lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
-		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
+		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
 
 	var exploration Exploration
 	err = util.ParseResp(body, &exploration)
 	if err != nil {
-		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
+		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
 
 	if len(exploration.Playlist.Tracks) == 0 {
@@ -265,12 +276,12 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier string, singleArtist bo
 		artist := track.Creator
 		mainArtist := track.Creator
 
-		if len(track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists) > 1 {
-			mainArtist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+		if len(track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists) > 1 {
+			mainArtist = track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 			if singleArtist {
 				var tempTitle strings.Builder
 				joinPhrase := " feat. "
-				for i, artist := range track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[1:] {
+				for i, artist := range track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[1:] {
 					if i > 0 {
 						joinPhrase = ", "
 					}
@@ -278,7 +289,7 @@ func (c *ListenBrainz) parseWeeklyExploration(identifier string, singleArtist bo
 					tempTitle.WriteString(artist.ArtistCreditName)
 				}
 				title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
-				artist = track.Extension.HTTPSMusicbrainzOrgDocJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+				artist = track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
 			}
 		}
 

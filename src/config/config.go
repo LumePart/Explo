@@ -168,7 +168,13 @@ func fixDir(dir string) string {
 }
  */
 func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
-	playlistName := "Discover-Weekly"
+
+	parts := strings.Split(cfg.Flags.Playlist, "-") // take playlist from flag value and turn it to title case
+	for i := range parts {
+		parts[i] = strings.ToUpper(parts[i]) // Capitalizes first letter
+	}
+
+	playlistName:= strings.Join(parts, " ")
 	if cfg.Persist {
 		year, week := time.Now().ISOWeek()
 		playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
