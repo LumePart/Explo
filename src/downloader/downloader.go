@@ -19,6 +19,7 @@ import (
 
 type DownloadClient struct {
 	Cfg         *cfg.DownloadConfig
+	SkipLocal bool
 	Downloaders []Downloader
 }
 
@@ -28,7 +29,7 @@ type Downloader interface {
 	Monitor
 }
 
-func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *DownloadClient { // get download services from config and append them to DownloadClient
+func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) *DownloadClient { // get download services from config and append them to DownloadClient
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
@@ -45,10 +46,14 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Downlo
 
 	return &DownloadClient{
 		Cfg:         cfg,
+		SkipLocal: filterLocal,
 		Downloaders: downloader}
 }
 
 func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
+	if c.SkipLocal { // remove available tracks, so they can't be added to playlist
+		filterTracks(tracks, true)
+	}
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
 		g.SetLimit(5)
@@ -82,7 +87,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 			}
 		}
 	}
-	filterTracks(tracks)
+	filterTracks(tracks, false)
 }
 
 func (c *DownloadClient) DeleteSongs() {
@@ -101,14 +106,22 @@ func (c *DownloadClient) DeleteSongs() {
 	}
 }
 
-func filterTracks(tracks *[]*models.Track) { // only keep tracks that were downloaded or were found by music system
+func filterTracks(tracks *[]*models.Track, preDownload bool) { // filter tracks
 	filteredTracks := (*tracks)[:0]
-	for _, track := range *tracks {
-		if track.Present {
-			track.Present = false // clear present status so music system can use the same field
-			filteredTracks = append(filteredTracks, track)
+
+	for _, t := range *tracks {
+		switch {
+		case preDownload && !t.Present:
+			// keep only unavailable tracks if c.SpikLocal is true
+			filteredTracks = append(filteredTracks, t)
+
+		case !preDownload && t.Present:
+			// keep only tracks already present locally
+			t.Present = false // reset so music system can reuse the field
+			filteredTracks = append(filteredTracks, t)
 		}
 	}
+
 	*tracks = filteredTracks
 }
 

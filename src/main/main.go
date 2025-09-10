@@ -42,7 +42,7 @@ func main() {
 		log.Fatal(err)
 	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
-	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient)
+	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.FilterLocal)
 
 	tracks, err := discovery.Discover()
 	if err != nil {
