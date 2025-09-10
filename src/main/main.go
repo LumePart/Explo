@@ -30,10 +30,12 @@ func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, 
 
 func main() {
 	var cfg config.Config
-	cfg.GetFlags()
+	if err := cfg.GetFlags(); err != nil {
+		log.Fatal(err)
+	}
 	cfg.ReadEnv()
 	setup(&cfg)
-	
+
 	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg, httpClient)
 	if err != nil {
@@ -53,10 +55,15 @@ func main() {
 		}
 		downloader.DeleteSongs()
 	}
-	client.CheckTracks(tracks) // Check if tracks exist on system before downloading
-	downloader.StartDownload(&tracks)
-	if len(tracks) == 0 {
-		log.Fatal("couldn't download any tracks")
+	if cfg.Flags.DownloadMode != "force" {
+		client.CheckTracks(tracks) // Check if tracks exist on system before downloading
+	}
+
+	if cfg.Flags.DownloadMode != "skip" {
+		downloader.StartDownload(&tracks)
+		if len(tracks) == 0 {
+			log.Fatal("couldn't download any tracks")
+		}
 	}
 
 	if err := client.CreatePlaylist(tracks); err != nil {
