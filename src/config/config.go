@@ -15,9 +15,17 @@ type Config struct {
 	DownloadCfg DownloadConfig
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg ClientConfig
+	Flags Flags 
 	Persist bool `env:"PERSIST" env-default:"true"`
 	System string `env:"EXPLO_SYSTEM"`
 	Debug bool `env:"DEBUG" env-default:"false"`
+}
+
+type Flags struct {
+	CfgPath string
+	Playlist string
+	DownloadMode string
+	FilterLocal bool
 }
 
 type ClientConfig struct {
