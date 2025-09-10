@@ -29,9 +29,11 @@ func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, 
 }
 
 func main() {
-
-	cfg := config.ReadEnv()
+	var cfg config.Config
+	cfg.GetFlags()
+	cfg.ReadEnv()
 	setup(&cfg)
+	
 	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg, httpClient)
 	if err != nil {

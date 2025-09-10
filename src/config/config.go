@@ -116,24 +116,22 @@ type Listenbrainz struct {
 	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 
-func ReadEnv() Config {
-	var cfg Config
+func (cfg *Config) ReadEnv() {
 
 	// Try to read from .env file first
-	err := cleanenv.ReadConfig(".env", &cfg)
+	err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg)
 	if err != nil {
 		// If the error is because the file doesn't exist, fallback to env vars
 		if errors.Is(err, os.ErrNotExist) {
 			if err := cleanenv.ReadEnv(&cfg); err != nil {
-				log.Fatalf("Failed to load config from env vars: %s", err)
+				log.Fatalf("failed to load config from env vars: %s", err)
 			}
 		} else {
-			log.Fatalf("Failed to load config: %s", err)
+			log.Fatalf("failed to load config file %s: %s", cfg.Flags.CfgPath, err)
 		}
 	}
 
 	cfg.VerifyDir()
-	return cfg
 }
 
 func (cfg *Config) VerifyDir() {
