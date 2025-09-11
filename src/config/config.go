@@ -181,7 +181,7 @@ func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
 		if cfg.Flags.Playlist != "daily-jams" {
 			playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
 		} else {
-			day := time.Now().Day()
+			day := time.Now().YearDay()
 			playlistName = fmt.Sprintf("%s-%d-Day%d", playlistName, year, day)
 		}
 	}
