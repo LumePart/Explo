@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type Config struct {
@@ -171,12 +173,9 @@ func fixDir(dir string) string {
  */
 func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
 
-	parts := strings.Split(cfg.Flags.Playlist, "-") // take playlist from flag value and turn it to title case
-	for i := range parts {
-		parts[i] = strings.ToUpper(parts[i]) // Capitalizes first letter
-	}
-
-	playlistName:= strings.Join(parts, " ")
+	toTitle := cases.Title(language.Und)
+	
+	playlistName := toTitle.String(cfg.Flags.Playlist)
 	if cfg.Persist {
 		year, week := time.Now().ISOWeek()
 		playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
