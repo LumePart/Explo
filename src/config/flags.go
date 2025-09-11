@@ -6,14 +6,6 @@ import (
 	"strings"
 	flag "github.com/spf13/pflag"
 )
-// Custom usage message to add short and long flags together
-/* const usage = `Usage of explo:
-  -c, --config Path of the configuration file
-  -p, --playlist Playlist where to get tracks. Supported: weekly-exploration, weekly-jams, daily-jams
-  --download-mode Download mode: 'normal' (download only when track is not found locally), 'skip' (skip downloading, only use tracks already found locally), 'force' (always download, don't check for local tracks)
-  --filter-local Filter out locally found tracks from playlist
-  -h, --help prints help information 
-` */
 
 var (
 	validPlaylists    = []string{"weekly-exploration", "weekly-jams", "daily-jams"}
@@ -31,7 +23,6 @@ func (cfg *Config) GetFlags() error {
 	flag.StringVarP(&downloadMode, "download-mode", "d", "normal", "Download mode: 'normal' (download only when track is not found locally), 'skip' (skip downloading, only use tracks already found locally), 'force' (always download, don't check for local tracks)")
 	flag.BoolVar(&filterLocal, "filter-local",  false, "Filter out locally found tracks from playlist")
 
-	//flag.Usage = func() { fmt.Print(usage) }
 	flag.Parse()
 
 	// Validation for playlist
