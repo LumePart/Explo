@@ -106,6 +106,7 @@ type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
 	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"true"`
+	IncludeDaily bool   `env:"LISTENBRAINZ_INCLUDE_DAILY" env-default:"true"`
 }
 
 func ReadEnv() Config {

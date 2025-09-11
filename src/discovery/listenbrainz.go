@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -114,6 +115,8 @@ func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *List
 }
 func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 	var tracks []*models.Track
+	var dailyTracks []*models.Track
+	var weeklyTracks []*models.Track
 
 	switch c.cfg.Discovery {
 	case "playlist":
@@ -121,9 +124,30 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = c.parseWeeklyExploration(id, c.cfg.SingleArtist)
+		if id != "" {
+			weeklyTracks, err = c.parseExploration(id, c.cfg.SingleArtist)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if c.cfg.IncludeDaily {
+			id, err = c.getDailyExploration(c.cfg.User)
+			if err != nil {
+				return nil, err
+			}
+			if id != "" {
+				dailyTracks, err = c.parseExploration(id, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
+				}
+			}
+		}
+
+		tracks = slices.Concat(weeklyTracks, dailyTracks)
+
+		if len(tracks) == 0 {
+			return nil, fmt.Errorf("no new playlists found. Check to see if ListenBrainz has created any")
 		}
 		
 	default:
@@ -240,19 +264,47 @@ func (c *ListenBrainz) getWeeklyExploration(user string) (string, error) { // Ge
 		}
 	}
 	debug.Debug(fmt.Sprintf("playlist output: %v", playlists))
-	return "", fmt.Errorf("failed to get new exploration playlist, check if ListenBrainz has generated one this week")
+	debug.Debug("failed to get new Weekly exploration playlist, check if ListenBrainz has generated one this week")
+	return "", nil
 }
 
-func (c *ListenBrainz) parseWeeklyExploration(identifier string, singleArtist bool) ([]*models.Track, error) {
+func (c *ListenBrainz) getDailyExploration(user string) (string, error) { // Get user LB playlists and find Daily Exploration ID
+	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
+	if err != nil {
+		return "", fmt.Errorf("getDailyExploration(): %s", err.Error())
+	}
+
+	var playlists Playlists
+	err = util.ParseResp(body, &playlists)
+	if err != nil {
+		return "", fmt.Errorf("getDailyExploration(): %s", err.Error())
+	}
+
+	for _, playlist := range playlists.Playlist {
+
+		currentDay := time.Now().Local()
+		playlistTitle := fmt.Sprintf("Daily Jams for %s, %s %s", c.cfg.User, currentDay.Format(time.DateOnly), currentDay.Weekday().String()[:3])
+
+		if strings.Compare(playlist.Data.Title, playlistTitle) == 0 {
+			id := strings.Split(playlist.Data.Identifier, "/")
+			return id[len(id)-1], nil
+		}
+	}
+	debug.Debug(fmt.Sprintf("playlist output: %v", playlists))
+	debug.Debug("failed to get new daily exploration playlist, check if ListenBrainz has generated one today")
+	return "", nil
+}
+
+func (c *ListenBrainz) parseExploration(identifier string, singleArtist bool) ([]*models.Track, error) {
 	body, err := c.lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
-		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
+		return nil, fmt.Errorf("parseExploration(): %s", err.Error())
 	}
 
 	var exploration Exploration
 	err = util.ParseResp(body, &exploration)
 	if err != nil {
-		return nil, fmt.Errorf("parseWeeklyExploration(): %s", err.Error())
+		return nil, fmt.Errorf("parseExploration(): %s", err.Error())
 	}
 
 	if len(exploration.Playlist.Tracks) == 0 {
