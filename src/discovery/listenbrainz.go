@@ -113,7 +113,6 @@ type ListenBrainz struct {
 	HttpClient *util.HttpClient
 	cfg cfg.Listenbrainz
 	Separator string
-	ImportPlaylist string
 }
 
 
@@ -245,13 +244,13 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get u
 		_, currentWeek := time.Now().Local().ISOWeek()
 		_, creationWeek := playlist.Playlist.Date.Local().ISOWeek()
 
-		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.ImportPlaylist && currentWeek == creationWeek {
+		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.cfg.ImportPlaylist && currentWeek == creationWeek {
 			id := strings.Split(playlist.Playlist.Identifier, "/")
 			return id[len(id)-1], nil
 		}
 	}
 	debug.Debug(fmt.Sprintf("playlist output: %v", playlists))
-	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one this week", c.ImportPlaylist)
+	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one this week", c.cfg.ImportPlaylist)
 }
 
 func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*models.Track, error) {
