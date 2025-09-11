@@ -49,7 +49,7 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 }
 
 func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
-	if c.Cfg.FilterLocal { // remove available tracks, so they can't be added to playlist
+	if c.Cfg.ExcludeLocal { // remove available tracks, so they can't be added to playlist
 		filterTracks(tracks, true)
 	}
 	for _, d := range c.Downloaders {

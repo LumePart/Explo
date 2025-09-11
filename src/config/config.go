@@ -27,7 +27,7 @@ type Flags struct {
 	CfgPath string
 	Playlist string
 	DownloadMode string
-	FilterLocal bool
+	ExcludeLocal bool
 }
 
 type ClientConfig struct {
@@ -67,7 +67,7 @@ type DownloadConfig struct {
 	Youtube Youtube
 	YoutubeMusic YoutubeMusic
 	Slskd Slskd
-	FilterLocal bool
+	ExcludeLocal bool
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
