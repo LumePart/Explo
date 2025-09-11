@@ -178,8 +178,16 @@ func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
 	playlistName := toTitle.String(cfg.Flags.Playlist)
 	if cfg.Persist {
 		year, week := time.Now().ISOWeek()
-		playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
+		if cfg.Flags.Playlist != "daily-jams" {
+			playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
+		} else {
+			day := time.Now().Day()
+			playlistName = fmt.Sprintf("%s-%d-Day%d", playlistName, year, day)
+		}
 	}
 	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf("Created for %s by Explo, using ListenBrainz recommendations.", cfg.DiscoveryCfg.Listenbrainz.User)
 	cfg.ClientCfg.PlaylistName = playlistName
+
+	// add playlist name to downloadDir so all songs get downloaded into a single place
+	cfg.DownloadCfg.DownloadDir = fmt.Sprintf("%s%s/", cfg.DownloadCfg.DownloadDir, playlistName)
 }
