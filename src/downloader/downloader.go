@@ -143,7 +143,12 @@ func getFilename(title, artist string) string {
 	t := re.ReplaceAllString(title, "_")
 	a := re.ReplaceAllString(artist, "_")
 
-	return fmt.Sprintf("%s-%s", t, a)
+	fileName := fmt.Sprintf("%s-%s", t, a)
+	if len(fileName) > 240 { // truncate file name if it's longer than 240 chars
+		return fileName[:240]
+	}
+
+	return fileName
 }
 
 func moveDownload(srcDir, destDir, trackPath, file string) error { // Move download from the source dir to the dest dir (download dir)
