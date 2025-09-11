@@ -1,6 +1,7 @@
 package config
 
 import (
+	"slices"
 	"fmt"
 	"strings"
 	flag "github.com/spf13/pflag"
@@ -49,14 +50,15 @@ func (cfg *Config) GetFlags() error {
 	cfg.Flags.Playlist = playlist
 	cfg.Flags.DownloadMode = downloadMode
 	cfg.Flags.FilterLocal = filterLocal
+	cfg.mergeFlags()
 	return nil
 }
 
+func (cfg *Config) mergeFlags() {
+	cfg.DiscoveryCfg.Listenbrainz.ImportPlaylist = cfg.Flags.Playlist
+	cfg.DownloadCfg.FilterLocal = cfg.Flags.FilterLocal
+}
+
 func contains(valid []string, val string) bool {
-	for _, v := range valid {
-		if v == val {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(valid, val)
 }

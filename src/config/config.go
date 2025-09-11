@@ -65,6 +65,7 @@ type DownloadConfig struct {
 	Youtube Youtube
 	YoutubeMusic YoutubeMusic
 	Slskd Slskd
+	FilterLocal bool
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
@@ -113,6 +114,7 @@ type DiscoveryConfig struct {
 type Listenbrainz struct {
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User string `env:"LISTENBRAINZ_USER"`
+	ImportPlaylist string
 	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 

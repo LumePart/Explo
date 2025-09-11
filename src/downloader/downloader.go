@@ -19,7 +19,6 @@ import (
 
 type DownloadClient struct {
 	Cfg         *cfg.DownloadConfig
-	SkipLocal bool
 	Downloaders []Downloader
 }
 
@@ -46,12 +45,11 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 
 	return &DownloadClient{
 		Cfg:         cfg,
-		SkipLocal: filterLocal,
 		Downloaders: downloader}
 }
 
 func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
-	if c.SkipLocal { // remove available tracks, so they can't be added to playlist
+	if c.Cfg.FilterLocal { // remove available tracks, so they can't be added to playlist
 		filterTracks(tracks, true)
 	}
 	for _, d := range c.Downloaders {
@@ -112,7 +110,7 @@ func filterTracks(tracks *[]*models.Track, preDownload bool) { // filter tracks
 	for _, t := range *tracks {
 		switch {
 		case preDownload && !t.Present:
-			// keep only unavailable tracks if c.SpikLocal is true
+			// keep only unavailable tracks if c.FilterLocal is true
 			filteredTracks = append(filteredTracks, t)
 
 		case !preDownload && t.Present:
