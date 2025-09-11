@@ -166,12 +166,11 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 		}
 	}()
 
-	dstDir := filepath.Join(destDir, trackPath)
-	if err = os.MkdirAll(dstDir, os.ModePerm); err != nil {
+	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
-	}
+	} 
 
-	dstFile := filepath.Join(dstDir, file)
+	dstFile := filepath.Join(destDir, file)
 	out, err := os.Create(dstFile)
 	if err != nil {
 		return fmt.Errorf("couldn't create destination file: %s", err.Error())
@@ -195,7 +194,7 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 		return fmt.Errorf("chmod failed: %s", err.Error())
 	}
 
-	if err = os.Remove(srcFile); err != nil {
+	if err = os.RemoveAll(trackDir); err != nil {
 		return fmt.Errorf("failed to delete original file: %s", err.Error())
 	}
 
