@@ -239,12 +239,26 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get u
 		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 	}
 
+	var currentWeek, currentDay int
+	now := time.Now().Local()
+	if c.cfg.ImportPlaylist != "daily-jams" {
+		_, currentWeek = now.ISOWeek()
+	} else {
+		currentDay = now.YearDay()
+	}
+	
 	for _, playlist := range playlists.Playlists {
+		var timeMatch bool
+		
+		if c.cfg.ImportPlaylist != "daily-jams" {
+			_, creationWeek := playlist.Playlist.Date.Local().ISOWeek()
+			timeMatch = currentWeek == creationWeek
+		} else {
+			creationDay := playlist.Playlist.Date.Local().YearDay()
+			timeMatch = currentDay == creationDay
+		}
 
-		_, currentWeek := time.Now().Local().ISOWeek()
-		_, creationWeek := playlist.Playlist.Date.Local().ISOWeek()
-
-		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.cfg.ImportPlaylist && currentWeek == creationWeek {
+		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.cfg.ImportPlaylist && timeMatch {
 			id := strings.Split(playlist.Playlist.Identifier, "/")
 			return id[len(id)-1], nil
 		}
