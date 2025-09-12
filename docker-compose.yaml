@@ -10,14 +10,13 @@ services:
       # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD. Both paths should be as defined in .env (e.g /my/playlists/:/my/playlists/)
     environment:
       - TZ=UTC # Change this to the timezone set in ListenBrainz (default is UTC)
-      
+
       - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight
       - WEEKLY_EXPLORATION_FLAGS= # Run weekly exploration with default settings
 
+      # Uncomment _SCHEDULE and _FLAGS variables to enable fetching different playlist
       #- WEEKLY_JAMS_SCHEDULE=30 00 * * 1 # Runs weekly, every Monday 30 minutes past midnight
       #- WEEKLY_JAMS_FLAGS=--playlist=weekly-jams --download-mode=skip # Get tracks from weekly-jams, and only add tracks that are found locally to playlist
 
       #- DAILY_JAMS_SCHEDULE=15 01 * * * # Runs daily, every day 15 minutes past 1PM
       #- DAILY_JAMS_FLAGS=--playlist=daily-jams --download-mode=skip # Get tracks from daily-jams, and only adds tracks that are found locally to playlist
-
-      # For more Flag parameters, check out the wiki
