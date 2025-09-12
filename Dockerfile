@@ -34,6 +34,6 @@ COPY src/downloader/youtube_music/search_ytmusic.py .
 RUN chmod +x /start.sh ./explo
 
 # Can be defined from compose as well 
-ENV CRON_SCHEDULE="15 0 * * 2"
+ENV WEEKLY_EXPLORATION_SCHEDULE="15 0 * * 2"
 
 CMD ["/start.sh"]
