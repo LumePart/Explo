@@ -52,6 +52,10 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if c.Cfg.ExcludeLocal { // remove available tracks, so they can't be added to playlist
 		filterTracks(tracks, true)
 	}
+	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
+		log.Fatalln(err)
+	}
+	
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
 		g.SetLimit(5)
