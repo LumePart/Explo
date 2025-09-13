@@ -55,7 +55,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
 		log.Fatalln(err)
 	}
-	
+
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
 		g.SetLimit(5)

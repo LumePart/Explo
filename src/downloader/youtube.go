@@ -1,24 +1,22 @@
 package downloader
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/url"
-	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	cfg "explo/src/config"
 	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
-
-	ffmpeg "github.com/u2takey/ffmpeg-go"
-	"github.com/wader/goutubedl"
 )
+
+var opus_re *regexp.Regexp = regexp.MustCompile(`"(.*\.opus)"`)
 
 type Videos struct {
 	Items []Item `json:"items"`
@@ -116,10 +114,7 @@ func queryYTMusic(track *models.Track, query string) error {
 }
 
 func (c *Youtube) GetTrack(track *models.Track) error {
-	ctx := context.Background() // ctx for yt-dlp
-
-	track.File = getFilename(track.Title, track.Artist) + ".opus"
-	track.Present = fetchAndSaveVideo(ctx, *c, *track)
+	track.Present = fetchAndSaveAudioTrack(*c, *track)
 
 	if track.Present {
 		log.Printf("[youtube] Download finished: %s - %s", track.Artist, track.Title)
@@ -143,75 +138,28 @@ func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // ge
 	return ""
 }
 
-func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using yt-dlp
+func downloadAudioTrack(videoID string) (string, error) { // gets video stream using yt-dlp
 
-	if c.Cfg.YtdlpPath != "" {
-		goutubedl.Path = c.Cfg.YtdlpPath
+	args := []string{
+		"-x", // only audio
+		"--no-warnings",
+		"--embed-metadata",
+		fmt.Sprintf("https://music.youtube.com/watch?v=%s", videoID),
 	}
 
-	result, err := goutubedl.New(ctx, videoID, goutubedl.Options{})
+	out, err := util.ExecUtility("yt-dlp", args...)
+
 	if err != nil {
-		return nil, fmt.Errorf("could not create URL for video download (ID: %s): %s", videoID, err.Error())
+		return "", err
 	}
 
-	downloadResult, err := result.Download(ctx, "bestaudio")
-	if err != nil {
-		return nil, fmt.Errorf("could not download video: %s", err.Error())
+	m := opus_re.FindSubmatch(out)
+	if len(m) != 2 {
+		return "", errors.New("could not match yt-dlp result for filename")
 	}
 
-	return downloadResult, nil
+	return string(m[1]), nil
 
-}
-
-func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) bool {
-
-	defer func() {
-		if err := stream.Close(); err != nil {
-			log.Printf("warning: stream close failed: %v", err)
-		}
-	}()
-
-	input := fmt.Sprintf("%s%s.tmp", c.DownloadDir, track.File)
-	file, err := os.Create(input)
-	if err != nil {
-		log.Fatalf("failed to create song file: %s", err.Error())
-	}
-
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("warning: file close failed: %v", err)
-		}
-	}()
-
-	if _, err = io.Copy(file, stream); err != nil {
-		log.Printf("failed to copy stream to file: %s", err.Error())
-		if err = os.Remove(input); err != nil {
-			debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
-		}
-		return false
-	}
-
-	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s", c.DownloadDir, track.File), ffmpeg.KwArgs{
-		"map":      "0:a",
-		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
-		"loglevel": "error",
-	}).OverWriteOutput().ErrorToStdOut()
-
-	if c.Cfg.FfmpegPath != "" {
-		cmd.SetFfmpegPath(c.Cfg.FfmpegPath)
-	}
-
-	if err = cmd.Run(); err != nil {
-		log.Printf("failed to convert audio: %s", err.Error())
-		if err = os.Remove(input); err != nil {
-			debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
-		}
-		return false
-	}
-	if err = os.Remove(input); err != nil {
-		debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
-	}
-	return true
 }
 
 func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { // filter out video ID
@@ -231,19 +179,28 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 	return ""
 }
 
-func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
-	stream, err := getVideo(ctx, cfg, track.ID)
+func fetchAndSaveAudioTrack(cfg Youtube, track models.Track) bool {
+	var err error
+
+	track.File, err = downloadAudioTrack(track.ID)
 	if err != nil {
-		log.Printf("failed getting stream for video ID %s: %s", track.ID, err.Error())
+		log.Printf("failed downloading track for ID %s: %s", track.ID, err.Error())
 		return false
 	}
 
-	if stream != nil {
-		return saveVideo(cfg, track, stream)
+	args := []string{
+		"-f", // force cp
+		track.File,
+		fmt.Sprintf("%s/%s", cfg.DownloadDir, track.File),
+	}
+	_, err = util.ExecUtility("mv", args...)
+
+	if err != nil {
+		log.Printf("failed copying %s to download dir", track.File)
+		return false
 	}
 
-	log.Printf("stream was nil for video ID %s", track.ID)
-	return false
+	return true
 }
 
 func filter(track models.Track, videoTitle string, filterList []string) bool { // ignore titles that have a specific keyword (defined in .env)
