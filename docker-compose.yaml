@@ -19,4 +19,4 @@ services:
       #- WEEKLY_JAMS_FLAGS=--playlist=weekly-jams --download-mode=skip # Get tracks from weekly-jams, and only add tracks that are found locally to playlist
 
       #- DAILY_JAMS_SCHEDULE=15 01 * * * # Runs daily, every day 15 minutes past 1PM
-      #- DAILY_JAMS_FLAGS=--playlist=daily-jams --download-mode=skip # Get tracks from daily-jams, and only adds tracks that are found locally to playlist
+      #- DAILY_JAMS_FLAGS=--playlist=daily-jams --download-mode=skip # Get tracks from daily-jams, and only add tracks that are found locally to playlist
