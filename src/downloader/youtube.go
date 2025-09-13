@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strings"
 
@@ -116,7 +117,7 @@ func queryYTMusic(track *models.Track, query string) error {
 }
 
 func updateTags(cfg *Youtube, track *models.Track) error {
-	fn := fmt.Sprintf("%s/%s", cfg.DownloadDir, track.File)
+	fn := path.Join(cfg.DownloadDir, track.File)
 	f, err := os.Open(fn)
 	if err != nil {
 		return fmt.Errorf("could not open file %s: %v", fn, err)
@@ -135,7 +136,7 @@ func updateTags(cfg *Youtube, track *models.Track) error {
 }
 
 func (c *Youtube) GetTrack(track *models.Track) error {
-	ok := fetchAndSaveAudioTrack(*c, *track)
+	ok := fetchAndSaveAudioTrack(c, track)
 
 	if ok {
 		err := updateTags(c, track)
@@ -206,7 +207,7 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 	return ""
 }
 
-func fetchAndSaveAudioTrack(cfg Youtube, track models.Track) bool {
+func fetchAndSaveAudioTrack(cfg *Youtube, track *models.Track) bool {
 	var err error
 
 	track.File, err = downloadAudioTrack(cfg.DownloadDir, track.ID)
