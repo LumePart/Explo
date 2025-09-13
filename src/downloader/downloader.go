@@ -140,21 +140,6 @@ func sanitizeName(s string) string { // return string with only letters and digi
 	return sanitizer.ReplaceAllString(s, "")
 }
 
-func getFilename(title, artist string) string {
-
-	// Remove illegal characters for file naming
-	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
-	t := re.ReplaceAllString(title, "_")
-	a := re.ReplaceAllString(artist, "_")
-
-	fileName := fmt.Sprintf("%s-%s", t, a)
-	if len(fileName) > 240 { // truncate file name if it's longer than 240 chars
-		return fileName[:240]
-	}
-
-	return fileName
-}
-
 func moveDownload(srcDir, destDir, trackPath, file string) error { // Move download from the source dir to the dest dir (download dir)
 	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, file)
@@ -177,7 +162,7 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 
 	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
-	} 
+	}
 
 	dstFile := filepath.Join(destDir, file)
 	out, err := os.Create(dstFile)

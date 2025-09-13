@@ -102,7 +102,7 @@ func (c *Client) systemSetup() error {
 			}
 
 		}
-		
+
 		if err := c.API.AddHeader(); err != nil {
 			return err
 		}
@@ -139,9 +139,11 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 
 	log.Printf("[%s] Refreshing library...", c.System)
 	time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
+
 	if err := c.API.SearchSongs(tracks); err != nil { // search newly added songs
 		log.Printf("warning: SearchSongs failed: %v", err)
 	}
+
 	if err := c.API.CreatePlaylist(tracks); err != nil {
 		return fmt.Errorf("[%s] failed to create playlist: %s", c.System, err.Error())
 	}
@@ -149,6 +151,7 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 	if err := c.API.UpdatePlaylist(); err != nil {
 		return fmt.Errorf("[%s] failed to update playlist: %s", c.System, err.Error())
 	}
+
 	return nil
 }
 

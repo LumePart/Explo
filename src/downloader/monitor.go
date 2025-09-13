@@ -21,17 +21,17 @@ type MonitorConfig struct {
 	MigrateDownload bool
 	FromDir         string
 	ToDir           string
-	Service			string
+	Service         string
 }
 
 type FileStatus struct {
-	ID               string    `json:"id"`
-	Filename         string    `json:"filename"`
-	Size             int       `json:"size"`
-	State            string    `json:"state"`
-	BytesTransferred int       `json:"bytesTransferred"`
-	BytesRemaining   int       `json:"bytesRemaining"`
-	PercentComplete  float64   `json:"percentComplete"`
+	ID               string  `json:"id"`
+	Filename         string  `json:"filename"`
+	Size             int     `json:"size"`
+	State            string  `json:"state"`
+	BytesTransferred int     `json:"bytesTransferred"`
+	BytesRemaining   int     `json:"bytesRemaining"`
+	PercentComplete  float64 `json:"percentComplete"`
 }
 
 func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) error {
@@ -55,6 +55,10 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 		currentTime := time.Now().Local()
 
 		for _, track := range tracks {
+
+			if len(track.File) == 0 {
+				continue
+			}
 
 			key := fmt.Sprintf("%s|%s", track.ID, track.File)
 
@@ -82,9 +86,9 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				continue
 			}
 
-			if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {					
+			if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {
 				track.Present = true
-				log.Printf("[%s/monitor] %s downloaded successfully",monCfg.Service, track.File)
+				log.Printf("[%s/monitor] %s downloaded successfully", monCfg.Service, track.File)
 				file, path := parsePath(track.File)
 				if monCfg.MigrateDownload {
 					if err = moveDownload(monCfg.FromDir, monCfg.ToDir, path, file); err != nil {
@@ -116,7 +120,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				continue
 			}
 		}
-			// Exit condition: all tracks have been processed or skipped
+		// Exit condition: all tracks have been processed or skipped
 		if tracksProcessed(tracks, progressMap) {
 			log.Printf("[%s/monitor] %d out of %d tracks have been downloaded", monCfg.Service, successDownloads, len(tracks))
 			return nil
@@ -136,3 +140,4 @@ func tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMon
 	}
 	return true
 }
+

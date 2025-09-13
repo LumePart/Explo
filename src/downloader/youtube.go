@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
+	"github.com/dhowden/tag"
 )
 
 var opus_re *regexp.Regexp = regexp.MustCompile(`"(.*\.opus)"`)
@@ -113,10 +115,35 @@ func queryYTMusic(track *models.Track, query string) error {
 	return nil
 }
 
-func (c *Youtube) GetTrack(track *models.Track) error {
-	track.Present = fetchAndSaveAudioTrack(*c, *track)
+func updateTags(cfg *Youtube, track *models.Track) error {
+	fn := fmt.Sprintf("%s/%s", cfg.DownloadDir, track.File)
+	f, err := os.Open(fn)
+	if err != nil {
+		return fmt.Errorf("could not open file %s: %v", fn, err)
+	}
+	defer f.Close()
 
-	if track.Present {
+	m, err := tag.ReadFrom(f)
+	if err != nil {
+		return fmt.Errorf("could not read tags from %s: %v", fn, err)
+	}
+
+	track.Artist = m.Artist()
+	track.Title = m.Title()
+
+	return nil
+}
+
+func (c *Youtube) GetTrack(track *models.Track) error {
+	ok := fetchAndSaveAudioTrack(*c, *track)
+
+	if ok {
+		err := updateTags(c, track)
+		if err != nil {
+			return err
+		}
+
+		track.Present = true
 		log.Printf("[youtube] Download finished: %s - %s", track.Artist, track.Title)
 		return nil
 	}
@@ -138,7 +165,7 @@ func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // ge
 	return ""
 }
 
-func downloadAudioTrack(videoID string) (string, error) { // gets video stream using yt-dlp
+func downloadAudioTrack(workdir string, videoID string) (string, error) { // gets video stream using yt-dlp
 
 	args := []string{
 		"-x", // only audio
@@ -147,7 +174,7 @@ func downloadAudioTrack(videoID string) (string, error) { // gets video stream u
 		fmt.Sprintf("https://music.youtube.com/watch?v=%s", videoID),
 	}
 
-	out, err := util.ExecUtility("yt-dlp", args...)
+	out, err := util.ExecUtility(workdir, "yt-dlp", args...)
 
 	if err != nil {
 		return "", err
@@ -182,21 +209,9 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 func fetchAndSaveAudioTrack(cfg Youtube, track models.Track) bool {
 	var err error
 
-	track.File, err = downloadAudioTrack(track.ID)
+	track.File, err = downloadAudioTrack(cfg.DownloadDir, track.ID)
 	if err != nil {
 		log.Printf("failed downloading track for ID %s: %s", track.ID, err.Error())
-		return false
-	}
-
-	args := []string{
-		"-f", // force cp
-		track.File,
-		fmt.Sprintf("%s/%s", cfg.DownloadDir, track.File),
-	}
-	_, err = util.ExecUtility("mv", args...)
-
-	if err != nil {
-		log.Printf("failed copying %s to download dir", track.File)
 		return false
 	}
 

@@ -18,8 +18,8 @@ import (
 
 type FailedResp struct {
 	SubsonicResponse struct {
-		Status        string `json:"status"`
-		Error         struct {
+		Status string `json:"status"`
+		Error  struct {
 			Code    int    `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
@@ -28,23 +28,23 @@ type FailedResp struct {
 
 type SubResponse struct {
 	SubsonicResponse struct {
-		Status        string        `json:"status"`
-		Version       string        `json:"version"`
-		Type          string        `json:"type"`
-		ServerVersion string        `json:"serverVersion"`
+		Status        string `json:"status"`
+		Version       string `json:"version"`
+		Type          string `json:"type"`
+		ServerVersion string `json:"serverVersion"`
 		SearchResult3 struct {
 			Song []struct {
-				ID          string    `json:"id"`
-				Title       string    `json:"title"`
-				Artist        string    `json:"artist"`
-				Duration      int       `json:"duration"`
-				Path          string    `json:"path"`
+				ID       string `json:"id"`
+				Title    string `json:"title"`
+				Artist   string `json:"artist"`
+				Duration int    `json:"duration"`
+				Path     string `json:"path"`
 			} `json:"song"`
 		} `json:"searchResult3,omitempty"`
-		Playlists     struct {
+		Playlists struct {
 			Playlist []Playlist `json:"playlist,omitempty"`
 		} `json:"playlists,omitempty"`
-		Playlist      Playlist `json:"playlist,omitempty"`
+		Playlist Playlist `json:"playlist,omitempty"`
 	} `json:"subsonic-response"`
 }
 
@@ -62,10 +62,10 @@ type Playlist struct {
 }
 
 type Subsonic struct {
-	Token string
-	Salt string
+	Token      string
+	Salt       string
 	HttpClient *util.HttpClient
-	Cfg config.ClientConfig
+	Cfg        config.ClientConfig
 }
 
 func NewSubsonic(cfg config.ClientConfig, httpClient *util.HttpClient) *Subsonic {
@@ -79,7 +79,6 @@ func (c *Subsonic) AddHeader() error {
 
 func (c *Subsonic) GetAuth() error { // Generate salt and token
 	var salt = make([]byte, 6)
-
 
 	_, err := rand.Read(salt)
 	if err != nil {
@@ -134,7 +133,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 		for _, song := range songs {
 			artistMatch := strings.Contains(strings.ToLower(song.Artist), strings.ToLower(track.MainArtist))
 			titleMatch := strings.EqualFold(song.Title, track.Title) || strings.EqualFold(song.Title, track.CleanTitle)
-			durationMatch := util.Abs(song.Duration - (track.Duration / 1000)) < 10
+			durationMatch := util.Abs(song.Duration-(track.Duration/1000)) < 10
 			pathMatch := strings.Contains(strings.ToLower(song.Path), strings.ToLower(track.File))
 
 			if artistMatch && titleMatch {
@@ -159,7 +158,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 
 func (c *Subsonic) RefreshLibrary() error {
 	reqParam := "startScan?f=json"
-	
+
 	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
 	}
@@ -181,9 +180,9 @@ func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 
 	var resp SubResponse
 	if err := util.ParseResp(body, &resp); err != nil {
-        return err
-    }
-	
+		return err
+	}
+
 	c.Cfg.PlaylistID = resp.SubsonicResponse.Playlist.ID
 	return nil
 }
@@ -198,8 +197,8 @@ func (c *Subsonic) SearchPlaylist() error {
 
 	var resp SubResponse
 	if err := util.ParseResp(body, &resp); err != nil {
-        return err
-    }
+		return err
+	}
 
 	for _, playlist := range resp.SubsonicResponse.Playlists.Playlist {
 		if playlist.Name == c.Cfg.PlaylistName {
@@ -212,7 +211,7 @@ func (c *Subsonic) SearchPlaylist() error {
 }
 
 func (c *Subsonic) UpdatePlaylist() error {
-	reqParam := fmt.Sprintf("updatePlaylist?playlistId=%s&comment=%s&f=json",c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
+	reqParam := fmt.Sprintf("updatePlaylist?playlistId=%s&comment=%s&f=json", c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
 
 	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
@@ -231,7 +230,7 @@ func (c *Subsonic) DeletePlaylist() error {
 
 func (c *Subsonic) subsonicRequest(reqParams string) ([]byte, error) {
 
-	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s",c.Cfg.URL, reqParams, c.Cfg.Creds.User, c.Token, c.Salt, c.Cfg.Subsonic.Version, c.Cfg.ClientID)
+	reqURL := fmt.Sprintf("%s/rest/%s&u=%s&t=%s&s=%s&v=%s&c=%s", c.Cfg.URL, reqParams, c.Cfg.Creds.User, c.Token, c.Salt, c.Cfg.Subsonic.Version, c.Cfg.ClientID)
 	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request %s", err.Error())
@@ -245,3 +244,4 @@ func (c *Subsonic) subsonicRequest(reqParams string) ([]byte, error) {
 	}
 	return body, nil
 }
+

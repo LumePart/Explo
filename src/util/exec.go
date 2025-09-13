@@ -7,11 +7,12 @@ import (
 	"os/exec"
 )
 
-func ExecUtility(name string, args ...string) ([]byte, error) {
+func ExecUtility(workdir string, name string, args ...string) ([]byte, error) {
 	var out bytes.Buffer
 	var errout bytes.Buffer
 
 	cmd := exec.Command(name, args...)
+	cmd.Dir = workdir
 	cmd.Stdout = &out
 	cmd.Stderr = &errout
 	err := cmd.Run()
