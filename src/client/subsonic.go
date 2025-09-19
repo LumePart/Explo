@@ -167,6 +167,18 @@ func (c *Subsonic) RefreshLibrary() error {
 }
 
 func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
+	if c.Cfg.Subsonic.ReplacePlaylist {
+		if err := c.SearchPlaylist(); err != nil {
+			return fmt.Errorf("failed to search for existing playlist: %w", err)
+		}
+		if c.Cfg.PlaylistID != "" {
+			if err := c.DeletePlaylist(); err != nil {
+				return fmt.Errorf("failed to delete existing playlist: %w", err)
+			}
+			c.Cfg.PlaylistID = ""
+		}
+	}
+
 	var trackIDs strings.Builder
 	for _, track := range tracks { // build songID parameters
 		fmt.Fprintf(&trackIDs, "&songId=%s", track.ID)
@@ -183,7 +195,7 @@ func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 	if err := util.ParseResp(body, &resp); err != nil {
         return err
     }
-	
+
 	c.Cfg.PlaylistID = resp.SubsonicResponse.Playlist.ID
 	return nil
 }

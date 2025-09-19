@@ -60,6 +60,7 @@ type SubsonicConfig struct {
 	URL	string `env:"SUBSONIC_URL" env-default:"http://127.0.0.1:4533"`
 	User string `env:"SUBSONIC_USER"`
 	Password string `env:"SUBSONIC_PASSWORD"`
+	ReplacePlaylist bool `env:"SUBSONIC_REPLACE_PLAYLIST" env-default:"false"`
 }
 
 type DownloadConfig struct {
