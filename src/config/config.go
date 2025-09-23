@@ -64,6 +64,12 @@ type Lidarr struct {
 	Scheme           string        `env:"LIDARR_SCHEME" env-default:"http"`
 	URL              string        `env:"LIDARR_URL"`
 	Filters          Filters
+	MonitorConfig    LidarrMon
+}
+
+type LidarrMon struct {
+	Interval time.Duration `env:"SLSKD_MONITOR_INTERVAL" env-default:"1m"`
+	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
 }
 
 type SubsonicConfig struct {
@@ -134,8 +140,7 @@ type Listenbrainz struct {
 	SingleArtist   bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 
-func ReadEnv() {
-	var cfg Config
+func (cfg *Config) ReadEnv() {
 
 	// Try to read from .env file first
 	err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg)

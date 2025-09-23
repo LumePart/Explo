@@ -15,6 +15,7 @@ import (
 )
 
 type Lidarr struct {
+	Headers     map[string]string
 	DownloadDir string
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Lidarr
@@ -173,12 +174,30 @@ type RootFolder struct {
 	DefaultQualityProfileId  int    `json:"defaultQualityProfileId"`
 }
 
-func NewLidarr(cfg cfg.Lidarr, discovery, downloadDir string, httpClient *util.HttpClient) Lidarr { // init downloader cfg for lidarr
-	return Lidarr{
-		DownloadDir: downloadDir,
-		HttpClient:  httpClient,
+func NewLidarr(cfg cfg.Lidarr, downloadDir string) *Lidarr { // init downloader cfg for lidarr
+	return &Lidarr{
 		Cfg:         cfg,
+		HttpClient:  util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
+		DownloadDir: downloadDir,
 	}
+}
+
+func (c *Lidarr) AddHeader() {
+	if c.Headers == nil {
+		c.Headers = make(map[string]string)
+	}
+	c.Headers["X-API-Key"] = c.Cfg.APIKey
+}
+
+func (c *Lidarr) GetConf() (MonitorConfig, error) {
+	return MonitorConfig{
+		CheckInterval:   c.Cfg.MonitorConfig.Interval,
+		MonitorDuration: c.Cfg.MonitorConfig.Duration,
+		MigrateDownload: c.Cfg.MigrateDL,
+		ToDir:           c.DownloadDir,
+		FromDir:         c.Cfg.LidarrDir,
+		Service:         "Lidarr",
+	}, nil
 }
 
 func (c Lidarr) QueryTrack(track *models.Track) error {
@@ -301,51 +320,6 @@ func (c Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
 	return &topMatch, nil
 }
 
-func (c Lidarr) getDownloadStatus() (DownloadStatus, error) {
-	reqParams := "/api/v0/transfers/downloads"
-
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParams, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var status DownloadStatus
-	if err := util.ParseResp(body, &status); err != nil {
-		return nil, err
-	}
-	return status, nil
-}
-
-func (c Lidarr) MonitorDownloads(tracks []*models.Track) error {
-	monitorCfg := MonitorConfig{
-		CheckInterval:   1 * time.Minute,
-		MonitorDuration: 15 * time.Minute,
-		MigrateDownload: c.Cfg.MigrateDL,
-		FromDir:         c.Cfg.LidarrDir,
-		ToDir:           c.DownloadDir,
-	}
-	err := Monitor(
-		tracks,
-		c.getDownloadStatus,
-		func(t *models.Track, id string) { c.cleanupTrack(t, id) },
-		moveDownload,
-		monitorCfg,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c Lidarr) cleanupTrack(track *models.Track, fileID string) {
-	if err := c.deleteSearch(track.ID); err != nil {
-		debug.Debug(fmt.Sprintf("[slskd] failed to delete search request: %v", err))
-	}
-	if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
-		debug.Debug(fmt.Sprintf("[slskd] failed to delete download: %v", err))
-	}
-}
-
 func (c Lidarr) deleteSearch(ID string) error {
 	reqParams := fmt.Sprintf("/api/v0/searches/%s", ID)
 
@@ -354,6 +328,46 @@ func (c Lidarr) deleteSearch(ID string) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
+	reqParams := "/api/v0/transfers/downloads"
+	fileStatuses := make(map[string]FileStatus, len(tracks))
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParams, nil, c.Headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var statuses DownloadStatus
+	if err := util.ParseResp(body, &statuses); err != nil {
+		return nil, err
+	}
+	for _, status := range statuses {
+		for _, track := range tracks {
+			if status.Username != track.MainArtistID {
+				continue
+			}
+
+			for _, dir := range status.Directories {
+				for _, file := range dir.Files {
+					if string(file.Name) == track.File {
+						fileStatuses[track.File] = FileStatus{
+							ID:               file.ID,
+							Size:             file.Size,
+							State:            file.State,
+							BytesTransferred: file.BytesTransferred,
+							BytesRemaining:   file.BytesRemaining,
+							PercentComplete:  file.PercentComplete,
+						}
+					}
+				}
+			}
+		}
+	}
+	if len(fileStatuses) != 0 {
+		return fileStatuses, nil
+	}
+	return nil, fmt.Errorf("no files found to monitor")
 }
 
 func (c Lidarr) deleteDownload(user, ID string) error {
@@ -369,5 +383,15 @@ func (c Lidarr) deleteDownload(user, ID string) error {
 		return fmt.Errorf("hard delete failed: %s", err.Error())
 	}
 
+	return nil
+}
+
+func (c *Lidarr) Cleanup(track models.Track, fileID string) error {
+	if err := c.deleteSearch(track.ID); err != nil {
+		debug.Debug(fmt.Sprintf("[slskd] failed to delete search request: %v", err))
+	}
+	if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
+		debug.Debug(fmt.Sprintf("[slskd] failed to delete download: %v", err))
+	}
 	return nil
 }
