@@ -3,8 +3,8 @@ package main
 import (
 	"explo/src/debug"
 	"log"
-	"log/slog"
 	"os"
+	"log/slog"
 
 	"explo/src/client"
 	"explo/src/config"
