@@ -38,11 +38,14 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
+		case "lidarr":
+			lidarrClient := NewLidarr(cfg.Lidarr, cfg.DownloadDir)
+			lidarrClient.AddHeader()
+			downloader = append(downloader, lidarrClient)
 		default:
 			log.Fatalf("downloader '%s' not supported", service)
 		}
 	}
-
 	return &DownloadClient{
 		Cfg:         cfg,
 		Downloaders: downloader}
@@ -55,7 +58,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
 		log.Fatalln(err)
 	}
-	
+
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
 		g.SetLimit(5)
@@ -177,7 +180,7 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 
 	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
-	} 
+	}
 
 	dstFile := filepath.Join(destDir, file)
 	out, err := os.Create(dstFile)
