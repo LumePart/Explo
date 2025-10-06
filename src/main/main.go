@@ -3,6 +3,7 @@ package main
 import (
 	"explo/src/debug"
 	"log"
+	"log/slog"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -24,7 +25,8 @@ func initHttpClient() *util.HttpClient {
 }
 
 func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, handles deprecation
-	debug.Init(cfg.Debug)
+	cfg.HandleDeprecation()
+	debug.Init(cfg.LogLevel)
 	cfg.GetPlaylistName()
 }
 
@@ -35,6 +37,7 @@ func main() {
 	}
 	cfg.ReadEnv()
 	setup(&cfg)
+	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg, httpClient)
