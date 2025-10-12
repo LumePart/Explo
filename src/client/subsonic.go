@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"log/slog"
 
 	"crypto/md5"
 	"crypto/rand"
@@ -11,7 +12,6 @@ import (
 	"net/url"
 
 	"explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -121,7 +121,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 
 		songs := resp.SubsonicResponse.SearchResult3.Song
 		if len(songs) == 0 {
-			debug.Debug(fmt.Sprintf("[subsonic] no results found for %s", searchQuery))
+			slog.Debug(fmt.Sprintf("[subsonic] no results found for %s", searchQuery))
 			continue
 		}
 
@@ -151,7 +151,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 		}
 
 		if !track.Present {
-			debug.Debug(fmt.Sprintf("[subsonic] multiple results for %s but none matched criteria", searchQuery))
+			slog.Debug(fmt.Sprintf("[subsonic] multiple results for %s but none matched criteria", searchQuery))
 		}
 	}
 	return nil
