@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"log/slog"
 
 	"explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -161,7 +161,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		}
 
 		if !track.Present {
-			debug.Debug(fmt.Sprintf("[jellyfin] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
+			slog.Debug(fmt.Sprintf("[jellyfin] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
 		}
 	}
 	return nil

@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"strings"
 
 	"explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -193,8 +192,8 @@ func (c *Plex) GetLibrary() error {
 		}
 	}
 	if err = c.AddLibrary(); err != nil {
-		debug.Debug(err.Error())
-		log.Fatalf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", c.Cfg.LibraryName)
+		slog.Debug(err.Error())
+		return fmt.Errorf("library named %s not found and cannot be added, please create it manually and ensure 'Prefer local metadata' is checked", c.Cfg.LibraryName)
 	}
 	return fmt.Errorf("library '%s' not found", c.Cfg.LibraryName)
 }
@@ -230,18 +229,18 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 		if err != nil {
-			log.Printf("search request failed for '%s': %s", track.Title, err.Error())
+			slog.Warn("search request failed for '%s': %s", track.Title, err.Error())
 			continue
 		}
 		
 		var searchResults PlexSearch
 		if err = util.ParseResp(body, &searchResults); err != nil {
-			log.Printf("failed to parse response for '%s': %s", track.Title, err.Error())
+			slog.Warn("failed to parse response for '%s': %s", track.Title, err.Error())
 			continue
 		}
 		key, err := getPlexSong(track, searchResults)
 		if err != nil {
-			debug.Debug(err.Error())
+			slog.Debug(err.Error())
 			continue
 		}
 		if key != "" {
@@ -345,7 +344,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
 
 		if titleMatch && (albumMatch || artistMatch) {
-			debug.Debug(fmt.Sprintf("matched track via metadata: %s by %s Plex Key: %s", track.Title, track.Artist, md.Key))
+			slog.Debug(fmt.Sprintf("matched track via metadata: %s by %s", track.Title, track.Artist))
 			return md.Key, nil
 		}
 
@@ -358,12 +357,12 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		durationMatch := util.Abs(media.Duration - track.Duration) < 10000 // duration within 10s
 
 		if durationMatch && pathMatch {
-			debug.Debug(fmt.Sprintf("matched track via path: %s by %s Plex Key: %s", track.Title, track.Artist, md.Key))
+			slog.Debug(fmt.Sprintf("matched track via path: %s by %s", track.Title, track.Artist))
 			return md.Key, nil
 		}
 	}
 
-	debug.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
+	slog.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
 	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
 }
 
@@ -373,7 +372,7 @@ func (c *Plex) addtoPlaylist(tracks []*models.Track) {
 			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
 
 			if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
-				log.Printf("failed to add %s to playlist: %s", track.Title, err.Error())
+				slog.Warn("failed to add %s to playlist: %s", track.Title, err.Error())
 			}
 		}
 	}

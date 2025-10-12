@@ -2,7 +2,7 @@ package client
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"explo/src/config"
@@ -54,7 +54,7 @@ func NewClient(cfg *config.Config, httpClient *util.HttpClient) (*Client, error)
 		c.API = NewSubsonic(cfg.ClientCfg, httpClient)
 
 	default:
-		log.Fatalf("unknown system: %s. Use a supported system (emby, jellyfin, mpd, plex, or subsonic).", c.System)
+		return nil, fmt.Errorf("unknown system: %s. Use a supported system (emby, jellyfin, mpd, plex, or subsonic)", c.System)
 	}
 
 	if err := c.systemSetup(); err != nil { // Run setup automatically
@@ -124,23 +124,23 @@ func (c *Client) systemSetup() error {
 
 func (c *Client) CheckTracks(tracks []*models.Track) {
 	if err := c.API.SearchSongs(tracks); err != nil {
-		log.Printf("warning: SearchSongs failed: %v", err)
+		slog.Warn("SearchSongs failed: %v", "context", err)
 	}
 }
 
 func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 	if c.System == "" {
-		log.Fatal("could not get music system")
+		return fmt.Errorf("could not get music system")
 	}
 
 	if err := c.API.RefreshLibrary(); err != nil {
 		return fmt.Errorf("[%s] failed to schedule a library scan: %s", c.System, err.Error())
 	}
 
-	log.Printf("[%s] Refreshing library...", c.System)
+	slog.Info("[%s] Refreshing library...", "system", c.System)
 	time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
 	if err := c.API.SearchSongs(tracks); err != nil { // search newly added songs
-		log.Printf("warning: SearchSongs failed: %v", err)
+		slog.Warn("SearchSongs failed: %v", "context", err)
 	}
 	if err := c.API.CreatePlaylist(tracks); err != nil {
 		return fmt.Errorf("[%s] failed to create playlist: %s", c.System, err.Error())
@@ -154,7 +154,7 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 
 func (c *Client) DeletePlaylist() error {
 	if err := c.API.SearchPlaylist(); err != nil {
-		return fmt.Errorf("warning: SearchSongs failed: %v", err)
+		return fmt.Errorf("SearchPlaylist failed: %v", err)
 	}
 	if err := c.API.DeletePlaylist(); err != nil {
 		return fmt.Errorf("[%s] failed to delete playlist: %s", c.System, err.Error())

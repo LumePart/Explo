@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"log/slog"
 
 	"explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 )
 
@@ -69,7 +69,7 @@ func (c *MPD) CreatePlaylist(tracks []*models.Track) error {
 		if track.Present {
 			_, err := f.Write([]byte(track.File+"\n"))
 			if err != nil {
-				debug.Debug(fmt.Sprintf("failed to write song to file: %s", err.Error()))
+				slog.Warn(fmt.Sprintf("failed to write song to file: %s", err.Error()))
 			}
 		}
 	}
