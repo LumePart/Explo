@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -46,7 +46,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Printf("warning: response body close failed: %v", err)
+			slog.Warn("response body close failed", "context", err.Error())
 		}
 	}()
 
