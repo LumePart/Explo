@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -130,10 +129,12 @@ func (cfg *Config) ReadEnv() {
 		// If the error is because the file doesn't exist, fallback to env vars
 		if errors.Is(err, os.ErrNotExist) {
 			if err := cleanenv.ReadEnv(&cfg); err != nil {
-				log.Fatalf("failed to load config from env vars: %s", err)
+				slog.Error("failed to load config from env vars", "context", err.Error())
+				os.Exit(1)
 			}
 		} else {
-			log.Fatalf("failed to load config file %s: %s", cfg.Flags.CfgPath, err)
+			slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
+			os.Exit(1)
 		}
 	}
 
