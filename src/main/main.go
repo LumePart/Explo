@@ -3,6 +3,7 @@ package main
 import (
 	"explo/src/debug"
 	"log"
+	"os"
 	"log/slog"
 
 	"explo/src/client"
@@ -42,19 +43,25 @@ func main() {
 	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg, httpClient)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
-	downloader := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
+	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 
 	tracks, err := discovery.Discover()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	if !cfg.Persist {
 		err := client.DeletePlaylist()
 		if err != nil {
-			log.Println(err)
+			slog.Warn(err.Error())
 		}
 		downloader.DeleteSongs()
 	}
@@ -65,13 +72,14 @@ func main() {
 	if cfg.Flags.DownloadMode != "skip" {
 		downloader.StartDownload(&tracks)
 		if len(tracks) == 0 {
-			log.Fatal("couldn't download any tracks")
+			slog.Error("couldn't download any tracks")
+			os.Exit(1)
 		}
 	}
 
 	if err := client.CreatePlaylist(tracks); err != nil {
-		log.Println(err)
+		slog.Warn(err.Error())
 	} else {
-		log.Printf("[%s] %s playlist created successfully", cfg.System, cfg.ClientCfg.PlaylistName)
+		slog.Info("playlist created successfully", "system", cfg.System, "name", cfg.ClientCfg.PlaylistName)
 	}
 }
