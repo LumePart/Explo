@@ -122,10 +122,11 @@ func (c *Client) systemSetup() error {
 	}
 }
 
-func (c *Client) CheckTracks(tracks []*models.Track) {
+func (c *Client) CheckTracks(tracks []*models.Track) error {
 	if err := c.API.SearchSongs(tracks); err != nil {
-		slog.Warn("SearchSongs failed: %v", "context", err)
+		return fmt.Errorf("SearchSongs failed: %s", err.Error())
 	}
+	return nil
 }
 
 func (c *Client) CreatePlaylist(tracks []*models.Track) error {
@@ -137,10 +138,10 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 		return fmt.Errorf("[%s] failed to schedule a library scan: %s", c.System, err.Error())
 	}
 
-	slog.Info("[%s] Refreshing library...", "system", c.System)
+	slog.Info("Refreshing library...", "system", c.System)
 	time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
 	if err := c.API.SearchSongs(tracks); err != nil { // search newly added songs
-		slog.Warn("SearchSongs failed: %v", "context", err)
+		slog.Warn("SearchSongs failed", "context", err)
 	}
 	if err := c.API.CreatePlaylist(tracks); err != nil {
 		return fmt.Errorf("[%s] failed to create playlist: %s", c.System, err.Error())
