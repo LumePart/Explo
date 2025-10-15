@@ -174,7 +174,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	input := fmt.Sprintf("%s%s.tmp", c.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
-		slog.Error("failed to create song file", "context",err.Error())
+		slog.Error("failed to create song file", "context", err.Error())
 		return false
 	}
 
