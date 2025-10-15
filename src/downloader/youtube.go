@@ -235,7 +235,7 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
-		slog.Error("failed getting stream for video", "track ID",track.ID, "context", err.Error())
+		slog.Error("failed getting stream for video", "trackID",track.ID, "context", err.Error())
 		return false
 	}
 
@@ -243,7 +243,7 @@ func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) boo
 		return saveVideo(cfg, track, stream)
 	}
 
-	slog.Error("stream was empty for video", "track ID", track.ID)
+	slog.Error("stream was empty for video", "trackID", track.ID)
 	return false
 }
 
