@@ -88,7 +88,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				file, path := parsePath(track.File)
 				if monCfg.MigrateDownload {
 					if err = moveDownload(monCfg.FromDir, monCfg.ToDir, path, file); err != nil {
-						debug.Debug(err.Error())
+						slog.Debug("error while moving file", debug.RuntimeAttr(err.Error()))
 					} else {
 						slog.Info("track moved successfully", "service", monCfg.Service)
 					}
@@ -97,7 +97,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				track.File = file
 				successDownloads += 1
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
-					debug.Debug(err.Error())
+					slog.Debug("cleanup failed", debug.RuntimeAttr(err.Error()))
 				}
 				continue
 
@@ -111,7 +111,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				slog.Info("[monitor] no download progress for file, skipping", "service", monCfg.Service, "file", track.File, "duration", monCfg.MonitorDuration)
 				tracker.Skipped = true
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
-					debug.Debug(err.Error())
+					slog.Debug("cleanup failed", debug.RuntimeAttr(err.Error()))
 				}
 				continue
 			}

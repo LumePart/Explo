@@ -172,7 +172,7 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 
 	defer func() error {
 		if cerr := in.Close(); cerr != nil {
-			return fmt.Errorf("warning: failed to close source file: %s", cerr)
+			return fmt.Errorf("failed to close source file: %s", cerr)
 		}
 		return nil
 	}()

@@ -11,16 +11,16 @@ func Init(level string) {
 	slog.SetLogLoggerLevel(getLogLevel(level))
 }
 
-func Debug(ctx string) slog.Attr {
+func RuntimeAttr(ctx string) slog.Attr {
 		_, file, line, ok := runtime.Caller(1)
         if ok {
 			return slog.Group("runtime",
             	slog.String("file", file), 
-				slog.Int("line",line), 
-				slog.String("msg", ctx),
+				slog.Int("line", line),
+				slog.String("ctx", ctx),
 		)
         } else {
-            return slog.String("msg", ctx)
+            return slog.String("msg", "failed getting runtime")
         }
 }
 

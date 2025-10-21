@@ -56,7 +56,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		debug.Debug(fmt.Sprintf("full response: %s", string(body)))
+		slog.Debug("response info", debug.RuntimeAttr(string(body)))
 		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
 	}
 
@@ -66,7 +66,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 func ParseResp[T any](body []byte, target *T) error {
 
 	if err := json.Unmarshal(body, target); err != nil {
-		debug.Debug(fmt.Sprintf("full response: %s", string(body)))
+		slog.Debug("response info", debug.RuntimeAttr(string(body)))
 		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil
