@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -91,7 +91,7 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 
 func queryYTMusic(track *models.Track, query string) error {
 
-	debug.Debug(fmt.Sprintf("Querying YTMusic for track %s", query))
+	slog.Debug(fmt.Sprintf("Querying YTMusic for track %s", query))
 
 	cmd := exec.Command("python3", "search_ytmusic.py", query, "1")
 
@@ -122,14 +122,14 @@ func (c *Youtube) GetTrack(track *models.Track) error {
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
-		log.Printf("[youtube] Download finished: %s - %s", track.Artist, track.Title)
+		slog.Info("download finished", "service", "youtube", "track", track.File)
 		return nil
 	}
 	return fmt.Errorf("failed to download track: %s - %s", track.Title, track.Artist)
 }
 
 func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to monitor yt-dlp downloads, there is no queue for them
-	log.Println("[youtube] No further monitoring required")
+	slog.Info("no further monitoring required", "service", "youtube")
 	return nil
 }
 
@@ -167,26 +167,27 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 
 	defer func() {
 		if err := stream.Close(); err != nil {
-			log.Printf("warning: stream close failed: %v", err)
+			slog.Warn("closing stream failed", "context", err.Error())
 		}
 	}()
 
 	input := fmt.Sprintf("%s%s.tmp", c.DownloadDir, track.File)
 	file, err := os.Create(input)
 	if err != nil {
-		log.Fatalf("failed to create song file: %s", err.Error())
+		slog.Error("failed to create song file", "context", err.Error())
+		return false
 	}
 
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf("warning: file close failed: %v", err)
+			slog.Warn("file close failed", "context", err.Error())
 		}
 	}()
 
 	if _, err = io.Copy(file, stream); err != nil {
-		log.Printf("failed to copy stream to file: %s", err.Error())
+		slog.Error("failed to copy stream to file", "context", err.Error())
 		if err = os.Remove(input); err != nil {
-			debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
+			slog.Debug(fmt.Sprintf("failed to remove file %s", input), debug.RuntimeAttr(err.Error()))
 		}
 		return false
 	}
@@ -202,14 +203,14 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	}
 
 	if err = cmd.Run(); err != nil {
-		log.Printf("failed to convert audio: %s", err.Error())
+		slog.Error("failed to convert audio", "context", err.Error())
 		if err = os.Remove(input); err != nil {
-			debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
+			slog.Debug(fmt.Sprintf("failed to remove %s", input), debug.RuntimeAttr(err.Error()))
 		}
 		return false
 	}
 	if err = os.Remove(input); err != nil {
-		debug.Debug(fmt.Sprintf("failed to remove %s: %s", input, err.Error()))
+		slog.Debug(fmt.Sprintf("failed to remove %s", input), debug.RuntimeAttr(err.Error()))
 	}
 	return true
 }
@@ -234,7 +235,7 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
-		log.Printf("failed getting stream for video ID %s: %s", track.ID, err.Error())
+		slog.Error("failed getting stream for video", "trackID",track.ID, "context", err.Error())
 		return false
 	}
 
@@ -242,7 +243,7 @@ func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) boo
 		return saveVideo(cfg, track, stream)
 	}
 
-	log.Printf("stream was nil for video ID %s", track.ID)
+	slog.Error("stream was empty for video", "trackID", track.ID)
 	return false
 }
 

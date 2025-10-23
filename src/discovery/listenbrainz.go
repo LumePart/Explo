@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"log/slog"
 
 	cfg "explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -263,7 +263,7 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get u
 			return id[len(id)-1], nil
 		}
 	}
-	debug.Debug(fmt.Sprintf("playlist output: %v", playlists))
+	slog.Debug(fmt.Sprintf("playlist output: %v", playlists))
 	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one this week", c.cfg.ImportPlaylist)
 }
 

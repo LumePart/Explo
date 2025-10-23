@@ -3,13 +3,12 @@ package client
 import (
 	"bytes"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 	"net/url"
 
 	"explo/src/config"
-	"explo/src/debug"
 	"explo/src/models"
 	"explo/src/util"
 )
@@ -107,7 +106,7 @@ func (c *Emby) AddLibrary() error {
 	  }`, c.Cfg.LibraryName, c.Cfg.DownloadDir)
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewReader(payload), c.Cfg.Creds.Headers); err != nil {
-		log.Fatalf("failed to add library to Emby using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
+		return fmt.Errorf("failed to add library to Emby using the download path, please define a library name using LIBRARY_NAME in .env: %s", err.Error())
 	}
 	return nil
 }
@@ -152,7 +151,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 		}
 
 		if !track.Present {
-			debug.Debug(fmt.Sprintf("[emby] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
+			slog.Debug(fmt.Sprintf("[emby] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
 		}
 	}
 	return nil

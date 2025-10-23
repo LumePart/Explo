@@ -3,10 +3,10 @@ package config
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
+	"log/slog"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"golang.org/x/text/cases"
@@ -21,6 +21,7 @@ type Config struct {
 	Persist bool `env:"PERSIST" env-default:"true"`
 	System string `env:"EXPLO_SYSTEM"`
 	Debug bool `env:"DEBUG" env-default:"false"`
+	LogLevel string `env:"LOG_LEVEL" env-default:"WARN"`
 }
 
 type Flags struct {
@@ -128,10 +129,12 @@ func (cfg *Config) ReadEnv() {
 		// If the error is because the file doesn't exist, fallback to env vars
 		if errors.Is(err, os.ErrNotExist) {
 			if err := cleanenv.ReadEnv(&cfg); err != nil {
-				log.Fatalf("failed to load config from env vars: %s", err)
+				slog.Error("failed to load config from env vars", "context", err.Error())
+				os.Exit(1)
 			}
 		} else {
-			log.Fatalf("failed to load config file %s: %s", cfg.Flags.CfgPath, err)
+			slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
+			os.Exit(1)
 		}
 	}
 
@@ -153,24 +156,13 @@ func fixDir(dir string) string {
 	return dir
 }
 
-/* func (cfg *Config) HandleDeprecation() { // no deprecations at the moment (keeping this for reference)
-	switch cfg.System {
-	case "subsonic":
-		if cfg.Subsonic.User != "" && cfg.Creds.User == "" {
-			log.Println("Warning: 'SUBSONIC_USER' is deprecated. Please use 'SYSTEM_USERNAME'.")
-			cfg.Creds.User = cfg.Subsonic.User
-		}
-		if cfg.Subsonic.Password != "" && cfg.Creds.Password == "" {
-			log.Println("Warning: 'SUBSONIC_PASSWORD' is deprecated. Please use 'SYSTEM_PASSWORD'.")
-			cfg.Creds.Password = cfg.Subsonic.Password
-		}
-		if cfg.Subsonic.URL != "" && cfg.URL == "" {
-			log.Println("Warning: 'SUBSONIC_URL' is deprecated. Please use 'SYSTEM_URL'.")
-			cfg.URL = cfg.Subsonic.URL
-		}
+func (cfg *Config) HandleDeprecation() { // 
+	if cfg.Debug {
+		slog.Warn("'DEBUG' variable is deprecated, please use LOG_LEVEL=DEBUG instead")
+		cfg.LogLevel = "DEBUG"
 	}
 }
- */
+
 func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
 
 	toTitle := cases.Title(language.Und)

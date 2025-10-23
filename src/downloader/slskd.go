@@ -8,7 +8,7 @@ import (
 	"explo/src/models"
 	"explo/src/util"
 	"fmt"
-	"log"
+	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -131,12 +131,12 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 		return err
 	}
 	trackDetails := fmt.Sprintf("%s - %s", track.CleanTitle, track.Artist)
-	log.Printf("initiating search for %s", trackDetails)
+	slog.Info("initiating search", "track", trackDetails)
 
 	defer func() { // Delete search if ID is empty
 		if track.ID == "" {
 			if delErr := c.deleteSearch(ID); delErr != nil {
-				debug.Debug(fmt.Sprintf("[slskd] failed to delete search: %s", delErr.Error()))
+				slog.Warn("failed to delete search", "service", "slskd", "context", delErr.Error())
 			}
 		}
 	}()
@@ -204,11 +204,11 @@ func (c Slskd) searchStatus(ID, trackDetails string, count int) (bool, error) { 
 	} else if queryResult.IsComplete && (queryResult.FileCount == 0 || queryResult.FileCount == queryResult.LockedFileCount) {
 		return false, fmt.Errorf("search complete, did not find any available files for %s", trackDetails)
 	} else if count >= c.Cfg.Retry {
-		debug.Debug(fmt.Sprintf("search not completed for ID: %s", ID))
+		slog.Debug(fmt.Sprintf("failed to remove %s", ID), debug.RuntimeAttr(""))
 		return false, fmt.Errorf("search wasn't completed after %d retries, skipping %s", count, trackDetails)
 	}
 
-	debug.Debug(fmt.Sprintf("[%d/%d] Searching for %s", count, c.Cfg.Retry, trackDetails))
+	slog.Debug(fmt.Sprintf("[%s] (%d/%d) Searching for %s", "slskd", count, c.Cfg.Retry, trackDetails))
 	time.Sleep(20 * time.Second)
 	return c.searchStatus(ID, trackDetails, count+1)
 }
@@ -332,11 +332,11 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 			return nil
 		}
 
-		log.Printf("[%d/%d] failed to queue download for '%s - %s': %s", i+1, len(files), track.CleanTitle, track.Artist, err.Error())
+		slog.Warn(fmt.Sprintf("[%d/%d] failed to queue download for '%s - %s': %s", i+1, len(files), track.CleanTitle, track.Artist, err.Error()))
 		continue
 	}
 	if err := c.deleteSearch(track.ID); err != nil {
-		debug.Debug(fmt.Sprintf("failed to delete search: %s", err.Error()))
+		slog.Debug("failed to delete search", debug.RuntimeAttr(err.Error()))
 	}
 	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
 }
@@ -400,10 +400,10 @@ func (c Slskd) deleteDownload(user, ID string) error {
 
 func (c *Slskd) Cleanup(track models.Track, fileID string) error {
 	if err := c.deleteSearch(track.ID); err != nil {
-		debug.Debug(fmt.Sprintf("[slskd] failed to delete search request: %v", err))
+		slog.Debug("failed to delete search request", debug.RuntimeAttr(err.Error()))
 	}
 	if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
-		debug.Debug(fmt.Sprintf("[slskd] failed to delete download: %v", err))
+		slog.Debug("failed to delete download", debug.RuntimeAttr(err.Error()))
 	}
 	return nil
 }

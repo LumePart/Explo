@@ -4,7 +4,7 @@ import (
 	"explo/src/debug"
 	"explo/src/models"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -76,7 +76,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				tracker.Counter++
 
 				if tracker.Counter >= 2 {
-					log.Printf("[%s/monitor] %s by %s not found in queue after retries, skipping track", monCfg.Service, track.CleanTitle, track.MainArtist)
+					slog.Info("[monitor] track not found in queue after retries, skipping", "service", monCfg.Service,"track title", track.CleanTitle, "track artist", track.MainArtist)
 					tracker.Skipped = true
 				}
 				continue
@@ -84,41 +84,41 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 
 			if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {					
 				track.Present = true
-				log.Printf("[%s/monitor] %s downloaded successfully",monCfg.Service, track.File)
+				slog.Info("[monitor] file downloaded successfully", "service", monCfg.Service, "file", track.File)
 				file, path := parsePath(track.File)
 				if monCfg.MigrateDownload {
 					if err = moveDownload(monCfg.FromDir, monCfg.ToDir, path, file); err != nil {
-						debug.Debug(err.Error())
+						slog.Debug("error while moving file", debug.RuntimeAttr(err.Error()))
 					} else {
-						debug.Debug(fmt.Sprintf("[%s] track moved successfully", monCfg.Service))
+						slog.Info("track moved successfully", "service", monCfg.Service)
 					}
 				}
 				delete(progressMap, key)
 				track.File = file
 				successDownloads += 1
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
-					debug.Debug(err.Error())
+					slog.Debug("cleanup failed", debug.RuntimeAttr(err.Error()))
 				}
 				continue
 
 			} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred {
 				tracker.LastBytesTransferred = fileStatus.BytesTransferred
 				tracker.LastUpdated = currentTime
-				log.Printf("[%s/monitor] progress updated for %s: %d bytes transferred", monCfg.Service, track.File, fileStatus.BytesTransferred)
+				slog.Info("[monitor] progress updated", "service", monCfg.Service, "file", track.File, "bytes transferred", fileStatus.BytesTransferred)
 				continue
 
 			} else if currentTime.Sub(tracker.LastUpdated) > monCfg.MonitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
-				log.Printf("[%s/monitor] no progress on %s in %v, skipping track", monCfg.Service, track.File, monCfg.MonitorDuration)
+				slog.Info("[monitor] no download progress for file, skipping", "service", monCfg.Service, "file", track.File, "duration", monCfg.MonitorDuration)
 				tracker.Skipped = true
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
-					debug.Debug(err.Error())
+					slog.Debug("cleanup failed", debug.RuntimeAttr(err.Error()))
 				}
 				continue
 			}
 		}
 			// Exit condition: all tracks have been processed or skipped
 		if tracksProcessed(tracks, progressMap) {
-			log.Printf("[%s/monitor] %d out of %d tracks have been downloaded", monCfg.Service, successDownloads, len(tracks))
+			slog.Info("[monitor] Finished", "service", monCfg.Service, "downloaded files", successDownloads, "total tracks", len(tracks))
 			return nil
 		}
 	}
@@ -130,7 +130,7 @@ func tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMon
 		key := fmt.Sprintf("%s|%s", track.ID, track.File)
 		tracker, exists := progressMap[key]
 		if !track.Present && exists && !tracker.Skipped {
-			log.Printf("%s still present", track.File)
+			slog.Info("file still present", "file", track.File)
 			return false
 		}
 	}

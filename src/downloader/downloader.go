@@ -3,7 +3,7 @@ package downloader
 import (
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -28,7 +28,7 @@ type Downloader interface {
 	Monitor
 }
 
-func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) *DownloadClient { // get download services from config and append them to DownloadClient
+func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) { // get download services from config and append them to DownloadClient
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
@@ -39,21 +39,22 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
 		default:
-			log.Fatalf("downloader '%s' not supported", service)
+			return nil, fmt.Errorf("downloader '%s' not supported", service)
 		}
 	}
 
 	return &DownloadClient{
 		Cfg:         cfg,
-		Downloaders: downloader}
+		Downloaders: downloader}, nil
 }
 
 func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
-	if c.Cfg.ExcludeLocal { // remove available tracks, so they can't be added to playlist
+	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
 		filterTracks(tracks, true)
 	}
 	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
-		log.Fatalln(err)
+		slog.Error(err.Error())
+		return
 	}
 	
 	for _, d := range c.Downloaders {
@@ -68,11 +69,11 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 			g.Go(func() error {
 
 				if err := d.QueryTrack(track); err != nil {
-					log.Println(err.Error())
+					slog.Warn(err.Error())
 					return nil
 				}
 				if err := d.GetTrack(track); err != nil {
-					log.Println(err.Error())
+					slog.Warn(err.Error())
 					return nil
 				}
 				return nil
@@ -85,7 +86,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 		if m, ok := d.(Monitor); ok {
 			err := c.MonitorDownloads(*tracks, m)
 			if err != nil {
-				log.Println(err.Error())
+				slog.Warn(err.Error())
 			}
 		}
 	}
@@ -95,14 +96,14 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 func (c *DownloadClient) DeleteSongs() {
 	entries, err := os.ReadDir(c.Cfg.DownloadDir)
 	if err != nil {
-		log.Printf("failed to read directory: %s", err.Error())
+		slog.Error("failed to read directory", "context", err.Error())
 	}
 	for _, entry := range entries {
 		if !(entry.IsDir()) {
 			err = os.Remove(path.Join(c.Cfg.DownloadDir, entry.Name()))
 
 			if err != nil {
-				log.Printf("failed to remove file: %s", err.Error())
+				slog.Error("failed to remove file", "context", err.Error())
 			}
 		}
 	}
@@ -169,10 +170,11 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 		return fmt.Errorf("couldn't open source file: %s", err.Error())
 	}
 
-	defer func() {
+	defer func() error {
 		if cerr := in.Close(); cerr != nil {
-			log.Printf("warning: failed to close source file: %s", cerr)
+			return fmt.Errorf("failed to close source file: %s", cerr)
 		}
+		return nil
 	}()
 
 	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
@@ -185,10 +187,11 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 		return fmt.Errorf("couldn't create destination file: %s", err.Error())
 	}
 
-	defer func() {
+	defer func() error {
 		if err = out.Close(); err != nil {
-			log.Printf("failed to close destination file: %s", err.Error())
+			return fmt.Errorf("failed to close destination file: %s", err.Error())
 		}
+		return nil
 	}()
 
 	if _, err = io.Copy(out, in); err != nil {
