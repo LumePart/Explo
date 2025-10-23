@@ -66,7 +66,9 @@ func main() {
 		downloader.DeleteSongs()
 	}
 	if cfg.Flags.DownloadMode != "force" {
-		client.CheckTracks(tracks) // Check if tracks exist on system before downloading
+		if err := client.CheckTracks(tracks); err != nil { // Check if tracks exist on system before downloading
+			slog.Warn(err.Error())
+		}
 	}
 
 	if cfg.Flags.DownloadMode != "skip" {
