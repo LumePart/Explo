@@ -80,7 +80,7 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 		return fmt.Errorf("failed to unmarshal queryYT body: %s", err.Error())
 	}
 
-	id := gatherVideo(c.Cfg, videos, *track)
+	id := c.gatherVideo(c.Cfg, videos, *track)
 	if id == "" {
 		return fmt.Errorf("no YouTube video found for track: %s - %s", track.Title, track.Artist)
 	}
@@ -136,7 +136,7 @@ func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to 
 func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // gets song under artist topic or personal channel
 
 	for _, v := range videos.Items {
-		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && filter(track, v.Snippet.Title, cfg.Filters.FilterList) {
+		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && !ContainsKeyword(track, v.Snippet.Title, cfg.Filters.FilterList) {
 			return v.ID.VideoID
 		}
 	}
@@ -215,7 +215,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	return true
 }
 
-func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { // filter out video ID
+func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { // filter out video ID
 
 	// Try to get the video from the official or topic channel
 	if id := getTopic(cfg, videos, track); id != "" {
@@ -224,7 +224,7 @@ func gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { //
 	}
 	// If official video isn't found, try the first suitable channel
 	for _, video := range videos.Items {
-		if filter(track, video.Snippet.Title, cfg.Filters.FilterList) {
+		if !ContainsKeyword(track, video.Snippet.Title, c.Cfg.Filters.FilterList) {
 			return video.ID.VideoID
 		}
 	}
@@ -245,16 +245,6 @@ func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) boo
 
 	slog.Error("stream was empty for video", "trackID", track.ID)
 	return false
-}
-
-func filter(track models.Track, videoTitle string, filterList []string) bool { // ignore titles that have a specific keyword (defined in .env)
-
-	for _, keyword := range filterList {
-		if !containsLower(track.Title, keyword) && !containsLower(track.Artist, keyword) && containsLower(videoTitle, keyword) {
-			return false
-		}
-	}
-	return true
 }
 
 func (c *Youtube) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {

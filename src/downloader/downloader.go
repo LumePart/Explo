@@ -50,7 +50,7 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 
 func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
-		filterTracks(tracks, true)
+		filterLocalTracks(tracks, true)
 	}
 	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
 		slog.Error(err.Error())
@@ -90,7 +90,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 			}
 		}
 	}
-	filterTracks(tracks, false)
+	filterLocalTracks(tracks, false)
 }
 
 func (c *DownloadClient) DeleteSongs() {
@@ -109,7 +109,7 @@ func (c *DownloadClient) DeleteSongs() {
 	}
 }
 
-func filterTracks(tracks *[]*models.Track, preDownload bool) { // filter tracks
+func filterLocalTracks(tracks *[]*models.Track, preDownload bool) { // filter local tracks
 	filteredTracks := (*tracks)[:0]
 
 	for _, t := range *tracks {
@@ -128,13 +128,6 @@ func filterTracks(tracks *[]*models.Track, preDownload bool) { // filter tracks
 	*tracks = filteredTracks
 }
 
-func containsLower(str string, substr string) bool {
-
-	return strings.Contains(
-		strings.ToLower(str),
-		strings.ToLower(substr),
-	)
-}
 
 func sanitizeName(s string) string { // return string with only letters and digits
 	var sanitizer = regexp.MustCompile(`[^\p{L}\d]+`)
@@ -156,6 +149,31 @@ func getFilename(title, artist string) string {
 	return fileName
 }
 
+func ContainsKeyword(track models.Track, contentTitle string, filterList []string) bool { // ignore titles that have a specific keyword (defined in .env)
+	title := strings.ToLower(track.Title)
+	artist := strings.ToLower(track.Artist)
+	content := strings.ToLower(contentTitle)
+
+	for _, keyword := range filterList {
+	keyword = strings.ToLower(keyword)
+	if strings.Contains(title, keyword) || strings.Contains(artist, keyword) {
+		continue
+	}
+	if strings.Contains(content, keyword) {
+		return true
+	}
+}
+	return false
+}
+
+func containsLower(str string, substr string) bool {
+
+	return strings.Contains(
+		strings.ToLower(str),
+		strings.ToLower(substr),
+	)
+}
+
 func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error { // Move download from the source dir to the dest dir (download dir)
 	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, track.File)
@@ -163,7 +181,7 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 	if c.Cfg.Slskd.RenameTrack { // Rename file to {title}-{artist} format
 		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
 	}
-	
+
 	info, err := os.Stat(srcFile)
 	if err != nil {
 		return fmt.Errorf("stat error: %s", err.Error())

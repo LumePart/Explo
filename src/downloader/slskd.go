@@ -253,7 +253,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 						file.Extension = sanitizeName(extension) // sanitize extension incase of bad chars
 					}
 
-					if !slices.Contains(c.Cfg.Filters.Extensions, file.Extension) {
+					if !slices.Contains(c.Cfg.Filters.Extensions, file.Extension) && ContainsKeyword(track, file.Name, c.Cfg.Filters.FilterList) {
 						continue
 					}
 
