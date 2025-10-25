@@ -58,9 +58,7 @@ type Credentials struct {
 type SubsonicConfig struct {
 	Version	string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
 	ID string `env:"CLIENT" env-default:"explo"`
-	URL	string `env:"SUBSONIC_URL" env-default:"http://127.0.0.1:4533"`
-	User string `env:"SUBSONIC_USER"`
-	Password string `env:"SUBSONIC_PASSWORD"`
+	
 }
 
 type DownloadConfig struct {
