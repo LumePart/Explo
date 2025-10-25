@@ -69,6 +69,7 @@ type DownloadConfig struct {
 	YoutubeMusic YoutubeMusic
 	Slskd Slskd
 	ExcludeLocal bool
+	UseSubDir bool `env:"USE_SUBDIRECTORY" env-default:"true"`
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
@@ -180,6 +181,8 @@ func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
 	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf("Created for %s by Explo, using ListenBrainz recommendations.", cfg.DiscoveryCfg.Listenbrainz.User)
 	cfg.ClientCfg.PlaylistName = playlistName
 
-	// add playlist name to downloadDir so all songs get downloaded into a single place
-	cfg.DownloadCfg.DownloadDir = fmt.Sprintf("%s%s/", cfg.DownloadCfg.DownloadDir, playlistName)
+	if cfg.DownloadCfg.UseSubDir {
+	// add playlist name to downloadDir so all songs get downloaded to a single sub directory.
+		cfg.DownloadCfg.DownloadDir = fmt.Sprintf("%s%s/", cfg.DownloadCfg.DownloadDir, playlistName)
+	}
 }
