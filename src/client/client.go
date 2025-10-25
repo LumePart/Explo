@@ -31,11 +31,16 @@ type APIClient interface {
 }
 
 // NewClient initializes a client and sets up authentication
-func NewClient(cfg *config.Config, httpClient *util.HttpClient) (*Client, error) {
+func NewClient(cfg *config.Config) (*Client, error) {
 	c := &Client{
 		System: cfg.System,
 		Cfg:    &cfg.ClientCfg,
 	}
+	// Create http client with timeout
+	httpClient := util.NewHttp(util.HttpClientConfig{
+		Timeout: cfg.ClientCfg.HTTPTimeout,
+	})
+
 	switch c.System {
 
 	case "emby":

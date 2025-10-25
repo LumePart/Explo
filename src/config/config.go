@@ -41,6 +41,7 @@ type ClientConfig struct {
 	PlaylistDescr string
 	PlaylistID string
 	Sleep int `env:"SLEEP" env-default:"2"`
+	HTTPTimeout int `env:"CLIENT_HTTP_TIMEOUT" env-default:"10"`
 	Creds Credentials
 	Subsonic SubsonicConfig
 }
@@ -99,7 +100,7 @@ type Slskd struct {
 	DownloadAttempts int `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
 	SlskdDir string `env:"SLSKD_DIR" env-default:"/slskd/"`
 	MigrateDL bool `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
-	Timeout time.Duration `env:"SLSKD_TIMEOUT" env-default:"20s"`
+	Timeout int `env:"SLSKD_TIMEOUT" env-default:"20"`
 	Filters Filters
 	MonitorConfig SlskdMon
 }

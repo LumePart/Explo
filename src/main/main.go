@@ -41,7 +41,7 @@ func main() {
 	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
-	client, err := client.NewClient(&cfg, httpClient)
+	client, err := client.NewClient(&cfg)
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)

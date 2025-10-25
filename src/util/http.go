@@ -12,7 +12,7 @@ import (
 )
 
 type HttpClientConfig struct {
-	Timeout time.Duration
+	Timeout int
 }
 
 type HttpClient struct {
@@ -22,7 +22,7 @@ type HttpClient struct {
 func NewHttp(cfg HttpClientConfig) *HttpClient {
 	return &HttpClient{
 		Client: &http.Client{
-			Timeout: cfg.Timeout * time.Second,
+			Timeout: time.Duration(cfg.Timeout) * time.Second,
 		},
 	}
 }
