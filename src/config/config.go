@@ -58,7 +58,7 @@ type Credentials struct {
 type SubsonicConfig struct {
 	Version	string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
 	ID string `env:"CLIENT" env-default:"explo"`
-	
+	PublicPlaylist bool `env:"PUBLIC_PLAYLIST" env-default:"false"`
 }
 
 type DownloadConfig struct {
