@@ -58,7 +58,7 @@ func main() {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
-	if !cfg.Persist {
+	if !cfg.Persist && cfg.DownloadCfg.UseSubDir {
 		err := client.DeletePlaylist()
 		if err != nil {
 			slog.Warn(err.Error())

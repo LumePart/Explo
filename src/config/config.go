@@ -18,7 +18,8 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg ClientConfig
 	Flags Flags 
-	Persist bool `env:"PERSIST" env-default:"true"`
+	PersistENV bool `env:"PERSIST" env-default:"true"`
+	Persist bool
 	System string `env:"EXPLO_SYSTEM"`
 	Debug bool `env:"DEBUG" env-default:"false"`
 	LogLevel string `env:"LOG_LEVEL" env-default:"WARN"`
@@ -29,6 +30,8 @@ type Flags struct {
 	Playlist string
 	DownloadMode string
 	ExcludeLocal bool
+	Persist bool
+	PersistSet bool
 }
 
 type ClientConfig struct {
@@ -161,6 +164,13 @@ func (cfg *Config) HandleDeprecation() { //
 	if cfg.Debug {
 		slog.Warn("'DEBUG' variable is deprecated, please use LOG_LEVEL=DEBUG instead")
 		cfg.LogLevel = "DEBUG"
+	}
+	if !cfg.PersistENV {
+		slog.Warn("'PERSIST' variable is deprecated, use --persist flag instead")
+	}
+
+	if !cfg.Persist && !cfg.DownloadCfg.UseSubDir {
+		slog.Warn("Deleting tracks requires 'USE_SUBDIRECTORY' to be true")
 	}
 }
 
