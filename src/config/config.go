@@ -100,6 +100,7 @@ type Slskd struct {
 	DownloadAttempts int `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
 	SlskdDir string `env:"SLSKD_DIR" env-default:"/slskd/"`
 	MigrateDL bool `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
+	RenameTrack bool `env:"RENAME_TRACK" env-default:"false"` // Rename track in {title}-{artist} format
 	Timeout int `env:"SLSKD_TIMEOUT" env-default:"20"`
 	Filters Filters
 	MonitorConfig SlskdMon

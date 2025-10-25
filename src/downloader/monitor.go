@@ -82,19 +82,19 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				continue
 			}
 
-			if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {					
+			if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {		
 				track.Present = true
 				slog.Info("[monitor] file downloaded successfully", "service", monCfg.Service, "file", track.File)
-				file, path := parsePath(track.File)
+				var path string
+				track.File, path = parsePath(track.File)
 				if monCfg.MigrateDownload {
-					if err = moveDownload(monCfg.FromDir, monCfg.ToDir, path, file); err != nil {
+					if err = c.MoveDownload(monCfg.FromDir, monCfg.ToDir, path, track); err != nil {
 						slog.Debug("error while moving file", debug.RuntimeAttr(err.Error()))
 					} else {
 						slog.Info("track moved successfully", "service", monCfg.Service)
 					}
 				}
 				delete(progressMap, key)
-				track.File = file
 				successDownloads += 1
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
 					slog.Debug("cleanup failed", debug.RuntimeAttr(err.Error()))

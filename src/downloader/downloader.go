@@ -156,10 +156,14 @@ func getFilename(title, artist string) string {
 	return fileName
 }
 
-func moveDownload(srcDir, destDir, trackPath, file string) error { // Move download from the source dir to the dest dir (download dir)
+func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error { // Move download from the source dir to the dest dir (download dir)
 	trackDir := filepath.Join(srcDir, trackPath)
-	srcFile := filepath.Join(trackDir, file)
+	srcFile := filepath.Join(trackDir, track.File)
 
+	if c.Cfg.Slskd.RenameTrack { // Rename file to {title}-{artist} format
+		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
+	}
+	
 	info, err := os.Stat(srcFile)
 	if err != nil {
 		return fmt.Errorf("stat error: %s", err.Error())
@@ -180,7 +184,7 @@ func moveDownload(srcDir, destDir, trackPath, file string) error { // Move downl
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
 	} 
 
-	dstFile := filepath.Join(destDir, file)
+	dstFile := filepath.Join(destDir, track.File)
 	out, err := os.Create(dstFile)
 	if err != nil {
 		return fmt.Errorf("couldn't create destination file: %s", err.Error())
