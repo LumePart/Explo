@@ -22,7 +22,7 @@ type Config struct {
 	Persist bool
 	System string `env:"EXPLO_SYSTEM"`
 	Debug bool `env:"DEBUG" env-default:"false"`
-	LogLevel string `env:"LOG_LEVEL" env-default:"WARN"`
+	LogLevel string `env:"LOG_LEVEL" env-default:"INFO"`
 }
 
 type Flags struct {
@@ -80,7 +80,7 @@ type Filters struct {
 	Extensions []string `env:"EXTENSIONS" env-default:"flac,mp3"`
 	MinBitDepth int `env:"MIN_BIT_DEPTH" env-default:"8"`
 	MinBitRate int `env:"MIN_BITRATE" env-default:"256"`
-	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended"`
+	FilterList []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended,clean,acapella"`
 }
 
 type Youtube struct {
