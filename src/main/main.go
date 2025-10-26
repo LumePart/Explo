@@ -58,12 +58,14 @@ func main() {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
-	if !cfg.Persist && cfg.DownloadCfg.UseSubDir {
+	if !cfg.Persist {
 		err := client.DeletePlaylist()
 		if err != nil {
 			slog.Warn(err.Error())
 		}
-		downloader.DeleteSongs()
+		if cfg.DownloadCfg.UseSubDir {
+			downloader.DeleteSongs()
+		}
 	}
 	if cfg.Flags.DownloadMode != "force" {
 		if err := client.CheckTracks(tracks); err != nil { // Check if tracks exist on system before downloading
