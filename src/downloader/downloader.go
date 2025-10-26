@@ -226,9 +226,34 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		return fmt.Errorf("chmod failed: %s", err.Error())
 	}
 
-	if err = os.RemoveAll(trackDir); err != nil {
+	// Remove only the moved file, not the directory
+	if err = os.Remove(srcFile); err != nil {
 		return fmt.Errorf("failed to delete original file: %s", err.Error())
 	}
 
+	// to avoid removing additional downloads check if directory is empty before removing
+	isEmpty, err := isDirEmpty(trackDir)
+	if err != nil {
+		return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
+	} else if isEmpty {
+		if err = os.Remove(trackDir); err != nil {
+			return fmt.Errorf("failed to remove empty directory: %s", err.Error())
+		}
+	}
 	return nil
+}
+
+func isDirEmpty(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	// If we get something other than an err, it's not empty
+	_, err = f.Readdir(1)
+	if err == io.EOF {
+		return true, nil // no entries
+	}
+	return false, err
 }
