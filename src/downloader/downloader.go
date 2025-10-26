@@ -248,7 +248,11 @@ func isDirEmpty(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() {
+		if err = f.Close(); err != nil {
+			slog.Error(fmt.Sprintf("failed to close directory path: %s", err.Error()))
+		}
+	}()
 
 	// If we get something other than an err, it's not empty
 	_, err = f.Readdir(1)
