@@ -17,6 +17,10 @@ if [ "$PUID" != "0" ] && [ "$PGID" != "0" ]; then
     # Ensure explo user owns the working directory and data directory
     chown -R explo:explo /opt/explo
     [ -d /data ] && chown -R explo:explo /data
+
+    # Set timezone for non-root user
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
+    echo "$TZ" > /etc/timezone
 fi
 
 echo "[setup] Initializing cron jobs..."
