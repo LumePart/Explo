@@ -38,8 +38,4 @@ RUN chmod +x /start.sh ./explo
 # Can be defined from compose as well
 ENV WEEKLY_EXPLORATION_SCHEDULE="15 0 * * 2"
 
-# Default PUID and PGID
-ENV PUID=1000
-ENV PGID=1000
-
 CMD ["/start.sh"]

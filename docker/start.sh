@@ -1,45 +1,11 @@
 #!/bin/sh
-
-# Handle PUID/PGID
-if [ "$PUID" != "0" ] && [ "$PGID" != "0" ]; then
-    echo "[setup] Setting up user with PUID=$PUID and PGID=$PGID"
-
-    # Create group if it doesn't exist
-    if ! getent group explo > /dev/null 2>&1; then
-        groupadd -g "$PGID" explo
-    fi
-
-    # Create user if it doesn't exist
-    if ! getent passwd explo > /dev/null 2>&1; then
-        useradd -u "$PUID" -g "$PGID" -d /opt/explo -s /bin/sh explo
-    fi
-
-    # Ensure explo user owns the working directory and data directory
-    chown -R explo:explo /opt/explo
-    [ -d /data ] && chown -R explo:explo /data
-
-    # Set timezone for non-root user
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-    echo "$TZ" > /etc/timezone
-fi
-
 echo "[setup] Initializing cron jobs..."
 
-# Determine which user to run cron jobs as
-CRON_USER="root"
-if [ "$PUID" != "0" ] && [ "$PGID" != "0" ]; then
-    CRON_USER="explo"
-    # Create crontab directory for explo user if it doesn't exist
-    mkdir -p /var/spool/cron/crontabs
-    touch "/var/spool/cron/crontabs/$CRON_USER"
-    chown "$CRON_USER:$CRON_USER" "/var/spool/cron/crontabs/$CRON_USER"
-fi
 
-# If block for older versions of Explo ($CRON_SCHEDULE was deprecated in v0.11.0)
+# $CRON_SHCEDULE was deprecated in v0.11.0, keeping this block for backwards compatibility
 if [ -n "$CRON_SCHEDULE" ]; then
-    cmd="apk add --upgrade yt-dlp && cd /opt/explo && ./explo >> /proc/1/fd/1 2>&1"
-    echo "$CRON_SCHEDULE $cmd" > "/var/spool/cron/crontabs/$CRON_USER"
-    chmod 600 "/var/spool/cron/crontabs/$CRON_USER"
+    echo "$CRON_SCHEDULE apk add --upgrade yt-dlp && cd /opt/explo && ./explo >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
+    chmod 600 /etc/crontabs/root
     echo "[setup] Registered single CRON_SCHEDULE job: $CRON_SCHEDULE"
     crond -f -l 2
 fi
@@ -59,19 +25,13 @@ for var in $(env | grep "_SCHEDULE=" | cut -d= -f1); do
   # Default: just run explo if flags are empty
   cmd="apk add --upgrade yt-dlp && cd /opt/explo && ./explo $flags >> /proc/1/fd/1 2>&1"
 
-  echo "$schedule $cmd" >> "/var/spool/cron/crontabs/$CRON_USER"
+  echo "$schedule $cmd" >> /etc/crontabs/root
   echo "[setup] Registered job: $job"
   echo "        Schedule: $schedule"
   echo "        Command : ./explo $flags"
 done
 
-chmod 600 "/var/spool/cron/crontabs/$CRON_USER"
-
+chmod 600 /etc/crontabs/root
 
 echo "[setup] Starting cron..."
-# Drop privileges after cron setup is done
-if [ "$(id -u)" = "0" ]; then
-    exec su-exec explo crond -f -l 2
-fi
-
 crond -f -l 2

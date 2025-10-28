@@ -10,8 +10,6 @@ services:
       # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD. Both paths should be as defined in .env (e.g /my/playlists/:/my/playlists/)
     environment:
       - TZ=UTC # Change this to the timezone set in ListenBrainz (default is UTC)
-      - PUID=1000 # User ID for file permissions (optional, defaults to 1000)
-      - PGID=1000 # Group ID for file permissions (optional, defaults to 1000)
 
       - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2 # Runs weekly, every Tuesday 15 minutes past midnight
       - WEEKLY_EXPLORATION_FLAGS= # Run weekly exploration with default settings
