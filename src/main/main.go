@@ -37,6 +37,7 @@ func main() {
 		log.Fatal(err)
 	}
 	cfg.ReadEnv()
+	cfg.MergeFlags()
 	setup(&cfg)
 	slog.Info("Starting Explo...")
 

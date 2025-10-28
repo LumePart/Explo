@@ -49,14 +49,12 @@ func (cfg *Config) GetFlags() error {
 	// for deprecation purposes (can be removed at a later date)
 	cfg.Flags.PersistSet = persistSet
 
-	cfg.mergeFlags()
 	return nil
 }
 
-func (cfg *Config) mergeFlags() {
+func (cfg *Config) MergeFlags() {
 	cfg.DiscoveryCfg.Listenbrainz.ImportPlaylist = cfg.Flags.Playlist
 	cfg.DownloadCfg.ExcludeLocal = cfg.Flags.ExcludeLocal
-	
 	if cfg.Flags.PersistSet {
 		cfg.Persist = cfg.Flags.Persist
 	} else {
