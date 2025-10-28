@@ -17,11 +17,6 @@ if [ "$PUID" != "0" ] && [ "$PGID" != "0" ]; then
     # Ensure explo user owns the working directory and data directory
     chown -R explo:explo /opt/explo
     [ -d /data ] && chown -R explo:explo /data
-
-    # If running as non-root, exec as the explo user
-    if [ "$(id -u)" = "0" ]; then
-        exec su-exec explo "$0" "$@"
-    fi
 fi
 
 echo "[setup] Initializing cron jobs..."
@@ -36,6 +31,7 @@ if [ "$PUID" != "0" ] && [ "$PGID" != "0" ]; then
     chown "$CRON_USER:$CRON_USER" "/var/spool/cron/crontabs/$CRON_USER"
 fi
 
+# If block for older versions of Explo ($CRON_SCHEDULE was deprecated in v0.11.0)
 if [ -n "$CRON_SCHEDULE" ]; then
     cmd="apk add --upgrade yt-dlp && cd /opt/explo && ./explo >> /proc/1/fd/1 2>&1"
     echo "$CRON_SCHEDULE $cmd" > "/var/spool/cron/crontabs/$CRON_USER"
@@ -67,5 +63,11 @@ done
 
 chmod 600 "/var/spool/cron/crontabs/$CRON_USER"
 
+
 echo "[setup] Starting cron..."
+# Drop privileges after cron setup is done
+if [ "$(id -u)" = "0" ]; then
+    exec su-exec explo crond -f -l 2
+fi
+
 crond -f -l 2
