@@ -144,12 +144,16 @@ func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // ge
 }
 
 func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using yt-dlp
-
 	if c.Cfg.YtdlpPath != "" {
 		goutubedl.Path = c.Cfg.YtdlpPath
 	}
 
-	result, err := goutubedl.New(ctx, videoID, goutubedl.Options{})
+	var opts goutubedl.Options
+	if _, err := os.Stat(c.Cfg.CookiesPath); err == nil {
+		opts.Cookies = c.Cfg.CookiesPath
+	}
+
+	result, err := goutubedl.New(ctx, videoID, opts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create URL for video download (ID: %s): %s", videoID, err.Error())
 	}
