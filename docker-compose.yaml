@@ -20,3 +20,7 @@ services:
 
       #- DAILY_JAMS_SCHEDULE=15 01 * * * # Runs daily, every day 15 minutes past 1PM
       #- DAILY_JAMS_FLAGS=--playlist=daily-jams --download-mode=skip # Get tracks from daily-jams, and only add tracks that are found locally to playlist
+
+      # Uncomment for testing (runs explo right after launcing the container)
+      #- EXECUTE_ON_START=false # Whether to run explo when starting the container (useful for testing)
+      #- START_FLAGS=--persist=false # if needed, set startup flags for testing

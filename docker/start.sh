@@ -34,4 +34,10 @@ done
 chmod 600 /etc/crontabs/root
 
 echo "[setup] Starting cron..."
+
+if [ "$EXCECUTE_ON_START" = "true" ]; then
+    echo "[setup] Executing startup task..."  
+    apk add --upgrade yt-dlp && cd /opt/explo && ./explo $START_FLAGS
+    
+fi
 crond -f -l 2
