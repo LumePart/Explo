@@ -209,7 +209,7 @@ func (c Slskd) searchStatus(ID, trackDetails string, count int) (bool, error) { 
 	}
 
 	slog.Debug(fmt.Sprintf("[%s] (%d/%d) Searching for %s", "slskd", count, c.Cfg.Retry, trackDetails))
-	time.Sleep(20 * time.Second)
+	time.Sleep(15 * time.Second)
 	return c.searchStatus(ID, trackDetails, count+1)
 }
 
