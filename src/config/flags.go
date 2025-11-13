@@ -24,9 +24,9 @@ func (cfg *Config) GetFlags() error {
 	flag.StringVarP(&downloadMode, "download-mode", "d", "normal", "Download mode: 'normal' (download only when track is not found locally), 'skip' (skip downloading, only use tracks already found locally), 'force' (always download, don't check for local tracks)")
 	flag.BoolVarP(&excludeLocal, "exclude-local", "e",  false, "Exclude locally found tracks from the imported playlist")
 	flag.BoolVar(&persist, "persist", true, "Keep playlists between generations")
-	persistSet := flag.Lookup("persist").Changed
 
 	flag.Parse()
+	persistSet := flag.Lookup("persist").Changed
 
 	// Validation for playlist
 	if !contains(validPlaylists, playlist) {

@@ -59,7 +59,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
-		g.SetLimit(2)
+		g.SetLimit(1)
 
 		for _, track := range *tracks {
 			if track.Present {
