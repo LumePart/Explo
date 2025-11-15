@@ -47,13 +47,25 @@ type Youtube struct {
 	DownloadDir string
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Youtube
+	gouTubeOpts goutubedl.Options
 }
 
 func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util.HttpClient) *Youtube { // init downloader cfg for youtube
+	// check for custom ytdlp options
+	if cfg.YtdlpPath != "" {
+		goutubedl.Path = cfg.YtdlpPath
+	}
+
+	var opts goutubedl.Options
+	if _, err := os.Stat(cfg.CookiesPath); err == nil {
+		opts.Cookies = cfg.CookiesPath
+	}
+
 	return &Youtube{
 		DownloadDir: downloadDir,
 		Cfg:         cfg,
-		HttpClient:  httpClient}
+		HttpClient:  httpClient,
+		gouTubeOpts: opts}
 }
 
 func (c *Youtube) GetConf() (MonitorConfig, error) {
@@ -144,16 +156,8 @@ func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // ge
 }
 
 func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using yt-dlp
-	if c.Cfg.YtdlpPath != "" {
-		goutubedl.Path = c.Cfg.YtdlpPath
-	}
 
-	var opts goutubedl.Options
-	if _, err := os.Stat(c.Cfg.CookiesPath); err == nil {
-		opts.Cookies = c.Cfg.CookiesPath
-	}
-
-	result, err := goutubedl.New(ctx, videoID, opts)
+	result, err := goutubedl.New(ctx, videoID, c.gouTubeOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create URL for video download (ID: %s): %s", videoID, err.Error())
 	}
