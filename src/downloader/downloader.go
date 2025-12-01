@@ -178,7 +178,7 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, track.File)
 
-	if c.Cfg.Slskd.RenameTrack { // Rename file to {title}-{artist} format
+	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
 		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
 	}
 
