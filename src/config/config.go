@@ -71,6 +71,7 @@ type DownloadConfig struct {
 	YoutubeMusic YoutubeMusic
 	Slskd Slskd
 	ExcludeLocal bool
+	KeepPermissions bool `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	UseSubDir bool `env:"USE_SUBDIRECTORY" env-default:"true"`
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`

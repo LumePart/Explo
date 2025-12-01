@@ -182,11 +182,6 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
 	}
 
-	info, err := os.Stat(srcFile)
-	if err != nil {
-		return fmt.Errorf("stat error: %s", err.Error())
-	}
-
 	in, err := os.Open(srcFile)
 	if err != nil {
 		return fmt.Errorf("couldn't open source file: %s", err.Error())
@@ -222,8 +217,15 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		return fmt.Errorf("sync failed: %s", err.Error())
 	}
 
-	if err = os.Chmod(dstFile, info.Mode()); err != nil {
-		return fmt.Errorf("chmod failed: %s", err.Error())
+	// Keep permissions, unless specified otherwise in .env (some systems don't support chmod)
+	if c.Cfg.KeepPermissions {
+		info, err := os.Stat(srcFile)
+		if err != nil {
+			return fmt.Errorf("stat error: %s", err.Error())
+		}
+		if err = os.Chmod(dstFile, info.Mode()); err != nil {
+			return fmt.Errorf("chmod failed: %s", err.Error())
+		}
 	}
 
 	// Remove only the moved file, not the directory
