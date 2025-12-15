@@ -127,6 +127,18 @@ type Listenbrainz struct {
 	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 
+type NotifyConfig struct {
+	Service string `env:"NOTIFICATION_SERVICE"`
+	Matrix MatrixNotif
+}
+
+type MatrixNotif struct {
+	UserID string `env:"MATRIX_USERID"`
+	RoomID string `env:"MATRIX_ROOMID"`
+	HomeServer string `env:"MATRIX_HOMESERVER_URL"`
+	AccessToken string `env:"MATRIX_ACCESSTOKEN"`
+}
+
 func (cfg *Config) ReadEnv() {
 
 	// Try to read from .env file first
