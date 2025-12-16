@@ -25,7 +25,7 @@ func sendMatrix(cfg config.MatrixNotif, msg string) {
   notifier := notify.New()
   notifier.UseServices(srvc)
 
-  err = notifier.Send(context.Background(), "", "message")
+  err = notifier.Send(context.Background(), "Explo", msg)
   if err != nil {
     slog.Error(fmt.Sprintf("failed to send Matrix notification: %s", err.Error()))
   }
@@ -33,8 +33,8 @@ func sendMatrix(cfg config.MatrixNotif, msg string) {
   slog.Info("notification sent")
 }
 
-func (c NotificationClient)SendNotification(msg, service string) {
-	switch service {
+func (c NotificationClient) SendNotification(msg string) {
+	switch c.Cfg.Service {
 		case "matrix":
 			sendMatrix(c.Cfg.Matrix, msg)
 	}
