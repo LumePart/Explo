@@ -8,6 +8,7 @@ import (
 
 	"github.com/nikoksr/notify"
 	"github.com/nikoksr/notify/service/matrix"
+	"maunium.net/go/mautrix/id"
 )
 
 type NotificationClient struct {
@@ -15,9 +16,10 @@ type NotificationClient struct {
 }
 
 func sendMatrix(cfg config.MatrixNotif, msg string) {
-	srvc, err := matrix.New(cfg.UserID, cfg.RoomID, cfg.HomeServer, cfg.AccessToken)
+	// UserID and RoomID need to be cast as specific types
+	srvc, err := matrix.New(id.UserID(cfg.UserID), id.RoomID(cfg.RoomID), cfg.HomeServer, cfg.AccessToken)
 	if err != nil {
-    slog.Error(fmt.Sprintln("failed to create new Matrix notification service: %s", err.Error()))
+    slog.Error(fmt.Sprintf("failed to create new Matrix notification service: %s", err.Error()))
   }
 
   notifier := notify.New()
@@ -31,9 +33,9 @@ func sendMatrix(cfg config.MatrixNotif, msg string) {
   slog.Info("notification sent")
 }
 
-func SendNotif(msg, service string) {
+func (c NotificationClient)SendNotification(msg, service string) {
 	switch service {
 		case "matrix":
-			sendMatrix()
+			sendMatrix(c.Cfg.Matrix, msg)
 	}
 }
