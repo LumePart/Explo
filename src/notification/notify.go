@@ -16,11 +16,11 @@ type NotificationClient struct {
 	Cfg config.NotifyConfig
 }
 
-func sendMatrix(cfg config.MatrixNotif, msg string) {
+func sendMatrix(cfg config.MatrixNotif, msg string) error {
 	// UserID and RoomID need to be cast as specific types
 	srvc, err := matrix.New(id.UserID(cfg.UserID), id.RoomID(cfg.RoomID), cfg.HomeServer, cfg.AccessToken)
 	if err != nil {
-    slog.Error(fmt.Sprintf("failed to create new Matrix notification service: %s", err.Error()))
+    return fmt.Errorf("failed to create new Matrix notification service: %s", err.Error())
   }
 
   notifier := notify.New()
@@ -28,39 +28,43 @@ func sendMatrix(cfg config.MatrixNotif, msg string) {
 
   err = notifier.Send(context.Background(), "Explo", msg)
   if err != nil {
-    slog.Error(fmt.Sprintf("failed to send Matrix notification: %s", err.Error()))
+    return fmt.Errorf("failed to send Matrix notification: %s", err.Error())
   }
 
-  slog.Info("notification sent")
+  return nil
 }
 
-func sendDiscord(cfg config.DiscordNotif, msg string) {
+func sendDiscord(cfg config.DiscordNotif, msg string) error {
 	srvc := discord.New()
 
 	if err := srvc.AuthenticateWithBotToken(cfg.BotToken); err != nil {
-		slog.Error(fmt.Sprintf("failed to autenticate against discord: %s", err.Error()))
+		return fmt.Errorf("failed to autenticate against discord: %s", err.Error())
 	}
 
 	srvc.AddReceivers(cfg.ChannelIDs...)
-
 
 	notifier := notify.New()
 	notifier.UseServices(srvc)
 
 	if err := notifier.Send(context.Background(), "Explo", msg); err != nil {
-		slog.Error(fmt.Sprintf("failed to send notification: %s", err.Error()))
+		return fmt.Errorf("failed to send notification: %s", err.Error())
 	}
 
-	slog.Info("notification sent")
-	
+	return nil	
 }
 
 func (c NotificationClient) SendNotification(msg string) {
+	var err error
 	switch c.Cfg.Service {
 		case "matrix":
-			sendMatrix(c.Cfg.Matrix, msg)
+			err = sendMatrix(c.Cfg.Matrix, msg)
 		
 		case "discord":
-			sendDiscord(c.Cfg.Discord, msg)
+			err = sendDiscord(c.Cfg.Discord, msg)
+	}
+	if err != nil {
+		slog.Error(err.Error())
+	} else {
+		slog.Info("notification sent")
 	}
 }
