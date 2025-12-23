@@ -130,6 +130,7 @@ type Listenbrainz struct {
 type NotifyConfig struct {
 	Service string `env:"NOTIFICATION_SERVICE"`
 	Matrix MatrixNotif
+	Discord DiscordNotif
 }
 
 type MatrixNotif struct {
@@ -137,6 +138,12 @@ type MatrixNotif struct {
 	RoomID string `env:"MATRIX_ROOMID"`
 	HomeServer string `env:"MATRIX_HOMESERVER_URL"`
 	AccessToken string `env:"MATRIX_ACCESSTOKEN"`
+}
+
+type DiscordNotif struct {
+	BotToken string `env:"BOT_TOKEN"`
+	ChannelIDs []string `env:"CHANNEL_ID"`
+	
 }
 
 func (cfg *Config) ReadEnv() {
