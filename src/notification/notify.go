@@ -38,7 +38,7 @@ func sendDiscord(cfg config.DiscordNotif, msg string) error {
 	srvc := discord.New()
 
 	if err := srvc.AuthenticateWithBotToken(cfg.BotToken); err != nil {
-		return fmt.Errorf("failed to autenticate against discord: %s", err.Error())
+		return fmt.Errorf("failed to autenticate against Discord: %s", err.Error())
 	}
 
 	srvc.AddReceivers(cfg.ChannelIDs...)
@@ -47,7 +47,7 @@ func sendDiscord(cfg config.DiscordNotif, msg string) error {
 	notifier.UseServices(srvc)
 
 	if err := notifier.Send(context.Background(), "Explo", msg); err != nil {
-		return fmt.Errorf("failed to send notification: %s", err.Error())
+		return fmt.Errorf("failed to send Discord notification: %s", err.Error())
 	}
 
 	return nil	
