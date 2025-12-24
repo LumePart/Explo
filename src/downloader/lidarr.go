@@ -203,7 +203,11 @@ func (c *Lidarr) GetConf() (MonitorConfig, error) {
 
 func (c *Lidarr) QueryTrack(track *models.Track) error {
 
-	slog.Debug("querying track", track)
+	slog.Debug("querying track", 
+	    "title", track.Title,
+	    "artist", track.Artist,
+	    "album", track.Album,
+	)
 	slog.Debug(fmt.Sprintf("looking for track %s by %s on album %s", track.Title, track.Artist, track.Album))
 
 	album, err := c.findBestAlbumMatch(track)
@@ -235,8 +239,11 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 
 func (c Lidarr) GetTrack(track *models.Track) error {
 
-	slog.Debug(fmt.Sprintf("downloading track %s", track.Title))
-
+	slog.Debug("downloading track", 
+	    "title", track.Title,
+	    "artist", track.Artist,
+	    "album", track.Album,
+	)
 	if track.Present {
 		return nil
 	}
