@@ -17,6 +17,7 @@ type Config struct {
 	DownloadCfg DownloadConfig
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg ClientConfig
+	NotifyCfg NotifyConfig
 	Flags Flags 
 	PersistENV bool `env:"PERSIST" env-default:"true"`
 	Persist bool
