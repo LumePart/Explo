@@ -16,6 +16,12 @@ type NotificationClient struct {
 	Cfg config.NotifyConfig
 }
 
+func InitNotify(cfg config.NotifyConfig) NotificationClient {
+	return NotificationClient{
+		Cfg: cfg,
+	}
+}
+
 func sendMatrix(cfg config.MatrixNotif, msg string) error {
 	// UserID and RoomID need to be cast as specific types
 	srvc, err := matrix.New(id.UserID(cfg.UserID), id.RoomID(cfg.RoomID), cfg.HomeServer, cfg.AccessToken)
