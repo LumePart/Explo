@@ -12,6 +12,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+// TODO: reuse notifier instead of creating a new one every time. right now it's fine cause Explo sends 1 message per run
+
 type NotificationClient struct {
 	Cfg config.NotifyConfig
 }
