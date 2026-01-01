@@ -142,8 +142,8 @@ type MatrixNotif struct {
 }
 
 type DiscordNotif struct {
-	BotToken string `env:"BOT_TOKEN"`
-	ChannelIDs []string `env:"CHANNEL_ID"`
+	BotToken string `env:"DISCORD_BOT_TOKEN"`
+	ChannelIDs []string `env:"DISCORD_CHANNEL_ID"`
 }
 
 type HttpNotif struct {
