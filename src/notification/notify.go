@@ -9,6 +9,7 @@ import (
 	"github.com/nikoksr/notify"
 	"github.com/nikoksr/notify/service/discord"
 	"github.com/nikoksr/notify/service/matrix"
+	"github.com/nikoksr/notify/service/http"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -61,6 +62,18 @@ func sendDiscord(cfg config.DiscordNotif, msg string) error {
 	return nil	
 }
 
+func sendHttp(cfg config.HttpNotif, msg string) error {
+	httpNotify := http.New()
+
+	httpNotify.AddReceiversURLs(cfg.ReceiverURLs...)
+	notifier := notify.NewWithServices(httpNotify)
+
+	if err := notifier.Send(context.Background(), "Explo", msg); err != nil {
+		return fmt.Errorf("failed to send HTTP notification: %s", err.Error())
+	}
+	return nil
+}
+
 func (c NotificationClient) SendNotification(msg string) {
 	var err error
 	switch c.Cfg.Service {
@@ -73,7 +86,6 @@ func (c NotificationClient) SendNotification(msg string) {
 		case "": // no system defined
 			return
 		default:
-
 			err = fmt.Errorf("wrong system defined for notifications: %s", c.Cfg.Service)
 	}
 	if err != nil {

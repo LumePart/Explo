@@ -144,9 +144,11 @@ type MatrixNotif struct {
 type DiscordNotif struct {
 	BotToken string `env:"BOT_TOKEN"`
 	ChannelIDs []string `env:"CHANNEL_ID"`
-	
 }
 
+type HttpNotif struct {
+	ReceiverURLs []string `env:"HTTP_RECEIVER"`
+}
 func (cfg *Config) ReadEnv() {
 
 	// Try to read from .env file first
