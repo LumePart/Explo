@@ -71,7 +71,7 @@ func (c NotificationClient) SendNotification(msg string) {
 		case "": // no system defined
 			return
 		default:
-			
+
 			err = fmt.Errorf("wrong system defined for notifications: %s", c.Cfg.Service)
 	}
 	if err != nil {

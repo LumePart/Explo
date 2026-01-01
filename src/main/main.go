@@ -2,16 +2,17 @@ package main
 
 import (
 	"explo/src/debug"
+	"fmt"
 	"log"
-	"os"
 	"log/slog"
+	"os"
 
 	"explo/src/client"
 	"explo/src/config"
 	"explo/src/discovery"
 	"explo/src/downloader"
-	"explo/src/util"
 	"explo/src/notification"
+	"explo/src/util"
 )
 
 type Song struct {
@@ -80,13 +81,16 @@ func main() {
 		downloader.StartDownload(&tracks)
 		if len(tracks) == 0 {
 			slog.Error("couldn't download any tracks")
+			notifyClient.SendNotification("couldn't download any tracks")
 			os.Exit(1)
 		}
 	}
 
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())
+		notifyClient.SendNotification(err.Error())
 	} else {
 		slog.Info("playlist created successfully", "system", cfg.System, "name", cfg.ClientCfg.PlaylistName)
+		notifyClient.SendNotification(fmt.Sprintf("%s playlist created in %s", cfg.ClientCfg.PlaylistName, cfg.System))
 	}
 }
