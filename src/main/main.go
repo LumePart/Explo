@@ -11,6 +11,7 @@ import (
 	"explo/src/discovery"
 	"explo/src/downloader"
 	"explo/src/util"
+	"explo/src/notification"
 )
 
 type Song struct {
@@ -42,6 +43,7 @@ func main() {
 	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
+	notifyClient := notification.InitNotify(cfg.NotifyCfg)
 	client, err := client.NewClient(&cfg)
 	if err != nil {
 		slog.Error(err.Error())
