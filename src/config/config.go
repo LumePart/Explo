@@ -132,6 +132,7 @@ type NotifyConfig struct {
 	Service string `env:"NOTIFICATION_SERVICE"`
 	Matrix MatrixNotif
 	Discord DiscordNotif
+	Http HttpNotif
 }
 
 type MatrixNotif struct {

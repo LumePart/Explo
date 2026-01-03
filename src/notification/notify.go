@@ -37,17 +37,18 @@ func sendMatrix(cfg config.MatrixNotif, msg string) error {
 
   err = notifier.Send(context.Background(), "Explo", msg)
   if err != nil {
-    return fmt.Errorf("failed to send Matrix notification: %s", err.Error())
+    return err
   }
 
   return nil
 }
 
+/* discordgo module (which notify uses) doesn't handle errors correctly
+ no errors are given even when authentication fails*/
 func sendDiscord(cfg config.DiscordNotif, msg string) error {
 	srvc := discord.New()
-
 	if err := srvc.AuthenticateWithBotToken(cfg.BotToken); err != nil {
-		return fmt.Errorf("failed to autenticate against Discord: %s", err.Error())
+		return fmt.Errorf("failed to authenticate against Discord: %s", err.Error())
 	}
 
 	srvc.AddReceivers(cfg.ChannelIDs...)
@@ -82,6 +83,9 @@ func (c NotificationClient) SendNotification(msg string) {
 		
 		case "discord":
 			err = sendDiscord(c.Cfg.Discord, msg)
+
+		case "http":
+			err = sendHttp(c.Cfg.Http, msg)
 		
 		case "": // no system defined
 			return
@@ -91,6 +95,6 @@ func (c NotificationClient) SendNotification(msg string) {
 	if err != nil {
 		slog.Error(err.Error())
 	} else {
-		slog.Info("notification sent")
+		slog.Info("notification sent", "service", c.Cfg.Service)
 	}
 }
