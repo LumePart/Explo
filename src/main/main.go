@@ -48,18 +48,21 @@ func main() {
 	client, err := client.NewClient(&cfg)
 	if err != nil {
 		slog.Error(err.Error())
+		notifyClient.SendNotification(err.Error())
 		os.Exit(1)
 	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
 	if err != nil {
 		slog.Error(err.Error())
+		notifyClient.SendNotification(err.Error())
 		os.Exit(1)
 	}
 
 	tracks, err := discovery.Discover()
 	if err != nil {
 		slog.Error(err.Error())
+		notifyClient.SendNotification(err.Error())
 		os.Exit(1)
 	}
 	if !cfg.Persist {
