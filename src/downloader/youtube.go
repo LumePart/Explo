@@ -130,7 +130,7 @@ func queryYTMusic(track *models.Track, query string) error {
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 
-	track.File = getFilename(track.Title, track.Artist) + ".opus"
+	track.File = fmt.Sprintf("%s.%s",getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {

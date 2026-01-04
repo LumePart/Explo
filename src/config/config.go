@@ -90,6 +90,7 @@ type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath string `env:"YTDLP_PATH"`
+	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"`
 	CookiesPath string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters Filters
 }
