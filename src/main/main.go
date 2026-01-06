@@ -30,7 +30,7 @@ func initHttpClient() *util.HttpClient {
 func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, handles deprecation
 	cfg.HandleDeprecation()
 	debug.Init(cfg.LogLevel)
-	cfg.GetPlaylistName()
+	cfg.GenPlaylistName()
 }
 
 func main() {

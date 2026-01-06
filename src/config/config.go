@@ -3,10 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
-	"log/slog"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"golang.org/x/text/cases"
@@ -42,6 +43,7 @@ type ClientConfig struct {
 	DownloadDir string `env:"DOWNLOAD_DIR" env-default:"/data/"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	PlaylistName string
+	PlaylistNFormat string `env:"PLAYLISTNAME_FORMAT" env-default:"week"`
 	PlaylistDescr string
 	PlaylistID string
 	Sleep int `env:"SLEEP" env-default:"2"`
@@ -200,25 +202,55 @@ func (cfg *Config) HandleDeprecation() { //
 	}
 }
 
-func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
+func (cfg *Config) GenPlaylistName() { // Generate playlist name and description
 
-	toTitle := cases.Title(language.Und)
-	
-	playlistName := toTitle.String(cfg.Flags.Playlist)
-	if cfg.Persist {
-		year, week := time.Now().ISOWeek()
-		if cfg.Flags.Playlist != "daily-jams" {
-			playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
-		} else {
-			day := time.Now().YearDay()
-			playlistName = fmt.Sprintf("%s-%d-Day%d", playlistName, year, day)
-		}
-	}
-	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf("Created for %s by Explo, using ListenBrainz recommendations.", cfg.DiscoveryCfg.Listenbrainz.User)
-	cfg.ClientCfg.PlaylistName = playlistName
+
+	cfg.ClientCfg.PlaylistName = getPlaylistName(cfg.Flags.Playlist, cfg.ClientCfg.PlaylistNFormat, cfg.Persist)
+	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf(
+		"Created for %s by Explo, using ListenBrainz recommendations.",
+		cfg.DiscoveryCfg.Listenbrainz.User)
 
 	if cfg.DownloadCfg.UseSubDir {
 	// add playlist name to downloadDir so all songs get downloaded to a single sub directory.
-		cfg.DownloadCfg.DownloadDir = fmt.Sprintf("%s%s/", cfg.DownloadCfg.DownloadDir, playlistName)
+		cfg.DownloadCfg.DownloadDir = filepath.Join(
+			cfg.DownloadCfg.DownloadDir,
+			cfg.ClientCfg.PlaylistName)
 	}
+}
+
+func getPlaylistName(playlistType, format string, persist bool) string {
+	now := time.Now()
+	toTitle := cases.Title(language.Und)
+	playlistName := toTitle.String(playlistType)
+
+	if persist {
+		switch format {
+		case "date":
+			playlistName = fmt.Sprintf(
+				"%s-%s",
+				playlistName,
+				now.Format("2006-01-02"),
+			)
+		default:
+			year, week := now.ISOWeek()
+
+			if playlistType != "daily-jams" {
+				playlistName = fmt.Sprintf(
+					"%s-%d-Week%02d",
+					playlistName,
+					year,
+					week,
+				)
+			} else {
+				playlistName = fmt.Sprintf(
+					"%s-%d-Day%03d",
+					playlistName,
+					year,
+					now.YearDay(),
+				)
+			}
+		}
+	}
+
+	return playlistName
 }
