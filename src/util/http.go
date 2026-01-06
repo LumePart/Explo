@@ -17,6 +17,7 @@ type HttpClientConfig struct {
 
 type HttpClient struct {
 	Client *http.Client
+	UserAgent string
 }
 
 func NewHttp(cfg HttpClientConfig) *HttpClient {
@@ -24,6 +25,7 @@ func NewHttp(cfg HttpClientConfig) *HttpClient {
 		Client: &http.Client{
 			Timeout: time.Duration(cfg.Timeout) * time.Second,
 		},
+		UserAgent: "Explo (+https://github.com/LumePart/explo))",
 	}
 }
 
@@ -34,6 +36,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
+	req.Header.Add("User-Agent", c.UserAgent)
 
 	for key, value := range headers {
 		req.Header.Add(key, value)
