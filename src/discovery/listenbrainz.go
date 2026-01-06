@@ -57,6 +57,9 @@ type Metadata struct {
 type Recordings map[string]Metadata
 
 type CreatedFor struct {
+	Count         int `json:"count"`
+	Offset        int `json:"offset"`
+	PlaylistCount int `json:"playlist_count"`
 	Playlists     []struct {
 		Playlist struct {
 			Creator    string    `json:"creator"`
@@ -127,7 +130,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 
 	switch c.cfg.Discovery {
 	case "playlist":
-		id, err := c.getImportPlaylist(c.cfg.User)
+		id, err := c.getImportPlaylist(c.cfg.User, "", 0)
 		if err != nil {
 			return nil, err
 		}
@@ -227,8 +230,8 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 }
 
-func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get user LB playlists and find wanted playlists ID
-	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
+func (c *ListenBrainz) getImportPlaylist(user, id string, offset int) (string, error) { // Get user LB playlists and find wanted playlists ID
+	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor?offset=%d", user, offset))
 	if err != nil {
 		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 	}
@@ -238,7 +241,18 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get u
 	if err != nil {
 		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 	}
+	if id != "" {
+		return id, nil
+	}
+	if playlists.Offset + playlists.Count <= playlists.PlaylistCount {
+		id, _ = c.parseCreatedFor(playlists)
+		return c.getImportPlaylist(user, id, playlists.Count)
+	} else {
+		return c.parseCreatedFor(playlists)
+	}
+}
 
+func (c ListenBrainz) parseCreatedFor(playlists CreatedFor) (string, error) {
 	var currentWeek, currentDay int
 	now := time.Now().Local()
 	if c.cfg.ImportPlaylist != "daily-jams" {
