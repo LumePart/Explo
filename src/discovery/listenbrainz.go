@@ -303,37 +303,38 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 	if err != nil {
 		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
-
 	var exploration Exploration
 	err = util.ParseResp(body, &exploration)
 	if err != nil {
 		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
-
-	if len(exploration.Playlist.Tracks) == 0 {
+	srcTracks := exploration.Playlist.Tracks
+	if len(srcTracks) == 0 {
 		return nil, fmt.Errorf("no tracks found in playlist %s", identifier)
 	}
 
-	tracks := make([]*models.Track, 0, len(exploration.Playlist.Tracks))
-	for _, track := range exploration.Playlist.Tracks {
+	tracks := make([]*models.Track, 0, len(srcTracks))
+	for _, track := range srcTracks {
 		title := track.Title
 		artist := track.Creator
 		mainArtist := track.Creator
 
-		if len(track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists) > 1 {
-			mainArtist = track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+		trackMeta := track.Extension.HTTPSJspfTrack.AdditionalMetadata
+		trackArtists := trackMeta.Artists
+
+		if len(trackMeta.Artists) > 1 {
+			mainArtist = trackMeta.Artists[0].ArtistCreditName
 			if singleArtist {
-				var tempTitle strings.Builder
-				joinPhrase := " feat. "
-				for i, artist := range track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[1:] {
-					if i > 0 {
-						joinPhrase = ", "
-					}
-					tempTitle.WriteString(joinPhrase)
-					tempTitle.WriteString(artist.ArtistCreditName)
-				}
-				title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
-				artist = track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+				var b strings.Builder
+				b.WriteString(" feat. ")
+				b.WriteString(trackArtists[1].ArtistCreditName)
+
+				for _, a := range trackArtists[2:] {
+					b.WriteString(", ")
+					b.WriteString(a.ArtistCreditName)
+}
+				title = b.String()
+				artist = trackArtists[0].ArtistCreditName
 			}
 		}
 
