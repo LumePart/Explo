@@ -196,34 +196,39 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 	tracks := make([]*models.Track, 0, len(recordings))
 	for _, recording := range recordings {
-		title := recording.Recording.Name
+		rec := recording.Recording
+
+		title := rec.Name
 		artist := recording.Artist.Name
 		mainArtist := recording.Artist.Name
 
-		if len(recording.Artist.Artists) > 1 {
-			mainArtist = recording.Artist.Artists[0].Name
+		recArtists := recording.Artist.Artists
+		
+		if len(recArtists) > 1 {
+			mainArtist = recArtists[0].Name
 			if singleArtist {
-				var tempTitle strings.Builder
-				joinPhrase := " feat. "
-				for i, artist := range recording.Artist.Artists[1:] {
-					if i > 0 {
-						joinPhrase = ", "
-					}
-					tempTitle.WriteString(joinPhrase)
-					tempTitle.WriteString(artist.Name)
+				var b strings.Builder
+				b.WriteString(title)
+				b.WriteString(" feat. ")
+				b.WriteString(recArtists[1].Name)
+
+				for _, a := range recArtists[2:] {
+					b.WriteString(", ")
+					b.WriteString(a.Name)
 				}
-				title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
-				artist = recording.Artist.Artists[0].Name
-			}
+
+				title = b.String()
+				artist = mainArtist
+				}
 		}
 
 		tracks = append(tracks, &models.Track{
 			Album:       recording.Release.Name,
 			Artist:      artist,
 			MainArtist:  mainArtist,
-			CleanTitle:  recording.Recording.Name,
+			CleanTitle:  rec.Name,
 			Title:       title,
-			Duration:    recording.Recording.Length,
+			Duration:    rec.Length,
 		})
 	}
 
