@@ -130,7 +130,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 
 	switch c.cfg.Discovery {
 	case "playlist":
-		id, err := c.getImportPlaylist(c.cfg.User, "", 0)
+		id, err := c.getImportPlaylist(c.cfg.User)
 		if err != nil {
 			return nil, err
 		}
@@ -230,26 +230,32 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 }
 
-func (c *ListenBrainz) getImportPlaylist(user, id string, offset int) (string, error) { // Get user LB playlists and find wanted playlists ID
-	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor?offset=%d", user, offset))
-	if err != nil {
-		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
-	}
+func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get user LB playlists and find wanted playlists ID
+	var offset int
 
-	var playlists CreatedFor
-	err = util.ParseResp(body, &playlists)
-	if err != nil {
-		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
+	for {
+		body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor?offset=%d", user, offset))
+		if err != nil {
+			return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
+		}
+
+		var playlists CreatedFor
+		err = util.ParseResp(body, &playlists)
+		if err != nil {
+			return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
+		}
+	
+		if id, err := c.parseCreatedFor(playlists); err != nil {
+			return id, nil
+		}
+
+		if playlists.Count+playlists.Offset >= playlists.PlaylistCount {
+			break
+		}
+
+		offset += playlists.Count
 	}
-	if id != "" {
-		return id, nil
-	}
-	if playlists.Offset + playlists.Count <= playlists.PlaylistCount {
-		id, _ = c.parseCreatedFor(playlists)
-		return c.getImportPlaylist(user, id, playlists.Count)
-	} else {
-		return c.parseCreatedFor(playlists)
-	}
+	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one", c.cfg.ImportPlaylist,)
 }
 
 func (c ListenBrainz) parseCreatedFor(playlists CreatedFor) (string, error) {
