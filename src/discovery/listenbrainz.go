@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 	"log/slog"
+	"errors"
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -255,36 +256,46 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get u
 
 		offset += playlists.Count
 	}
-	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one", c.cfg.ImportPlaylist,)
+	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one", c.cfg.ImportPlaylist)
 }
 
-func (c ListenBrainz) parseCreatedFor(playlists CreatedFor) (string, error) {
+func (c *ListenBrainz) parseCreatedFor(playlists CreatedFor) (string, error) {
 	var currentWeek, currentDay int
 	now := time.Now().Local()
-	if c.cfg.ImportPlaylist != "daily-jams" {
-		_, currentWeek = now.ISOWeek()
-	} else {
+	isDaily := c.cfg.ImportPlaylist == "daily-jams"
+	if isDaily {
 		currentDay = now.YearDay()
+	} else {
+		_, currentWeek = now.ISOWeek()
 	}
 	
-	for _, playlist := range playlists.Playlists {
-		var timeMatch bool
-		
-		if c.cfg.ImportPlaylist != "daily-jams" {
-			_, creationWeek := playlist.Playlist.Date.Local().ISOWeek()
-			timeMatch = currentWeek == creationWeek
-		} else {
-			creationDay := playlist.Playlist.Date.Local().YearDay()
-			timeMatch = currentDay == creationDay
+	for _, p := range playlists.Playlists {
+		meta := p.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata
+
+		if meta.AlgorithmMetadata.SourcePatch != c.cfg.ImportPlaylist {
+			continue
 		}
 
-		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.cfg.ImportPlaylist && timeMatch {
-			id := strings.Split(playlist.Playlist.Identifier, "/")
-			return id[len(id)-1], nil
+		created := p.Playlist.Date.Local()
+		var timeMatch bool
+
+		if isDaily {
+			timeMatch = created.YearDay() == currentDay
+		} else {
+			_, w := created.ISOWeek()
+			timeMatch = w == currentWeek
 		}
+
+		if !timeMatch {
+			continue
+		}
+
+		parts := strings.Split(p.Playlist.Identifier, "/")
+		return parts[len(parts)-1], nil
 	}
-	slog.Debug(fmt.Sprintf("playlist output: %v", playlists))
-	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one this week", c.cfg.ImportPlaylist)
+
+	slog.Debug("playlist output", "playlists", playlists)
+	return "", errors.New("playlist not found in this page")
 }
 
 func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*models.Track, error) {
