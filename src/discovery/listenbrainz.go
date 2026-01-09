@@ -238,11 +238,26 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get user LB playlists and find wanted playlists ID
 	var offset int
-
 	for {
-		body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor?offset=%d", user, offset))
+		var body []byte
+		var err error
+
+		for retries := range 5 {
+			body, err = c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor?offset=%d", user, offset))
+			if err == nil {
+				break
+			}
+
+			slog.Warn(
+				"failed getting response from ListenBrainz, retrying in 5 minutes",
+				"retry", retries+1,
+				"error", err,
+			)
+			time.Sleep(5 * time.Minute)
+		}
+
 		if err != nil {
-			return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
+			return "", fmt.Errorf("failed getting ListenBrainz playlist after retries: %s", err.Error())
 		}
 
 		var playlists CreatedFor
@@ -251,7 +266,7 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get u
 			return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 		}
 	
-		if id, err := c.parseCreatedFor(playlists); err != nil {
+		if id, err := c.parseCreatedFor(playlists); err == nil {
 			return id, nil
 		}
 
