@@ -135,18 +135,20 @@ func sanitizeName(s string) string { // return string with only letters and digi
 }
 
 func getFilename(title, artist string) string {
+	const maxBytes = 240
 
 	// Remove illegal characters for file naming
 	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
 	t := re.ReplaceAllString(title, "_")
 	a := re.ReplaceAllString(artist, "_")
 
-	fileName := fmt.Sprintf("%s-%s", t, a)
-	if len(fileName) > 240 { // truncate file name if it's longer than 240 chars
-		return fileName[:240]
+	// truncate long filename
+	runes := []rune(fmt.Sprintf("%s-%s", t, a))
+	for len(runes) > 0 && len(string(runes)) > maxBytes {
+		runes = runes[:len(runes)-1]
 	}
 
-	return fileName
+	return string(runes)
 }
 
 func ContainsKeyword(track models.Track, contentTitle string, filterList []string) bool { // ignore titles that have a specific keyword (defined in .env)
