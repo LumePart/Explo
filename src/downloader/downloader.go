@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -128,19 +127,12 @@ func filterLocalTracks(tracks *[]*models.Track, preDownload bool) { // filter lo
 	*tracks = filteredTracks
 }
 
-
-func sanitizeName(s string) string { // return string with only letters and digits
-	var sanitizer = regexp.MustCompile(`[^\p{L}\d]+`)
-	return sanitizer.ReplaceAllString(s, "")
-}
-
 func getFilename(title, artist string) string {
 	const maxBytes = 240
 
 	// Remove illegal characters for file naming
-	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
-	t := re.ReplaceAllString(title, "_")
-	a := re.ReplaceAllString(artist, "_")
+	t := util.FilenameSafe(title)
+	a :=util.FilenameSafe(artist)
 
 	// truncate long filename
 	runes := []rune(fmt.Sprintf("%s-%s", t, a))

@@ -239,9 +239,9 @@ func (c Slskd) deleteSearch(ID string) error {
 }
 
 func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]File, error) { // Collect all files in response that match criteria
-	sanitizedArtist := sanitizeName(track.MainArtist)
-	sanitizedAlbum := sanitizeName(track.Album)
-	sanitizedTitle := sanitizeName(track.CleanTitle)
+	sanitizedArtist := util.AlnumOnly(track.MainArtist)
+	sanitizedAlbum := util.AlnumOnly(track.Album)
+	sanitizedTitle := util.AlnumOnly(track.CleanTitle)
 
 	files := slices.Collect(func(yield func(File) bool) {
 		for _, result := range searchResults {
@@ -250,7 +250,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 					file.Extension = strings.TrimPrefix(strings.ToLower(file.Extension), ".")
 					if file.Extension == "" {
 						extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(string(file.Name))), ".")
-						file.Extension = sanitizeName(extension) // sanitize extension incase of bad chars
+						file.Extension = util.AlnumOnly(extension) // sanitize extension incase of bad chars
 					}
 
 					if !slices.Contains(c.Cfg.Filters.Extensions, file.Extension) && ContainsKeyword(track, file.Name, c.Cfg.Filters.FilterList) {
@@ -261,7 +261,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 						continue
 					}
 
-					sanitizedFilename := sanitizeName(string(file.Name))
+					sanitizedFilename := util.AlnumOnly(string(file.Name))
 					if (containsLower(sanitizedFilename, sanitizedArtist) || containsLower(sanitizedFilename, sanitizedAlbum)) && containsLower(sanitizedFilename, sanitizedTitle) {
 						file.Username = result.Username
 						if !yield(file) {
