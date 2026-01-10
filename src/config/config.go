@@ -220,37 +220,39 @@ func (cfg *Config) GenPlaylistName() { // Generate playlist name and description
 
 func getPlaylistName(playlistType, format string, persist bool) string {
 	now := time.Now()
+
 	toTitle := cases.Title(language.Und)
-	playlistName := toTitle.String(playlistType)
+	base := toTitle.String(playlistType)
 
-	if persist {
-		switch format {
-		case "date":
-			playlistName = fmt.Sprintf(
-				"%s-%s",
-				playlistName,
-				now.Format("2006-01-02"),
-			)
-		default:
-			year, week := now.ISOWeek()
-
-			if playlistType != "daily-jams" {
-				playlistName = fmt.Sprintf(
-					"%s-%d-Week%02d",
-					playlistName,
-					year,
-					week,
-				)
-			} else {
-				playlistName = fmt.Sprintf(
-					"%s-%d-Day%03d",
-					playlistName,
-					year,
-					now.YearDay(),
-				)
-			}
-		}
+	// Non-persistent playlists always use base name
+	if !persist {
+		return base
 	}
 
-	return playlistName
+	// Explicit date-based naming
+	if format == "date" {
+		return fmt.Sprintf(
+			"%s-%s",
+			base,
+			now.Format("2006-01-02"),
+		)
+	}
+
+	// Persistent, non-date naming
+	if playlistType == "daily-jams" {
+		return fmt.Sprintf(
+			"%s-%d-Day%d",
+			base,
+			now.Year(),
+			now.YearDay(),
+		)
+	}
+
+	year, week := now.ISOWeek()
+	return fmt.Sprintf(
+		"%s-%d-Week%d",
+		base,
+		year,
+		week,
+	)
 }
