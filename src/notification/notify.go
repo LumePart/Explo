@@ -56,7 +56,7 @@ func sendDiscord(cfg config.DiscordNotif, msg string) error {
 	notifier := notify.New()
 	notifier.UseServices(srvc)
 
-	if err := notifier.Send(context.Background(), "**Explo**", msg); err != nil {
+	if err := notifier.Send(context.Background(), "Explo", msg); err != nil {
 		return fmt.Errorf("failed to send Discord notification: %s", err.Error())
 	}
 
