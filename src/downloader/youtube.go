@@ -145,7 +145,8 @@ func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to 
 	return nil
 }
 
-func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // gets song under artist topic or personal channel
+// gets song under artist topic or personal channel
+func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string {
 
 	for _, v := range videos.Items {
 		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && !ContainsKeyword(track, v.Snippet.Title, cfg.Filters.FilterList) {
@@ -155,7 +156,8 @@ func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // ge
 	return ""
 }
 
-func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using yt-dlp
+// gets video stream using yt-dlp
+func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) {
 
 	result, err := goutubedl.New(ctx, videoID, c.gouTubeOpts)
 	if err != nil {
@@ -223,7 +225,8 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	return true
 }
 
-func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { // filter out video ID
+// filter out video ID
+func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string {
 
 	// Try to get the video from the official or topic channel
 	if id := getTopic(cfg, videos, track); id != "" {

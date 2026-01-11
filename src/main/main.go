@@ -27,7 +27,8 @@ func initHttpClient() *util.HttpClient {
 	})
 }
 
-func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, handles deprecation
+// Inits debug, gets playlist name, if needed, handles deprecation
+func setup(cfg *config.Config) {
 	cfg.HandleDeprecation()
 	debug.Init(cfg.LogLevel)
 	cfg.GenPlaylistName()

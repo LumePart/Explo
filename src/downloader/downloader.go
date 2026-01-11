@@ -26,8 +26,8 @@ type Downloader interface {
 	GetTrack(*models.Track) error
 	Monitor
 }
-
-func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) { // get download services from config and append them to DownloadClient
+// get download services from config and append them to DownloadClient
+func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) {
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
@@ -143,7 +143,8 @@ func getFilename(title, artist string) string {
 	return string(runes)
 }
 
-func ContainsKeyword(track models.Track, contentTitle string, filterList []string) bool { // ignore titles that have a specific keyword (defined in .env)
+// ignore titles that have a specific keyword (defined in .env)
+func ContainsKeyword(track models.Track, contentTitle string, filterList []string) bool {
 	title := strings.ToLower(track.Title)
 	artist := strings.ToLower(track.Artist)
 	content := strings.ToLower(contentTitle)
@@ -168,7 +169,8 @@ func containsLower(str string, substr string) bool {
 	)
 }
 
-func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error { // Move download from the source dir to the dest dir (download dir)
+// Move download from the source dir to the dest dir (download dir)
+func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
 	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, track.File)
 

@@ -125,7 +125,8 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 	return nil
 }
 
-func tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMonitor) bool { // Checks if all tracks are processed (either downloaded or skipped)
+// Checks if all tracks are processed (either downloaded or skipped)
+func tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMonitor) bool {
 	for _, track := range tracks {
 		key := fmt.Sprintf("%s|%s", track.ID, track.File)
 		tracker, exists := progressMap[key]

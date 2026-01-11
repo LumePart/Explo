@@ -236,7 +236,8 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 }
 
-func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get user LB playlists and find wanted playlists ID
+// Get user LB playlists and find wanted playlists ID
+func (c *ListenBrainz) getImportPlaylist(user string) (string, error) {
 	var offset int
 	for {
 		var body []byte
@@ -372,7 +373,8 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 
 }
 
-func (c *ListenBrainz) lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API requests
+// Handle ListenBrainz API requests
+func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 
 
 	reqURL := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)

@@ -238,7 +238,8 @@ func (c Slskd) deleteSearch(ID string) error {
 	return nil
 }
 
-func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]File, error) { // Collect all files in response that match criteria
+// Collect all files in response that match criteria
+func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]File, error) {
 	sanitizedArtist := util.AlnumOnly(track.MainArtist)
 	sanitizedAlbum := util.AlnumOnly(track.Album)
 	sanitizedTitle := util.AlnumOnly(track.CleanTitle)
