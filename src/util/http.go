@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"explo/src/debug"
+	"explo/src/logging"
 )
 
 type HttpClientConfig struct {
@@ -59,7 +59,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slog.Debug("response info", debug.RuntimeAttr(string(body)))
+		slog.Debug("response info", logging.RuntimeAttr(string(body)))
 		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
 	}
 
@@ -69,7 +69,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 func ParseResp[T any](body []byte, target *T) error {
 
 	if err := json.Unmarshal(body, target); err != nil {
-		slog.Debug("response info", debug.RuntimeAttr(string(body)))
+		slog.Debug("response info", logging.RuntimeAttr(string(body)))
 		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil

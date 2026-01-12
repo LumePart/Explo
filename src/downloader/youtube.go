@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	cfg "explo/src/config"
-	"explo/src/debug"
+	"explo/src/logging"
 	"explo/src/models"
 	"explo/src/util"
 
@@ -197,7 +197,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	if _, err = io.Copy(file, stream); err != nil {
 		slog.Error("failed to copy stream to file", "context", err.Error())
 		if err = os.Remove(input); err != nil {
-			slog.Debug(fmt.Sprintf("failed to remove file %s", input), debug.RuntimeAttr(err.Error()))
+			slog.Debug(fmt.Sprintf("failed to remove file %s", input), logging.RuntimeAttr(err.Error()))
 		}
 		return false
 	}
@@ -215,12 +215,12 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	if err = cmd.Run(); err != nil {
 		slog.Error("failed to convert audio", "context", err.Error())
 		if err = os.Remove(input); err != nil {
-			slog.Debug(fmt.Sprintf("failed to remove %s", input), debug.RuntimeAttr(err.Error()))
+			slog.Debug(fmt.Sprintf("failed to remove %s", input), logging.RuntimeAttr(err.Error()))
 		}
 		return false
 	}
 	if err = os.Remove(input); err != nil {
-		slog.Debug(fmt.Sprintf("failed to remove %s", input), debug.RuntimeAttr(err.Error()))
+		slog.Debug(fmt.Sprintf("failed to remove %s", input), logging.RuntimeAttr(err.Error()))
 	}
 	return true
 }

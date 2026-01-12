@@ -4,7 +4,7 @@ import (
 	"bytes" // Could be moved to util for all clients
 	"encoding/json"
 	"explo/src/config"
-	"explo/src/debug"
+	"explo/src/logging"
 	"explo/src/models"
 	"explo/src/util"
 	"fmt"
@@ -204,7 +204,7 @@ func (c Slskd) searchStatus(ID, trackDetails string, count int) (bool, error) { 
 	} else if queryResult.IsComplete && (queryResult.FileCount == 0 || queryResult.FileCount == queryResult.LockedFileCount) {
 		return false, fmt.Errorf("search complete, did not find any available files for %s", trackDetails)
 	} else if count >= c.Cfg.Retry {
-		slog.Debug(fmt.Sprintf("failed to remove %s", ID), debug.RuntimeAttr(""))
+		slog.Debug(fmt.Sprintf("failed to remove %s", ID), logging.RuntimeAttr(""))
 		return false, fmt.Errorf("search wasn't completed after %d retries, skipping %s", count, trackDetails)
 	}
 
@@ -337,7 +337,7 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 		continue
 	}
 	if err := c.deleteSearch(track.ID); err != nil {
-		slog.Debug("failed to delete search", debug.RuntimeAttr(err.Error()))
+		slog.Debug("failed to delete search", logging.RuntimeAttr(err.Error()))
 	}
 	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
 }
@@ -401,10 +401,10 @@ func (c Slskd) deleteDownload(user, ID string) error {
 
 func (c *Slskd) Cleanup(track models.Track, fileID string) error {
 	if err := c.deleteSearch(track.ID); err != nil {
-		slog.Debug("failed to delete search request", debug.RuntimeAttr(err.Error()))
+		slog.Debug("failed to delete search request", logging.RuntimeAttr(err.Error()))
 	}
 	if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
-		slog.Debug("failed to delete download", debug.RuntimeAttr(err.Error()))
+		slog.Debug("failed to delete download", logging.RuntimeAttr(err.Error()))
 	}
 	return nil
 }

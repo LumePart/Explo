@@ -1,7 +1,7 @@
 package main
 
 import (
-	"explo/src/debug"
+	"explo/src/logging"
 	"fmt"
 	"log"
 	"log/slog"
@@ -30,7 +30,7 @@ func initHttpClient() *util.HttpClient {
 // Inits debug, gets playlist name, if needed, handles deprecation
 func setup(cfg *config.Config) {
 	cfg.HandleDeprecation()
-	debug.Init(cfg.LogLevel)
+	logging.Init(cfg.LogLevel)
 	cfg.GenPlaylistName()
 }
 
@@ -43,6 +43,7 @@ func main() {
 	cfg.MergeFlags()
 	setup(&cfg)
 	slog.Info("Starting Explo...")
+	return
 
 	httpClient := initHttpClient()
 	notifyClient := notification.InitNotify(cfg.NotifyCfg)
