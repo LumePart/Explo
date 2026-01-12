@@ -15,9 +15,6 @@ func Init(level string) {
 	slog.SetDefault(logger)
 }
 
-// checks if log line needs to be sent as a notification
-func checkNotify()
-
 func RuntimeAttr(ctx string) slog.Attr {
 		_, file, line, ok := runtime.Caller(1)
         if ok {
