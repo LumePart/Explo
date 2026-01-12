@@ -43,7 +43,6 @@ func main() {
 	cfg.MergeFlags()
 	setup(&cfg)
 	slog.Info("Starting Explo...")
-	return
 
 	httpClient := initHttpClient()
 	notifyClient := notification.InitNotify(cfg.NotifyCfg)
