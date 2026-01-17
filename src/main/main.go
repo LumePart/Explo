@@ -11,7 +11,6 @@ import (
 	"explo/src/config"
 	"explo/src/discovery"
 	"explo/src/downloader"
-	"explo/src/notification"
 	"explo/src/util"
 )
 
@@ -45,7 +44,7 @@ func main() {
 	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
-	notifyClient := notification.InitNotify(cfg.NotifyCfg)
+	notifyClient := logging.InitNotify(cfg.NotifyCfg)
 	client, err := client.NewClient(&cfg)
 	if err != nil {
 		slog.Error(err.Error())
