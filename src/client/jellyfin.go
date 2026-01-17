@@ -168,7 +168,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 }
 
 func (c *Jellyfin) SearchPlaylist() error {
-	queryParams := fmt.Sprintf("/Items?mediaTypes=Playlist&searchTerm=%s&recursive=true", c.Cfg.PlaylistName)
+	queryParams := fmt.Sprintf("/Search/Hints?IncludeItemTypes=Playlist&SearchTerm=%s", c.Cfg.PlaylistName)
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
