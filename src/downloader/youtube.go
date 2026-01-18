@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	cfg "explo/src/config"
@@ -181,7 +182,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		}
 	}()
 
-	input := fmt.Sprintf("%s%s.tmp", c.DownloadDir, track.File)
+	input := filepath.Join(c.DownloadDir, track.File+".tmp")
 	file, err := os.Create(input)
 	if err != nil {
 		slog.Error("failed to create song file", "context", err.Error())
@@ -202,7 +203,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
-	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s", c.DownloadDir, track.File), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
 		"map":      "0:a",
 		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
 		"loglevel": "error",
