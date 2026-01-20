@@ -2,7 +2,6 @@ package main
 
 import (
 	"explo/src/logging"
-	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -29,7 +28,8 @@ func initHttpClient() *util.HttpClient {
 // Inits debug, gets playlist name, if needed, handles deprecation
 func setup(cfg *config.Config) {
 	cfg.HandleDeprecation()
-	logging.Init(cfg.LogLevel)
+	notifyClient := logging.InitNotify(cfg.NotifyCfg)
+	logging.Init(cfg.LogLevel, notifyClient)
 	cfg.GenPlaylistName()
 }
 
@@ -44,25 +44,21 @@ func main() {
 	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
-	notifyClient := logging.InitNotify(cfg.NotifyCfg)
 	client, err := client.NewClient(&cfg)
 	if err != nil {
 		slog.Error(err.Error())
-		notifyClient.SendNotification(err.Error())
 		os.Exit(1)
 	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
 	if err != nil {
 		slog.Error(err.Error())
-		notifyClient.SendNotification(err.Error())
 		os.Exit(1)
 	}
 
 	tracks, err := discovery.Discover()
 	if err != nil {
 		slog.Error(err.Error())
-		notifyClient.SendNotification(err.Error())
 		os.Exit(1)
 	}
 	if !cfg.Persist {
@@ -84,16 +80,13 @@ func main() {
 		downloader.StartDownload(&tracks)
 		if len(tracks) == 0 {
 			slog.Error("couldn't download any tracks")
-			notifyClient.SendNotification("couldn't download any tracks")
 			os.Exit(1)
 		}
 	}
 
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())
-		notifyClient.SendNotification(err.Error())
 	} else {
 		slog.Info("playlist created successfully", "system", cfg.System, "name", cfg.ClientCfg.PlaylistName)
-		notifyClient.SendNotification(fmt.Sprintf("%s playlist created in %s", cfg.ClientCfg.PlaylistName, cfg.System))
 	}
 }

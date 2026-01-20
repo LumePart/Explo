@@ -7,10 +7,16 @@ import (
 )
 
 
-func Init(level string) {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+func Init(level string, notifyClient NotificationClient) {
+	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: getLogLevel(level),
+		AddSource: true,
 	})
+
+	handler := &notifyHandler{
+		handler:   baseHandler,
+		notify: notifyClient,
+	}
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 }

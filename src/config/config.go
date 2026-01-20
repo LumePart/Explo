@@ -151,7 +151,7 @@ type DiscordNotif struct {
 }
 
 type HttpNotif struct {
-	ReceiverURLs []string `env:"HTTP_RECEIVER"`
+	ReceiverURL string `env:"HTTP_RECEIVER"`
 }
 func (cfg *Config) ReadEnv() {
 
