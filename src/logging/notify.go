@@ -2,15 +2,17 @@ package logging
 
 import (
 	"context"
+	"encoding/json"
 	"explo/src/config"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 
 	"github.com/nikoksr/notify"
 	"github.com/nikoksr/notify/service/discord"
+	nhttp "github.com/nikoksr/notify/service/http"
 	"github.com/nikoksr/notify/service/matrix"
-	"github.com/nikoksr/notify/service/http"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -66,49 +68,74 @@ func sendDiscord(cfg config.DiscordNotif, msg string) error {
 }
 
 func sendHttp(cfg config.HttpNotif, msg string) error {
-	httpNotify := http.New()
+	httpNotify := nhttp.New()
+	webhooks := getNotifWebhooks(cfg.ReceiverURLs)
 
-	httpNotify.AddReceiversURLs(cfg.ReceiverURL)
-	httpNotify.AddReceivers(&http.Webhook{
-		URL: cfg.ReceiverURL,
-	})
+	httpNotify.AddReceivers(webhooks...)
 	notifier := notify.NewWithServices(httpNotify)
 
-	if err := notifier.Send(context.Background(), "Explo", msg); err != nil {
+	if err := notifier.Send(context.Background(), "", msg); err != nil {
 		return fmt.Errorf("failed to send HTTP notification: %s", err.Error())
 	}
 	return nil
 }
 
-// format notification to JSON
-func formatNotification(r slog.Record) string {
-	var attrs []string
+func getNotifWebhooks(urls []string) []*nhttp.Webhook{
+	var webhooks []*nhttp.Webhook
 
-	r.Attrs(func(a slog.Attr) bool {
-		attrs = append(attrs, fmt.Sprintf("%s=%v", a.Key, a.Value))
-		return true
-	})
+	for _, url := range urls {
 
+		webhooks = append(webhooks, &nhttp.Webhook{
+			ContentType: "application/json",
+			URL: url,
+			Method: http.MethodPost,
+			BuildPayload: func(subject, message string) (payload any) {
+				payl := json.RawMessage(message)
+				return payl
+			},
 
+		})
+	}
+	return webhooks
+}
+
+// format notification for message client
+func formatRecordMsgClient(n Notification) string {
+	attrs := make([]string, 0, len(n.Attrs))
+
+	for k, v := range n.Attrs {
+		attrs = append(attrs, fmt.Sprintf("%s=%v", k, v))
+	}
 	return fmt.Sprintf(
 		"[%s] %s\n%s",
-		r.Level,
-		r.Message,
+		n.Level,
+		n.Message,
 		strings.Join(attrs, ", "),
 	)
 }
 
-func (c NotificationClient) SendNotification(r slog.Record) {
+func formatRecordJSON(n Notification) string {
+	nJSON, err := json.Marshal(n)
+	if err != nil {
+		slog.Error("failed to marshal notification", "err", err)
+	}
+	return string(nJSON)
+}
+
+
+func (c NotificationClient) SendNotification(n Notification) {
 	var err error
-	msg := formatNotification(r)
 	switch c.Cfg.Service {
 		case "matrix":
+			msg := formatRecordMsgClient(n)
 			err = sendMatrix(c.Cfg.Matrix, msg)
 		
 		case "discord":
+			msg := formatRecordMsgClient(n)
 			err = sendDiscord(c.Cfg.Discord, msg)
 
 		case "http":
+			msg := formatRecordJSON(n)
 			err = sendHttp(c.Cfg.Http, msg)
 		
 		case "": // no system defined
