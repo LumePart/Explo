@@ -158,8 +158,22 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 }
 
 func (c *Subsonic) RefreshLibrary() error {
+	if c.Cfg.AdminCreds.User != "" && c.Cfg.AdminCreds.Password != "" {
+		adminCfg := c.Cfg
+		adminCfg.Creds = config.Credentials{User: c.Cfg.AdminCreds.User, Password: c.Cfg.AdminCreds.Password}
+		adminClient := NewSubsonic(adminCfg, c.HttpClient)
+
+		if err := adminClient.GetAuth(); err != nil {
+			return err
+		}
+		return adminClient.startScan()
+	}
+
+	return c.startScan()
+}
+
+func (c *Subsonic) startScan() error {
 	reqParam := "startScan?f=json"
-	
 	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
 	}

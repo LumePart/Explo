@@ -49,6 +49,7 @@ type ClientConfig struct {
 	Sleep int `env:"SLEEP" env-default:"2"`
 	HTTPTimeout int `env:"CLIENT_HTTP_TIMEOUT" env-default:"10"`
 	Creds Credentials
+	AdminCreds AdminCredentials
 	Subsonic SubsonicConfig
 }
 
@@ -59,6 +60,11 @@ type Credentials struct {
 	Headers map[string]string
 	Token string
 	Salt string
+}
+
+type AdminCredentials struct {
+	User string `env:"ADMIN_SYSTEM_USERNAME"`
+	Password string `env:"ADMIN_SYSTEM_PASSWORD"`
 }
 
 
