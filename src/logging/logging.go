@@ -8,7 +8,7 @@ import (
 
 
 func Init(level string, notifyClient NotificationClient) {
-	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	baseHandler := slog.NewTextHandler( os.Stdout, &slog.HandlerOptions{
 		Level: getLogLevel(level),
 		AddSource: true,
 	})
