@@ -70,6 +70,7 @@ func recordToStruct(r slog.Record) Notification {
 	})
 
 	return Notification{
+		Time: r.Time,
 		Level:   r.Level.String(),
 		Message: r.Message,
 		Attrs:   attrs,
