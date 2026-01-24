@@ -7,7 +7,7 @@ import (
 )
 
 
-func Init(level string, notifyClient NotificationClient) {
+func Init(level string, notifyClient *NotificationClient) {
 	baseHandler := slog.NewTextHandler( os.Stdout, &slog.HandlerOptions{
 		Level: getLogLevel(level),
 		AddSource: true,

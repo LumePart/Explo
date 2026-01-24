@@ -23,8 +23,8 @@ type NotificationClient struct {
 	Cfg config.NotifyConfig
 }
 
-func InitNotify(cfg config.NotifyConfig) NotificationClient {
-	return NotificationClient{
+func InitNotify(cfg config.NotifyConfig) *NotificationClient {
+	return &NotificationClient{
 		Cfg: cfg,
 	}
 }
@@ -123,7 +123,7 @@ func formatRecordJSON(n Notification) string {
 }
 
 
-func (c NotificationClient) SendNotification(n Notification) {
+func (c *NotificationClient) SendNotification(n Notification) {
 	var err error
 	switch c.Cfg.Service {
 		case "matrix":

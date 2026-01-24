@@ -1,15 +1,15 @@
 package logging
 
 import (
-	"log/slog"
 	"context"
+	"log/slog"
 	"time"
 )
 // slog handler that checks whether to send notifications
 
 type notifyHandler struct {
 	handler   slog.Handler
-	notify NotificationClient
+	notify *NotificationClient
 }
 
 type Notification struct {
@@ -28,7 +28,7 @@ func (h *notifyHandler) Handle(ctx context.Context, r slog.Record) error {
 	if shouldNotify(r) {
 		// send notification in another goroutine
 		notifyStruct := recordToStruct(r)
-		go h.notify.SendNotification(notifyStruct) 
+		h.notify.SendNotification(notifyStruct)
 	}
 	return h.handler.Handle(ctx, r)
 }
