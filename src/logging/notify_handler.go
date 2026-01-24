@@ -65,7 +65,10 @@ func recordToStruct(r slog.Record) Notification {
 	attrs := make(map[string]any, r.NumAttrs())
 
 	r.Attrs(func(a slog.Attr) bool {
-		attrs[a.Key] = a.Value.Any()
+		// filter out notify control key
+		if a.Key != "notify" {
+			attrs[a.Key] = a.Value.Any()
+		}
 		return true
 	})
 
