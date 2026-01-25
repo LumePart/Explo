@@ -24,6 +24,7 @@ type APIClient interface {
 	AddLibrary() error
 	SearchSongs([]*models.Track) error
 	RefreshLibrary() error
+	CheckRefreshState() bool
 	CreatePlaylist([]*models.Track) error
 	SearchPlaylist() error
 	UpdatePlaylist() error
@@ -142,9 +143,11 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 	if err := c.API.RefreshLibrary(); err != nil {
 		return fmt.Errorf("[%s] failed to schedule a library scan: %s", c.System, err.Error())
 	}
-
 	slog.Info("Refreshing library...", "system", c.System)
-	time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
+	if !c.API.CheckRefreshState() {
+		time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
+	}
+
 	if err := c.API.SearchSongs(tracks); err != nil { // search newly added songs
 		slog.Warn("SearchSongs failed", "context", err)
 	}

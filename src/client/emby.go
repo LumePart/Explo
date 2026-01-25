@@ -120,6 +120,10 @@ func (c *Emby) RefreshLibrary() error {
 	return nil
 }
 
+func (c *Emby) CheckRefreshState() bool {
+	return false
+}
+
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
 		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))

@@ -180,6 +180,10 @@ func (c *Subsonic) startScan() error {
 	return nil
 }
 
+func (c *Subsonic) CheckRefreshState() bool {
+	return false
+}
+
 func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 	var trackIDs strings.Builder
 	for _, track := range tracks { // build songID parameters

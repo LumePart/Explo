@@ -130,6 +130,10 @@ func (c *Jellyfin) RefreshLibrary() error {
 	return nil
 }
 
+func (c *Jellyfin) CheckRefreshState() bool {
+	return false
+}
+
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
 		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))

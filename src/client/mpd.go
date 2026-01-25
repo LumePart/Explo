@@ -59,6 +59,10 @@ func (c *MPD) RefreshLibrary() error {
 	return nil
 }
 
+func (c *MPD) CheckRefreshState() bool {
+	return true
+}
+
 func (c *MPD) CreatePlaylist(tracks []*models.Track) error {
 	f, err := os.OpenFile(c.Cfg.PlaylistDir+c.Cfg.PlaylistName+".m3u", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
