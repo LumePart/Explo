@@ -145,6 +145,8 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 	}
 	slog.Info("Refreshing library...", "system", c.System)
 	if !c.API.CheckRefreshState() {
+		slog.Debug("could not check library refresh state, either the client doesn't support it or threw an error")
+		slog.Debug("falling back on SLEEP env variable")
 		time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
 	}
 
