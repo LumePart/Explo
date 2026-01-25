@@ -70,7 +70,7 @@ func sendDiscord(cfg config.DiscordNotif, msg string) error {
 func sendHttp(cfg config.HttpNotif, msg string) error {
 	httpNotify := nhttp.New()
 	webhooks := getNotifWebhooks(cfg.ReceiverURLs)
-
+	httpNotify.AddReceiversURLs()
 	httpNotify.AddReceivers(webhooks...)
 	notifier := notify.NewWithServices(httpNotify)
 
@@ -87,6 +87,7 @@ func getNotifWebhooks(urls []string) []*nhttp.Webhook{
 
 		webhooks = append(webhooks, &nhttp.Webhook{
 			ContentType: "application/json",
+			Header: http.Header{},
 			URL: url,
 			Method: http.MethodPost,
 			BuildPayload: func(subject, message string) (payload any) {
