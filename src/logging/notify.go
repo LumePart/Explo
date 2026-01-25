@@ -123,30 +123,37 @@ func formatRecordJSON(n Notification) string {
 	return string(nJSON)
 }
 
-
+// send notifications to services that have variables defined
 func (c *NotificationClient) SendNotification(n Notification) {
-	var err error
-	switch c.Cfg.Service {
-		case "matrix":
-			msg := formatRecordMsgClient(n)
-			err = sendMatrix(c.Cfg.Matrix, msg)
-		
-		case "discord":
-			msg := formatRecordMsgClient(n)
-			err = sendDiscord(c.Cfg.Discord, msg)
+	var errs []error
 
-		case "http":
-			msg := formatRecordJSON(n)
-			err = sendHttp(c.Cfg.Http, msg)
-		
-		case "": // no system defined
-			return
-		default:
-			err = fmt.Errorf("wrong system defined for notifications: %s", c.Cfg.Service)
+	if len(c.Cfg.Discord.ChannelIDs) > 0 {
+		msg := formatRecordMsgClient(n)
+		if err := sendDiscord(c.Cfg.Discord, msg); err != nil {
+			errs = append(errs, fmt.Errorf("discord: %w", err))
+		}
 	}
-	if err != nil {
-		slog.Error(err.Error())
-	} else {
-		slog.Info("notification sent", "service", c.Cfg.Service)
+
+	if c.Cfg.Matrix.AccessToken != "" {
+		msg := formatRecordMsgClient(n)
+		if err := sendMatrix(c.Cfg.Matrix, msg); err != nil {
+			errs = append(errs, fmt.Errorf("matrix: %w", err))
+		}
 	}
+
+	if len(c.Cfg.Http.ReceiverURLs) > 0 {
+		msg := formatRecordJSON(n)
+		if err := sendHttp(c.Cfg.Http, msg); err != nil {
+			errs = append(errs, fmt.Errorf("http: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		for _, err := range errs {
+			slog.Error("notification failed", "err", err)
+		}
+		return
+	}
+
+	slog.Info("notification sent")
 }
