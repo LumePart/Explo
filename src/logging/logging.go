@@ -9,8 +9,7 @@ import (
 
 func Init(level string, notifyClient *NotificationClient) {
 	baseHandler := slog.NewTextHandler( os.Stdout, &slog.HandlerOptions{
-		Level: getLogLevel(level),
-		AddSource: true,
+		Level: getLogLevel(level), 
 	})
 
 	handler := &notifyHandler{
