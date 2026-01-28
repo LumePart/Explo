@@ -175,10 +175,16 @@ func (cfg *Config) ReadEnv() {
 		}
 	}
 
-	cfg.VerifyDir()
+	cfg.CommonFixes()
 }
 
-func (cfg *Config) VerifyDir() {
+func (cfg *Config) CommonFixes() {
+	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
+	cfg.ClientCfg.URL = strings.TrimSuffix(cfg.ClientCfg.URL, "/")
+	cfg.NormalizeDir()
+}
+
+func (cfg *Config) NormalizeDir() {
 	if cfg.System == "mpd" {
 		cfg.ClientCfg.PlaylistDir = fixDir(cfg.ClientCfg.PlaylistDir)
 	}
