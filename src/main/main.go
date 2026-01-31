@@ -87,6 +87,6 @@ func main() {
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())
 	} else {
-		slog.Info("playlist created successfully", "system", cfg.System, "name", cfg.ClientCfg.PlaylistName, "notify", true)
+		slog.Info("playlist created successfully", "system", cfg.System, "playlistName", cfg.ClientCfg.PlaylistName, "notify", true)
 	}
 }
