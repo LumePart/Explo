@@ -347,6 +347,7 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 			mainArtist = trackMeta.Artists[0].ArtistCreditName
 			if singleArtist {
 				var b strings.Builder
+				b.WriteString(title)
 				b.WriteString(" feat. ")
 				b.WriteString(trackArtists[1].ArtistCreditName)
 
