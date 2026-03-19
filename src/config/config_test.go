@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestResolveSystemEnv(t *testing.T) {
 	tests := []struct {
@@ -57,8 +60,9 @@ func TestTrimEnvValues(t *testing.T) {
 			URL:         " https://example.com/ \n",
 			LibraryName: " Music ",
 			Creds: Credentials{
-				User:     " user \n",
-				Password: " pass \t",
+				User:         " user \n",
+				Password:     " pass \t",
+				Listenbrainz: " lb_token \n",
 			},
 		},
 		DownloadCfg: DownloadConfig{
@@ -91,6 +95,9 @@ func TestTrimEnvValues(t *testing.T) {
 	}
 	if cfg.ClientCfg.Creds.Password != "pass" {
 		t.Fatalf("unexpected password after trim: %q", cfg.ClientCfg.Creds.Password)
+	}
+	if cfg.ClientCfg.Creds.Listenbrainz != "lb_token" {
+		t.Fatalf("unexpected listenbrainz token after trim: %q", cfg.ClientCfg.Creds.Listenbrainz)
 	}
 	if cfg.DownloadCfg.DownloadDir != "/data/music" {
 		t.Fatalf("unexpected download dir after trim: %q", cfg.DownloadCfg.DownloadDir)
@@ -166,5 +173,89 @@ func TestCommonFixesNormalizesSystemAndURL(t *testing.T) {
 	}
 	if cfg.DownloadCfg.Youtube.FileExtension != "opus" {
 		t.Fatalf("unexpected file extension after common fixes: %q", cfg.DownloadCfg.Youtube.FileExtension)
+	}
+}
+
+func TestApplyManualEnvFallbackMapping(t *testing.T) {
+	t.Setenv("MUSIC_SYSTEM_TYPE", "  plex \n")
+	t.Setenv("MUSIC_SYSTEM_URL", " https://music.local/ \n")
+	t.Setenv("MUSIC_SYSTEM_TOKEN", "  system_token \n")
+	t.Setenv("LISTENBRAINZ_USER", " lb_user \n")
+	t.Setenv("LISTENBRAINZ_TOKEN", " lb_token \n")
+	t.Setenv("DOWNLOAD_TYPE", " youtube \n")
+	t.Setenv("DOWNLOAD_DIR", " /data/downloads \n")
+
+	cfg := &Config{}
+	cfg.applyManualEnvFallback()
+
+	if cfg.System != "plex" {
+		t.Fatalf("unexpected system from fallback: %q", cfg.System)
+	}
+	if cfg.ClientCfg.URL != "https://music.local/" {
+		t.Fatalf("unexpected url from fallback: %q", cfg.ClientCfg.URL)
+	}
+	if cfg.ClientCfg.Creds.APIKey != "system_token" {
+		t.Fatalf("unexpected api key from fallback: %q", cfg.ClientCfg.Creds.APIKey)
+	}
+	if cfg.ClientCfg.Creds.Listenbrainz != "lb_token" {
+		t.Fatalf("unexpected listenbrainz token from fallback: %q", cfg.ClientCfg.Creds.Listenbrainz)
+	}
+	if cfg.DiscoveryCfg.Listenbrainz.User != "lb_user" {
+		t.Fatalf("unexpected listenbrainz user from fallback: %q", cfg.DiscoveryCfg.Listenbrainz.User)
+	}
+	if len(cfg.DownloadCfg.Services) != 1 || cfg.DownloadCfg.Services[0] != "youtube" {
+		t.Fatalf("unexpected services from fallback: %#v", cfg.DownloadCfg.Services)
+	}
+	if cfg.DownloadCfg.DownloadDir != "/data/downloads" {
+		t.Fatalf("unexpected download dir from fallback: %q", cfg.DownloadCfg.DownloadDir)
+	}
+}
+
+func TestReadEnvFallsBackOnWrongTypePtr(t *testing.T) {
+	originalReadEnv := cleanenvReadEnv
+	t.Cleanup(func() {
+		cleanenvReadEnv = originalReadEnv
+	})
+
+	cleanenvReadEnv = func(any) error {
+		return errors.New("wrong type ptr")
+	}
+
+	t.Setenv("MUSIC_SYSTEM_TYPE", " subsonic \n")
+	t.Setenv("MUSIC_SYSTEM_URL", " http://subsonic.local/ \n")
+	t.Setenv("MUSIC_SYSTEM_TOKEN", " token123 \n")
+	t.Setenv("LISTENBRAINZ_USER", " lb_user \n")
+	t.Setenv("LISTENBRAINZ_TOKEN", " lb_token \n")
+	t.Setenv("DOWNLOAD_TYPE", " slskd \n")
+	t.Setenv("DOWNLOAD_DIR", " /music/downloads \n")
+
+	cfg := &Config{
+		Flags: Flags{
+			CfgPath: "__does_not_exist__.env",
+		},
+	}
+
+	cfg.ReadEnv()
+
+	if cfg.System != "subsonic" {
+		t.Fatalf("unexpected system after wrong type ptr fallback: %q", cfg.System)
+	}
+	if cfg.ClientCfg.URL != "http://subsonic.local" {
+		t.Fatalf("unexpected url after wrong type ptr fallback: %q", cfg.ClientCfg.URL)
+	}
+	if cfg.ClientCfg.Creds.APIKey != "token123" {
+		t.Fatalf("unexpected api key after wrong type ptr fallback: %q", cfg.ClientCfg.Creds.APIKey)
+	}
+	if cfg.ClientCfg.Creds.Listenbrainz != "lb_token" {
+		t.Fatalf("unexpected listenbrainz token after wrong type ptr fallback: %q", cfg.ClientCfg.Creds.Listenbrainz)
+	}
+	if cfg.DiscoveryCfg.Listenbrainz.User != "lb_user" {
+		t.Fatalf("unexpected listenbrainz user after wrong type ptr fallback: %q", cfg.DiscoveryCfg.Listenbrainz.User)
+	}
+	if len(cfg.DownloadCfg.Services) != 1 || cfg.DownloadCfg.Services[0] != "slskd" {
+		t.Fatalf("unexpected services after wrong type ptr fallback: %#v", cfg.DownloadCfg.Services)
+	}
+	if cfg.DownloadCfg.DownloadDir != "/music/downloads/" {
+		t.Fatalf("unexpected download dir after wrong type ptr fallback: %q", cfg.DownloadCfg.DownloadDir)
 	}
 }

@@ -15,6 +15,8 @@ import (
 	"golang.org/x/text/language"
 )
 
+var cleanenvReadEnv = cleanenv.ReadEnv
+
 type Config struct {
 	DownloadCfg DownloadConfig
 	DiscoveryCfg DiscoveryConfig
@@ -58,6 +60,7 @@ type Credentials struct {
 	APIKey string `env:"API_KEY"`
 	User string `env:"SYSTEM_USERNAME"`
 	Password string `env:"SYSTEM_PASSWORD"`
+	Listenbrainz string `env:"LISTENBRAINZ_TOKEN"`
 	Headers map[string]string
 	Token string
 	Salt string
@@ -160,6 +163,11 @@ type HttpNotif struct {
 	ReceiverURLs []string `env:"HTTP_RECEIVER"`
 }
 func (cfg *Config) ReadEnv() {
+	if cfg == nil {
+		slog.Error("config is nil")
+		os.Exit(1)
+	}
+
 	if cfg.Flags.CfgPath == "" {
 		cfg.Flags.CfgPath = ".env"
 	}
@@ -175,12 +183,48 @@ func (cfg *Config) ReadEnv() {
 	}
 
 	// Read from process env so Docker/container variables are always considered.
-	if err := cleanenv.ReadEnv(cfg); err != nil {
-		slog.Error("failed to load config from env vars", "context", err.Error())
-		os.Exit(1)
+	if err := cleanenvReadEnv(cfg); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "wrong type ptr") {
+			slog.Warn("cleanenv pointer type failure, applying manual env fallback", "context", err.Error())
+			cfg.applyManualEnvFallback()
+		} else {
+			slog.Error("failed to load config from env vars", "context", err.Error())
+			os.Exit(1)
+		}
 	}
 
 	cfg.CommonFixes()
+}
+
+func readEnvTrimmed(key string) string {
+	return strings.TrimSpace(os.Getenv(key))
+}
+
+func (cfg *Config) applyManualEnvFallback() {
+	if cfg.System == "" {
+		cfg.System = readEnvTrimmed("MUSIC_SYSTEM_TYPE")
+	}
+	if cfg.ClientCfg.URL == "" {
+		cfg.ClientCfg.URL = readEnvTrimmed("MUSIC_SYSTEM_URL")
+	}
+	if cfg.ClientCfg.Creds.APIKey == "" {
+		cfg.ClientCfg.Creds.APIKey = readEnvTrimmed("MUSIC_SYSTEM_TOKEN")
+	}
+	if cfg.DiscoveryCfg.Listenbrainz.User == "" {
+		cfg.DiscoveryCfg.Listenbrainz.User = readEnvTrimmed("LISTENBRAINZ_USER")
+	}
+	if cfg.ClientCfg.Creds.Listenbrainz == "" {
+		cfg.ClientCfg.Creds.Listenbrainz = readEnvTrimmed("LISTENBRAINZ_TOKEN")
+	}
+	if len(cfg.DownloadCfg.Services) == 0 {
+		downloadType := readEnvTrimmed("DOWNLOAD_TYPE")
+		if downloadType != "" {
+			cfg.DownloadCfg.Services = []string{downloadType}
+		}
+	}
+	if cfg.DownloadCfg.DownloadDir == "" {
+		cfg.DownloadCfg.DownloadDir = readEnvTrimmed("DOWNLOAD_DIR")
+	}
 }
 
 func (cfg *Config) CommonFixes() {
@@ -215,6 +259,7 @@ func (cfg *Config) TrimEnvValues() {
 	cfg.ClientCfg.Creds.APIKey = strings.TrimSpace(cfg.ClientCfg.Creds.APIKey)
 	cfg.ClientCfg.Creds.User = strings.TrimSpace(cfg.ClientCfg.Creds.User)
 	cfg.ClientCfg.Creds.Password = strings.TrimSpace(cfg.ClientCfg.Creds.Password)
+	cfg.ClientCfg.Creds.Listenbrainz = strings.TrimSpace(cfg.ClientCfg.Creds.Listenbrainz)
 	cfg.ClientCfg.AdminCreds.User = strings.TrimSpace(cfg.ClientCfg.AdminCreds.User)
 	cfg.ClientCfg.AdminCreds.Password = strings.TrimSpace(cfg.ClientCfg.AdminCreds.Password)
 
