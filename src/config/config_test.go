@@ -249,3 +249,20 @@ func TestReadEnvManualLoader(t *testing.T) {
 		t.Fatalf("unexpected download dir after manual load: %q", cfg.DownloadCfg.DownloadDir)
 	}
 }
+
+func TestReadEnvManualLoaderDefaultsToJellyfin(t *testing.T) {
+	t.Setenv("MUSIC_SYSTEM_TYPE", "")
+	t.Setenv("EXPLO_SYSTEM", "")
+
+	cfg := &Config{
+		Flags: Flags{
+			CfgPath: "__does_not_exist__.env",
+		},
+	}
+
+	cfg.ReadEnv()
+
+	if cfg.System != "jellyfin" {
+		t.Fatalf("expected default jellyfin system, got %q", cfg.System)
+	}
+}

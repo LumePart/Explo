@@ -182,6 +182,15 @@ func (cfg *Config) ReadEnv() {
 	// Nuclear option: bypass cleanenv parsing completely and populate manually.
 	cfg.initManualConfig()
 	cfg.applyManualEnvFallback()
+	// Explicit system mapping from MUSIC_SYSTEM_TYPE for manual loader mode.
+	cfg.System = strings.ToLower(readEnvTrimmed("MUSIC_SYSTEM_TYPE"))
+	if cfg.System == "" {
+		cfg.System = strings.ToLower(readEnvTrimmed("EXPLO_SYSTEM"))
+	}
+	// Temporary hard default to prove system routing works end-to-end.
+	if cfg.System == "" {
+		cfg.System = "jellyfin"
+	}
 
 	cfg.CommonFixes()
 }
@@ -191,8 +200,9 @@ func readEnvTrimmed(key string) string {
 }
 
 func (cfg *Config) applyManualEnvFallback() {
+	cfg.System = strings.ToLower(readEnvTrimmed("MUSIC_SYSTEM_TYPE"))
 	if cfg.System == "" {
-		cfg.System = readEnvTrimmed("MUSIC_SYSTEM_TYPE")
+		cfg.System = strings.ToLower(readEnvTrimmed("EXPLO_SYSTEM"))
 	}
 	if cfg.ClientCfg.URL == "" {
 		cfg.ClientCfg.URL = readEnvTrimmed("MUSIC_SYSTEM_URL")
@@ -214,6 +224,9 @@ func (cfg *Config) applyManualEnvFallback() {
 	}
 	if cfg.DownloadCfg.DownloadDir == "" {
 		cfg.DownloadCfg.DownloadDir = readEnvTrimmed("DOWNLOAD_DIR")
+	}
+	if cfg.System == "" {
+		cfg.System = "jellyfin"
 	}
 }
 
