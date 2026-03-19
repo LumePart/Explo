@@ -41,6 +41,7 @@ func main() {
 	cfg.ReadEnv()
 	cfg.MergeFlags()
 	setup(&cfg)
+	slog.Info("Configuration resolved", "system", cfg.System)
 	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
