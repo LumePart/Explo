@@ -9,13 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
-
-var cleanenvReadEnv = cleanenv.ReadEnv
 
 type Config struct {
 	DownloadCfg DownloadConfig
@@ -182,16 +179,9 @@ func (cfg *Config) ReadEnv() {
 		slog.Debug("config file not found, using process environment only", "path", cfg.Flags.CfgPath)
 	}
 
-	// Read from process env so Docker/container variables are always considered.
-	if err := cleanenvReadEnv(cfg); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "wrong type ptr") {
-			slog.Warn("cleanenv pointer type failure, applying manual env fallback", "context", err.Error())
-			cfg.applyManualEnvFallback()
-		} else {
-			slog.Error("failed to load config from env vars", "context", err.Error())
-			os.Exit(1)
-		}
-	}
+	// Nuclear option: bypass cleanenv parsing completely and populate manually.
+	cfg.initManualConfig()
+	cfg.applyManualEnvFallback()
 
 	cfg.CommonFixes()
 }
@@ -225,6 +215,30 @@ func (cfg *Config) applyManualEnvFallback() {
 	if cfg.DownloadCfg.DownloadDir == "" {
 		cfg.DownloadCfg.DownloadDir = readEnvTrimmed("DOWNLOAD_DIR")
 	}
+}
+
+func (cfg *Config) initManualConfig() {
+	// Explicitly initialize all nested config values to avoid nil-like assumptions.
+	cfg.ClientCfg = ClientConfig{}
+	cfg.ClientCfg.Creds = Credentials{}
+	cfg.ClientCfg.AdminCreds = AdminCredentials{}
+	cfg.ClientCfg.Subsonic = SubsonicConfig{}
+
+	cfg.DownloadCfg = DownloadConfig{}
+	cfg.DownloadCfg.Youtube = Youtube{}
+	cfg.DownloadCfg.YoutubeMusic = YoutubeMusic{}
+	cfg.DownloadCfg.Slskd = Slskd{}
+	cfg.DownloadCfg.Slskd.Filters = Filters{}
+	cfg.DownloadCfg.Youtube.Filters = Filters{}
+	cfg.DownloadCfg.YoutubeMusic.Filters = Filters{}
+
+	cfg.DiscoveryCfg = DiscoveryConfig{}
+	cfg.DiscoveryCfg.Listenbrainz = Listenbrainz{}
+
+	cfg.NotifyCfg = NotifyConfig{}
+	cfg.NotifyCfg.Matrix = MatrixNotif{}
+	cfg.NotifyCfg.Discord = DiscordNotif{}
+	cfg.NotifyCfg.Http = HttpNotif{}
 }
 
 func (cfg *Config) CommonFixes() {

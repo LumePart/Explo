@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -211,16 +210,7 @@ func TestApplyManualEnvFallbackMapping(t *testing.T) {
 	}
 }
 
-func TestReadEnvFallsBackOnWrongTypePtr(t *testing.T) {
-	originalReadEnv := cleanenvReadEnv
-	t.Cleanup(func() {
-		cleanenvReadEnv = originalReadEnv
-	})
-
-	cleanenvReadEnv = func(any) error {
-		return errors.New("wrong type ptr")
-	}
-
+func TestReadEnvManualLoader(t *testing.T) {
 	t.Setenv("MUSIC_SYSTEM_TYPE", " subsonic \n")
 	t.Setenv("MUSIC_SYSTEM_URL", " http://subsonic.local/ \n")
 	t.Setenv("MUSIC_SYSTEM_TOKEN", " token123 \n")
@@ -238,24 +228,24 @@ func TestReadEnvFallsBackOnWrongTypePtr(t *testing.T) {
 	cfg.ReadEnv()
 
 	if cfg.System != "subsonic" {
-		t.Fatalf("unexpected system after wrong type ptr fallback: %q", cfg.System)
+		t.Fatalf("unexpected system after manual load: %q", cfg.System)
 	}
 	if cfg.ClientCfg.URL != "http://subsonic.local" {
-		t.Fatalf("unexpected url after wrong type ptr fallback: %q", cfg.ClientCfg.URL)
+		t.Fatalf("unexpected url after manual load: %q", cfg.ClientCfg.URL)
 	}
 	if cfg.ClientCfg.Creds.APIKey != "token123" {
-		t.Fatalf("unexpected api key after wrong type ptr fallback: %q", cfg.ClientCfg.Creds.APIKey)
+		t.Fatalf("unexpected api key after manual load: %q", cfg.ClientCfg.Creds.APIKey)
 	}
 	if cfg.ClientCfg.Creds.Listenbrainz != "lb_token" {
-		t.Fatalf("unexpected listenbrainz token after wrong type ptr fallback: %q", cfg.ClientCfg.Creds.Listenbrainz)
+		t.Fatalf("unexpected listenbrainz token after manual load: %q", cfg.ClientCfg.Creds.Listenbrainz)
 	}
 	if cfg.DiscoveryCfg.Listenbrainz.User != "lb_user" {
-		t.Fatalf("unexpected listenbrainz user after wrong type ptr fallback: %q", cfg.DiscoveryCfg.Listenbrainz.User)
+		t.Fatalf("unexpected listenbrainz user after manual load: %q", cfg.DiscoveryCfg.Listenbrainz.User)
 	}
 	if len(cfg.DownloadCfg.Services) != 1 || cfg.DownloadCfg.Services[0] != "slskd" {
-		t.Fatalf("unexpected services after wrong type ptr fallback: %#v", cfg.DownloadCfg.Services)
+		t.Fatalf("unexpected services after manual load: %#v", cfg.DownloadCfg.Services)
 	}
 	if cfg.DownloadCfg.DownloadDir != "/music/downloads/" {
-		t.Fatalf("unexpected download dir after wrong type ptr fallback: %q", cfg.DownloadCfg.DownloadDir)
+		t.Fatalf("unexpected download dir after manual load: %q", cfg.DownloadCfg.DownloadDir)
 	}
 }
