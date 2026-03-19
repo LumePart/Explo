@@ -1,13 +1,14 @@
 package discovery
 
 import (
+	"fmt"
 	"explo/src/models"
 	cfg "explo/src/config"
 	"explo/src/util"
 )
 
 type DiscoverClient struct {
-	cfg *cfg.DiscoveryConfig
+	Config *cfg.DiscoveryConfig
 	Discovery Discovery
 }
 type Discovery interface {
@@ -15,7 +16,7 @@ type Discovery interface {
 }
 
 func NewDiscoverer(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *DiscoverClient {
-	c := &DiscoverClient{cfg: &cfg}
+	c := &DiscoverClient{Config: &cfg}
 
 	switch cfg.Discovery {
 	case "listenbrainz":
@@ -27,5 +28,8 @@ func NewDiscoverer(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *Discov
 }
 
 func (c *DiscoverClient) Discover() ([]*models.Track, error) {
+	if c == nil || c.Config == nil || c.Discovery == nil {
+		return nil, fmt.Errorf("discovery client not initialized")
+	}
 	return c.Discovery.QueryTracks()
 }

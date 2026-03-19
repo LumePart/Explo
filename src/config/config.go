@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/joho/godotenv"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -57,6 +57,7 @@ type Credentials struct {
 	APIKey string `env:"API_KEY"`
 	User string `env:"SYSTEM_USERNAME"`
 	Password string `env:"SYSTEM_PASSWORD"`
+	Listenbrainz string `env:"LISTENBRAINZ_TOKEN"`
 	Headers map[string]string
 	Token string
 	Salt string
@@ -159,29 +160,196 @@ type HttpNotif struct {
 	ReceiverURLs []string `env:"HTTP_RECEIVER"`
 }
 func (cfg *Config) ReadEnv() {
+	if cfg == nil {
+		slog.Error("config is nil")
+		os.Exit(1)
+	}
 
-	// Try to read from .env file first
-	err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg)
-	if err != nil {
-		// If the error is because the file doesn't exist, fallback to env vars
-		if errors.Is(err, os.ErrNotExist) {
-			if err := cleanenv.ReadEnv(&cfg); err != nil {
-				slog.Error("failed to load config from env vars", "context", err.Error())
-				os.Exit(1)
-			}
-		} else {
-			slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
-			os.Exit(1)
-		}
+	if cfg.Flags.CfgPath == "" {
+		cfg.Flags.CfgPath = ".env"
+	}
+
+	// Load .env into the process environment if present.
+	err := godotenv.Load(cfg.Flags.CfgPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
+		os.Exit(1)
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		slog.Debug("config file not found, using process environment only", "path", cfg.Flags.CfgPath)
+	}
+
+	// Nuclear option: bypass cleanenv parsing completely and populate manually.
+	cfg.initManualConfig()
+	cfg.applyManualEnvFallback()
+	// Explicit system mapping from MUSIC_SYSTEM_TYPE for manual loader mode.
+	cfg.System = strings.ToLower(readEnvTrimmed("MUSIC_SYSTEM_TYPE"))
+	if cfg.System == "" {
+		cfg.System = strings.ToLower(readEnvTrimmed("EXPLO_SYSTEM"))
+	}
+	// Temporary hard default to prove system routing works end-to-end.
+	if cfg.System == "" {
+		cfg.System = "jellyfin"
 	}
 
 	cfg.CommonFixes()
 }
 
+func readEnvTrimmed(key string) string {
+	return strings.TrimSpace(os.Getenv(key))
+}
+
+func (cfg *Config) applyManualEnvFallback() {
+	cfg.System = strings.ToLower(readEnvTrimmed("MUSIC_SYSTEM_TYPE"))
+	if cfg.System == "" {
+		cfg.System = strings.ToLower(readEnvTrimmed("EXPLO_SYSTEM"))
+	}
+	if cfg.ClientCfg.URL == "" {
+		cfg.ClientCfg.URL = readEnvTrimmed("MUSIC_SYSTEM_URL")
+	}
+	if cfg.ClientCfg.LibraryName == "" {
+		cfg.ClientCfg.LibraryName = readEnvTrimmed("JELLYFIN_LIBRARY")
+	}
+	if cfg.ClientCfg.LibraryName == "" {
+		cfg.ClientCfg.LibraryName = "Music"
+	}
+	if cfg.ClientCfg.Creds.APIKey == "" {
+		cfg.ClientCfg.Creds.APIKey = readEnvTrimmed("MUSIC_SYSTEM_TOKEN")
+	}
+	if cfg.DiscoveryCfg.Listenbrainz.User == "" {
+		cfg.DiscoveryCfg.Listenbrainz.User = readEnvTrimmed("LISTENBRAINZ_USER")
+	}
+	if cfg.ClientCfg.Creds.Listenbrainz == "" {
+		cfg.ClientCfg.Creds.Listenbrainz = readEnvTrimmed("LISTENBRAINZ_TOKEN")
+	}
+	if len(cfg.DownloadCfg.Services) == 0 {
+		downloadType := readEnvTrimmed("DOWNLOAD_TYPE")
+		if downloadType != "" {
+			cfg.DownloadCfg.Services = []string{downloadType}
+		}
+	}
+	if cfg.DownloadCfg.DownloadDir == "" {
+		cfg.DownloadCfg.DownloadDir = readEnvTrimmed("DOWNLOAD_DIR")
+	}
+	if cfg.System == "" {
+		cfg.System = "jellyfin"
+	}
+}
+
+func (cfg *Config) initManualConfig() {
+	// Explicitly initialize all nested config values to avoid nil-like assumptions.
+	cfg.ClientCfg = ClientConfig{}
+	cfg.ClientCfg.Creds = Credentials{}
+	cfg.ClientCfg.AdminCreds = AdminCredentials{}
+	cfg.ClientCfg.Subsonic = SubsonicConfig{}
+
+	cfg.DownloadCfg = DownloadConfig{}
+	cfg.DownloadCfg.Youtube = Youtube{}
+	cfg.DownloadCfg.YoutubeMusic = YoutubeMusic{}
+	cfg.DownloadCfg.Slskd = Slskd{}
+	cfg.DownloadCfg.Slskd.Filters = Filters{}
+	cfg.DownloadCfg.Youtube.Filters = Filters{}
+	cfg.DownloadCfg.YoutubeMusic.Filters = Filters{}
+
+	cfg.DiscoveryCfg = DiscoveryConfig{}
+	cfg.DiscoveryCfg.Listenbrainz = Listenbrainz{}
+
+	cfg.NotifyCfg = NotifyConfig{}
+	cfg.NotifyCfg.Matrix = MatrixNotif{}
+	cfg.NotifyCfg.Discord = DiscordNotif{}
+	cfg.NotifyCfg.Http = HttpNotif{}
+}
+
 func (cfg *Config) CommonFixes() {
+	cfg.TrimEnvValues()
+	cfg.ResolveSystemEnv()
 	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
 	cfg.ClientCfg.URL = strings.TrimSuffix(cfg.ClientCfg.URL, "/")
 	cfg.NormalizeDir()
+}
+
+func (cfg *Config) ResolveSystemEnv() {
+	if cfg.System == "" {
+		cfg.System = os.Getenv("EXPLO_SYSTEM")
+	}
+	if cfg.System == "" {
+		cfg.System = os.Getenv("MUSIC_SYSTEM_TYPE")
+	}
+	cfg.System = strings.ToLower(strings.TrimSpace(cfg.System))
+}
+
+func (cfg *Config) TrimEnvValues() {
+	cfg.System = strings.TrimSpace(cfg.System)
+	cfg.LogLevel = strings.TrimSpace(cfg.LogLevel)
+
+	cfg.ClientCfg.ClientID = strings.TrimSpace(cfg.ClientCfg.ClientID)
+	cfg.ClientCfg.LibraryName = strings.TrimSpace(cfg.ClientCfg.LibraryName)
+	cfg.ClientCfg.URL = strings.TrimSpace(cfg.ClientCfg.URL)
+	cfg.ClientCfg.DownloadDir = strings.TrimSpace(cfg.ClientCfg.DownloadDir)
+	cfg.ClientCfg.PlaylistDir = strings.TrimSpace(cfg.ClientCfg.PlaylistDir)
+	cfg.ClientCfg.PlaylistNFormat = strings.TrimSpace(cfg.ClientCfg.PlaylistNFormat)
+
+	cfg.ClientCfg.Creds.APIKey = strings.TrimSpace(cfg.ClientCfg.Creds.APIKey)
+	cfg.ClientCfg.Creds.User = strings.TrimSpace(cfg.ClientCfg.Creds.User)
+	cfg.ClientCfg.Creds.Password = strings.TrimSpace(cfg.ClientCfg.Creds.Password)
+	cfg.ClientCfg.Creds.Listenbrainz = strings.TrimSpace(cfg.ClientCfg.Creds.Listenbrainz)
+	cfg.ClientCfg.AdminCreds.User = strings.TrimSpace(cfg.ClientCfg.AdminCreds.User)
+	cfg.ClientCfg.AdminCreds.Password = strings.TrimSpace(cfg.ClientCfg.AdminCreds.Password)
+
+	cfg.ClientCfg.Subsonic.Version = strings.TrimSpace(cfg.ClientCfg.Subsonic.Version)
+	cfg.ClientCfg.Subsonic.ID = strings.TrimSpace(cfg.ClientCfg.Subsonic.ID)
+
+	cfg.DownloadCfg.DownloadDir = strings.TrimSpace(cfg.DownloadCfg.DownloadDir)
+	cfg.DownloadCfg.Discovery = strings.TrimSpace(cfg.DownloadCfg.Discovery)
+	cfg.DownloadCfg.Services = trimStrings(cfg.DownloadCfg.Services)
+
+	cfg.DownloadCfg.Youtube.APIKey = strings.TrimSpace(cfg.DownloadCfg.Youtube.APIKey)
+	cfg.DownloadCfg.Youtube.FfmpegPath = strings.TrimSpace(cfg.DownloadCfg.Youtube.FfmpegPath)
+	cfg.DownloadCfg.Youtube.YtdlpPath = strings.TrimSpace(cfg.DownloadCfg.Youtube.YtdlpPath)
+	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimSpace(cfg.DownloadCfg.Youtube.FileExtension)
+	cfg.DownloadCfg.Youtube.CookiesPath = strings.TrimSpace(cfg.DownloadCfg.Youtube.CookiesPath)
+	cfg.DownloadCfg.Youtube.Filters.Extensions = trimStrings(cfg.DownloadCfg.Youtube.Filters.Extensions)
+	cfg.DownloadCfg.Youtube.Filters.FilterList = trimStrings(cfg.DownloadCfg.Youtube.Filters.FilterList)
+
+	cfg.DownloadCfg.YoutubeMusic.FfmpegPath = strings.TrimSpace(cfg.DownloadCfg.YoutubeMusic.FfmpegPath)
+	cfg.DownloadCfg.YoutubeMusic.YtdlpPath = strings.TrimSpace(cfg.DownloadCfg.YoutubeMusic.YtdlpPath)
+	cfg.DownloadCfg.YoutubeMusic.Filters.Extensions = trimStrings(cfg.DownloadCfg.YoutubeMusic.Filters.Extensions)
+	cfg.DownloadCfg.YoutubeMusic.Filters.FilterList = trimStrings(cfg.DownloadCfg.YoutubeMusic.Filters.FilterList)
+
+	cfg.DownloadCfg.Slskd.APIKey = strings.TrimSpace(cfg.DownloadCfg.Slskd.APIKey)
+	cfg.DownloadCfg.Slskd.URL = strings.TrimSpace(cfg.DownloadCfg.Slskd.URL)
+	cfg.DownloadCfg.Slskd.SlskdDir = strings.TrimSpace(cfg.DownloadCfg.Slskd.SlskdDir)
+	cfg.DownloadCfg.Slskd.Filters.Extensions = trimStrings(cfg.DownloadCfg.Slskd.Filters.Extensions)
+	cfg.DownloadCfg.Slskd.Filters.FilterList = trimStrings(cfg.DownloadCfg.Slskd.Filters.FilterList)
+
+	cfg.DiscoveryCfg.Discovery = strings.TrimSpace(cfg.DiscoveryCfg.Discovery)
+	cfg.DiscoveryCfg.Listenbrainz.Discovery = strings.TrimSpace(cfg.DiscoveryCfg.Listenbrainz.Discovery)
+	cfg.DiscoveryCfg.Listenbrainz.User = strings.TrimSpace(cfg.DiscoveryCfg.Listenbrainz.User)
+
+	cfg.NotifyCfg.Matrix.UserID = strings.TrimSpace(cfg.NotifyCfg.Matrix.UserID)
+	cfg.NotifyCfg.Matrix.RoomID = strings.TrimSpace(cfg.NotifyCfg.Matrix.RoomID)
+	cfg.NotifyCfg.Matrix.HomeServer = strings.TrimSpace(cfg.NotifyCfg.Matrix.HomeServer)
+	cfg.NotifyCfg.Matrix.AccessToken = strings.TrimSpace(cfg.NotifyCfg.Matrix.AccessToken)
+	cfg.NotifyCfg.Discord.BotToken = strings.TrimSpace(cfg.NotifyCfg.Discord.BotToken)
+	cfg.NotifyCfg.Discord.ChannelIDs = trimStrings(cfg.NotifyCfg.Discord.ChannelIDs)
+	cfg.NotifyCfg.Http.ReceiverURLs = trimStrings(cfg.NotifyCfg.Http.ReceiverURLs)
+}
+
+func trimStrings(values []string) []string {
+	if len(values) == 0 {
+		return values
+	}
+
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		trimmed = append(trimmed, value)
+	}
+
+	return trimmed
 }
 
 func (cfg *Config) NormalizeDir() {
