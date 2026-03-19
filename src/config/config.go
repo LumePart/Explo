@@ -207,6 +207,12 @@ func (cfg *Config) applyManualEnvFallback() {
 	if cfg.ClientCfg.URL == "" {
 		cfg.ClientCfg.URL = readEnvTrimmed("MUSIC_SYSTEM_URL")
 	}
+	if cfg.ClientCfg.LibraryName == "" {
+		cfg.ClientCfg.LibraryName = readEnvTrimmed("JELLYFIN_LIBRARY")
+	}
+	if cfg.ClientCfg.LibraryName == "" {
+		cfg.ClientCfg.LibraryName = "Music"
+	}
 	if cfg.ClientCfg.Creds.APIKey == "" {
 		cfg.ClientCfg.Creds.APIKey = readEnvTrimmed("MUSIC_SYSTEM_TOKEN")
 	}
