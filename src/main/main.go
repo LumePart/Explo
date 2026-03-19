@@ -50,14 +50,18 @@ func main() {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
-	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
+	discoveryClient := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
+	if discoveryClient == nil {
+		slog.Error("failed to initialize discovery client", "service", cfg.DiscoveryCfg.Discovery, "notify", true)
+		os.Exit(1)
+	}
 	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
 	if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
 
-	tracks, err := discovery.Discover()
+	tracks, err := discoveryClient.Discover()
 	if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
