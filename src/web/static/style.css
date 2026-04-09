@@ -26,13 +26,27 @@ a { color: var(--accent); }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field > label { font-size: 13px; font-weight: 500; color: var(--muted); }
 
-.field input[type="text"] {
+.field input[type="text"],
+.field input[type="password"] {
   background: var(--surface); border: 1px solid var(--border); color: var(--text);
   border-radius: var(--r); padding: 10px 12px; font-size: 15px; width: 100%;
   outline: none; transition: border-color 0.15s;
 }
-.field input[type="text"]:focus { border-color: var(--accent); }
+.field input[type="text"]:focus,
+.field input[type="password"]:focus { border-color: var(--accent); }
 .hint { font-size: 12px; color: var(--muted); }
+.dir-suggestions {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+  background: var(--surface); border: 1px solid var(--accent);
+  border-top: none; border-radius: 0 0 var(--r) var(--r);
+  list-style: none; max-height: 180px; overflow-y: auto;
+}
+.dir-suggestions li {
+  padding: 9px 12px; font-size: 13px; color: var(--muted);
+  cursor: pointer; font-family: monospace; transition: background 0.1s, color 0.1s;
+}
+.dir-suggestions li:hover { background: #1e1c19; color: var(--text); }
+.step-desc { font-size: 13px; color: var(--muted); margin-bottom: 28px; line-height: 1.5; }
 
 /* Toggle list */
 .toggle-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
@@ -66,8 +80,18 @@ a { color: var(--accent); }
 .toggle-row:has(input:checked) .toggle-switch { background: var(--accent); }
 .toggle-row:has(input:checked) .toggle-switch::after { transform: translateX(16px); }
 
-/* Next button */
-.wizard-actions { margin-top: 32px; display: flex; justify-content: flex-end; }
+/* System card grid */
+.system-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.system-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  color: var(--text); cursor: pointer; font-size: 14px; font-weight: 500;
+  padding: 18px 12px; text-align: center; transition: border-color 0.15s;
+}
+.system-card:hover { border-color: #3a3a3a; }
+.system-card.selected { border-color: var(--accent); color: var(--accent); }
+
+/* Next / Back buttons */
+.wizard-actions { margin-top: 32px; display: flex; justify-content: flex-end; gap: 10px; }
 .btn-next {
   background: var(--accent); color: #fff; border: none;
   padding: 10px 24px; border-radius: var(--r); font-size: 14px;
@@ -75,6 +99,12 @@ a { color: var(--accent); }
 }
 .btn-next:hover:not(:disabled) { opacity: 0.85; }
 .btn-next:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-back {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  padding: 10px 20px; border-radius: var(--r); font-size: 14px;
+  cursor: pointer; transition: border-color 0.15s, color 0.15s;
+}
+.btn-back:hover { border-color: var(--text); color: var(--text); }
 
 /* ── Settings view ── */
 .settings { max-width: 760px; margin: 0 auto; padding: 0 24px 48px; }
@@ -90,6 +120,12 @@ nav { display: flex; gap: 2px; align-items: flex-end; }
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+.setup-btn {
+  background: none; border: none;
+  color: var(--muted); font-size: 13px; cursor: pointer;
+  padding: 0; transition: color 0.15s;
+}
+.setup-btn:hover { color: var(--text); }
 
 .section { margin-top: 24px; }
 .section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }

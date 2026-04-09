@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -44,6 +45,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
 	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
+	s.mux.HandleFunc("POST /api/wizard/step2", s.handleWizardStep2)
+	s.mux.HandleFunc("GET /api/browse", s.handleBrowse)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("GET /api/run/status", s.handleRunStatus)
 }
@@ -287,6 +290,71 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0600)
+}
+
+// handleWizardStep2 saves media system configuration.
+func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		System      string `json:"system"`
+		URL         string `json:"url"`
+		APIKey      string `json:"api_key"`
+		LibraryName string `json:"library_name"`
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		PlaylistDir string `json:"playlist_dir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.System == "" {
+		http.Error(w, "system is required", http.StatusBadRequest)
+		return
+	}
+
+	updates := map[string]string{
+		"EXPLO_SYSTEM":    body.System,
+		"SYSTEM_URL":      body.URL,
+		"API_KEY":         body.APIKey,
+		"LIBRARY_NAME":    body.LibraryName,
+		"SYSTEM_USERNAME": body.Username,
+		"SYSTEM_PASSWORD": body.Password,
+		"PLAYLIST_DIR":    body.PlaylistDir,
+	}
+
+	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleBrowse returns subdirectories of the requested path for filesystem autocomplete.
+func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
+	path := filepath.Clean(r.URL.Query().Get("path"))
+	if path == "" || path == "." {
+		path = "/"
+	}
+	if !filepath.IsAbs(path) {
+		http.Error(w, "path must be absolute", http.StatusBadRequest)
+		return
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]string{})
+		return
+	}
+
+	dirs := make([]string, 0)
+	for _, e := range entries {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+			dirs = append(dirs, filepath.Join(path, e.Name()))
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dirs)
 }
 
 func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, cfgPath string) []string {
