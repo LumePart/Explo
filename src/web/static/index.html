@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Explo</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<h1>Explo</h1>
+
+<div class="section">
+  <h3>Config (.env)</h3>
+  <textarea id="env-content" spellcheck="false" placeholder="Loading..."></textarea>
+  <div class="row" style="margin-top:8px">
+    <button onclick="saveConfig()">Save Config</button>
+    <span id="save-status"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Run</h3>
+  <div class="row">
+    <label>Playlist:</label>
+    <select id="playlist">
+      <option value="weekly-exploration">Weekly Exploration</option>
+      <option value="weekly-jams">Weekly Jams</option>
+      <option value="daily-jams">Daily Jams</option>
+    </select>
+    <label>Download mode:</label>
+    <select id="dlmode">
+      <option value="normal">normal</option>
+      <option value="skip">skip</option>
+      <option value="force">force</option>
+    </select>
+    <input type="checkbox" id="no-persist"> <label for="no-persist">no persist</label>
+    <input type="checkbox" id="exclude-local"> <label for="exclude-local">exclude local</label>
+  </div>
+  <div class="row">
+    <button id="run-btn" onclick="startRun()">▶ Run</button>
+    <span id="status"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Output</h3>
+  <div id="log"></div>
+</div>
+
+<script>
+async function loadConfig() {
+  const res = await fetch('/api/config');
+  document.getElementById('env-content').value = await res.text();
+}
+
+async function saveConfig() {
+  const st = document.getElementById('save-status');
+  st.textContent = 'saving...';
+  const res = await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: document.getElementById('env-content').value,
+  });
+  st.textContent = res.ok ? 'saved ✓' : 'error: ' + await res.text();
+  setTimeout(() => { st.textContent = ''; }, 3000);
+}
+
+async function startRun() {
+  const btn = document.getElementById('run-btn');
+  const status = document.getElementById('status');
+  const log = document.getElementById('log');
+  btn.disabled = true;
+  log.textContent = '';
+  status.textContent = 'running...';
+
+  const form = new FormData();
+  form.set('playlist', document.getElementById('playlist').value);
+  form.set('download_mode', document.getElementById('dlmode').value);
+  form.set('persist', document.getElementById('no-persist').checked ? 'false' : 'true');
+  form.set('exclude_local', document.getElementById('exclude-local').checked ? 'true' : 'false');
+
+  const res = await fetch('/api/run', { method: 'POST', body: form });
+  if (res.status === 409) { log.textContent = 'already running'; btn.disabled = false; return; }
+  if (!res.ok) { log.textContent = 'error: ' + await res.text(); btn.disabled = false; return; }
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split('\n\n');
+    buf = parts.pop();
+    for (const part of parts) {
+      let ev = '', data = '';
+      for (const l of part.split('\n')) {
+        if (l.startsWith('event: ')) ev = l.slice(7).trim();
+        if (l.startsWith('data: ')) data = l.slice(6);
+      }
+      if (ev === 'done') {
+        status.textContent = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
+        btn.disabled = false;
+      } else if (data) {
+        log.textContent += data + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  }
+}
+
+loadConfig();
+</script>
+</body>
+</html>
