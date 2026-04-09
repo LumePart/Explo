@@ -1,0 +1,150 @@
+{{define "wizard"}}
+<!-- ── WIZARD VIEW ── -->
+<div id="view-wizard" x-show="view === 'wizard'">
+  <div class="wizard">
+    <div class="wordmark">Explo</div>
+
+    <!-- Step 1: Discovery -->
+    <div x-show="step === 1">
+      <div class="step-label">Step 1 of 3 — Discovery</div>
+
+      <div class="field">
+        <label for="lb-user">ListenBrainz username</label>
+        <input id="lb-user" type="text" placeholder="e.g. musiclover42" autocomplete="off" spellcheck="false" x-model="user">
+        <span class="hint">Don't have an account? <a href="https://listenbrainz.org" target="_blank">Sign up free.</a></span>
+      </div>
+
+      <div class="field" style="margin-top:32px">
+        <label>Which playlists should Explo fetch?</label>
+        <div class="toggle-list">
+          <template x-for="p in playlists" :key="p.value">
+            <label class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-name" x-text="p.name"></span>
+                <span class="toggle-desc" x-text="p.desc"></span>
+              </div>
+              <input type="checkbox" :checked="checked[p.value]" @change="checked[p.value] = !checked[p.value]">
+              <span class="toggle-switch"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn-next" @click="nextStep()" :disabled="!step1Valid || saving" x-text="saving ? 'Saving…' : 'Next →'"></button>
+      </div>
+    </div>
+
+    <!-- Step 2: Media System -->
+    <div x-show="step === 2">
+      <div class="step-label">Step 2 of 3 — Media System</div>
+      <p class="step-desc">Explo will add discovered tracks to your library and create playlists automatically. It needs access to your media server to do this.</p>
+
+      <div class="field">
+        <label>Which media system do you use?</label>
+        <div class="system-grid">
+          <template x-for="s in systems" :key="s.value">
+            <button class="system-card" :class="{ selected: system === s.value }" @click="system = s.value" x-text="s.name"></button>
+          </template>
+        </div>
+      </div>
+
+      <div x-show="system && system !== 'mpd'" class="field" style="margin-top:24px">
+        <label>Server URL</label>
+        <input type="text" x-model="systemUrl" placeholder="e.g. http://192.168.1.100:8096">
+      </div>
+
+      <div x-show="['jellyfin','emby','plex'].includes(system)" class="field">
+        <label>API Key</label>
+        <input type="text" x-model="apiKey" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div x-show="['jellyfin','emby','plex'].includes(system)" class="field">
+        <label>Library Name</label>
+        <input type="text" x-model="libraryName" placeholder="e.g. Music">
+      </div>
+
+      <div x-show="system === 'subsonic'" class="field">
+        <label>Username</label>
+        <input type="text" x-model="systemUsername" autocomplete="off">
+      </div>
+
+      <div x-show="system === 'subsonic'" class="field">
+        <label>Password</label>
+        <input type="password" x-model="systemPassword">
+      </div>
+
+      <div x-show="system === 'mpd'" class="field">
+        <label>Playlist directory</label>
+        <div style="position:relative">
+          <input type="text" x-model="playlistDir" placeholder="e.g. /var/lib/mpd/playlists" autocomplete="off"
+            @focus="browseDir(playlistDir); showDirDropdown = true"
+            @blur="setTimeout(() => showDirDropdown = false, 150)"
+            @input="browseDir(playlistDir)">
+          <ul class="dir-suggestions" x-show="showDirDropdown && dirSuggestions.length">
+            <template x-for="d in dirSuggestions" :key="d">
+              <li @mousedown.prevent="playlistDir = d + '/'; browseDir(d + '/'); " x-text="d"></li>
+            </template>
+          </ul>
+        </div>
+        <span class="hint">Explo writes .m3u files here — MPD reads them as playlists.</span>
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn-back" @click="step = 1" style="margin-right:auto">← Back</button>
+        <button class="btn-next" @click="submitStep2()" :disabled="!step2Valid || saving" x-text="saving ? 'Saving…' : 'Next →'"></button>
+      </div>
+    </div>
+
+    <!-- Step 3: Downloader -->
+    <div x-show="step === 3">
+      <div class="step-label">Step 3 of 3 — Downloader</div>
+      <p class="step-desc">Explo downloads tracks using one or both services. Enable what you have access to — if both are enabled, YouTube is tried first.</p>
+
+      <div class="field">
+        <label>Which download services should Explo use?</label>
+        <div class="toggle-list">
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name">YouTube</span>
+              <span class="toggle-desc">Downloads via yt-dlp · requires a YouTube Data API key</span>
+            </div>
+            <input type="checkbox" :checked="dlServices.youtube" @change="dlServices.youtube = !dlServices.youtube">
+            <span class="toggle-switch"></span>
+          </label>
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name">Slskd</span>
+              <span class="toggle-desc">Downloads from the Soulseek P2P network · requires a running Slskd instance</span>
+            </div>
+            <input type="checkbox" :checked="dlServices.slskd" @change="dlServices.slskd = !dlServices.slskd">
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+      </div>
+
+      <div x-show="dlServices.youtube" class="field" style="margin-top:24px">
+        <label>YouTube API Key</label>
+        <input type="text" x-model="youtubeApiKey" autocomplete="off" spellcheck="false" placeholder="AIza…">
+        <span class="hint">Used to search YouTube for tracks. <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank">Enable the YouTube Data API v3.</a></span>
+      </div>
+
+      <div x-show="dlServices.slskd" class="field" style="margin-top:24px">
+        <label>Slskd URL</label>
+        <input type="text" x-model="slskdUrl" placeholder="e.g. http://192.168.1.100:5030">
+      </div>
+
+      <div x-show="dlServices.slskd" class="field">
+        <label>Slskd API Key</label>
+        <input type="text" x-model="slskdApiKey" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn-back" @click="step = 2" style="margin-right:auto">← Back</button>
+        <button class="btn-next" @click="submitStep3()" :disabled="!step3Valid || saving" x-text="saving ? 'Saving…' : 'Finish →'"></button>
+      </div>
+    </div>
+
+  </div>
+</div>
+{{end}}

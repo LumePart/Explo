@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -19,21 +20,150 @@ import (
 //go:embed static
 var staticFiles embed.FS
 
+//go:embed templates
+var templateFiles embed.FS
+
 //go:embed sample.env
 var sampleEnv []byte
+
+// Option is a value/label pair for select-type fields.
+type Option struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// Condition expresses a dependency on another field's value.
+// All non-zero properties are ANDed together.
+type Condition struct {
+	Field    string   `json:"field"`
+	Eq       string   `json:"eq,omitempty"`       // field === value
+	In       []string `json:"in,omitempty"`       // field is one of values
+	Contains string   `json:"contains,omitempty"` // value appears in field's comma-separated list
+}
+
+// FieldDef describes a single configurable env var.
+// Injected into the page as window.__FIELDS__ for the settings UI to consume.
+type FieldDef struct {
+	Key          string     `json:"key"`
+	Label        string     `json:"label"`
+	Type         string     `json:"type"`                    // text | password | url | select
+	Section      string     `json:"section"`                 // discovery | system | downloader
+	Placeholder  string     `json:"placeholder,omitempty"`
+	Hint         string     `json:"hint,omitempty"`
+	Required     bool       `json:"required,omitempty"`
+	Options      []Option   `json:"options,omitempty"`       // for type=select
+	VisibleWhen  *Condition `json:"visibleWhen,omitempty"`   // hide field when condition is false
+	RequiredWhen *Condition `json:"requiredWhen,omitempty"`  // conditionally required
+}
+
+var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
+var apiKeySystems = []string{"jellyfin", "emby", "plex"}
+
+// configFields is the single source of truth for the settings this web UI
+// currently owns. VisibleWhen / RequiredWhen drive the settings UI; the wizard
+// uses bespoke HTML but references the same logical rules.
+var configFields = []FieldDef{
+	// ── Discovery ──────────────────────────────────────────────────
+	{
+		Key: "LISTENBRAINZ_USER", Label: "ListenBrainz Username",
+		Type: "text", Section: "discovery",
+		Placeholder: "e.g. musiclover42", Required: true,
+	},
+
+	// ── Media System ───────────────────────────────────────────────
+	{
+		Key: "EXPLO_SYSTEM", Label: "Media System",
+		Type: "select", Section: "system", Required: true,
+		Options: []Option{
+			{Value: "jellyfin", Label: "Jellyfin"},
+			{Value: "emby", Label: "Emby"},
+			{Value: "plex", Label: "Plex"},
+			{Value: "subsonic", Label: "Subsonic"},
+			{Value: "mpd", Label: "MPD"},
+		},
+	},
+	{
+		Key: "SYSTEM_URL", Label: "Server URL",
+		Type: "url", Section: "system",
+		Placeholder:  "e.g. http://192.168.1.100:8096",
+		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", In: netSystems},
+		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", In: netSystems},
+	},
+	{
+		Key: "API_KEY", Label: "API Key",
+		Type: "text", Section: "system",
+		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", In: apiKeySystems},
+		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", In: apiKeySystems},
+	},
+	{
+		Key: "LIBRARY_NAME", Label: "Library Name",
+		Type: "text", Section: "system",
+		Placeholder: "e.g. Music",
+		VisibleWhen: &Condition{Field: "EXPLO_SYSTEM", In: apiKeySystems},
+	},
+	{
+		Key: "SYSTEM_USERNAME", Label: "Username",
+		Type: "text", Section: "system",
+		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
+		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
+	},
+	{
+		Key: "SYSTEM_PASSWORD", Label: "Password",
+		Type: "password", Section: "system",
+		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
+		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
+	},
+	{
+		Key: "PLAYLIST_DIR", Label: "Playlist Directory",
+		Type: "text", Section: "system",
+		Hint:         "Explo writes .m3u files here — MPD reads them as playlists.",
+		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "mpd"},
+		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "mpd"},
+	},
+
+	// ── Downloader ─────────────────────────────────────────────────
+	{
+		Key: "YOUTUBE_API_KEY", Label: "YouTube API Key",
+		Type: "text", Section: "downloader",
+		Placeholder:  "AIza…",
+		Hint:         "Required when using YouTube. Enable the YouTube Data API v3.",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "youtube"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "youtube"},
+	},
+	{
+		Key: "SLSKD_URL", Label: "Slskd URL",
+		Type: "url", Section: "downloader",
+		Placeholder:  "e.g. http://192.168.1.100:5030",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
+	},
+	{
+		Key: "SLSKD_API_KEY", Label: "Slskd API Key",
+		Type: "text", Section: "downloader",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
+	},
+}
+
+type pageData struct {
+	Fields template.JS
+}
 
 type Server struct {
 	configPath string
 	exploPath  string
 	mux        *http.ServeMux
 	runMu      sync.Mutex
+	tmpl       *template.Template
 }
 
 func NewServer(configPath, exploPath string) *Server {
+	tmpl := template.Must(template.ParseFS(templateFiles, "templates/*.html"))
 	s := &Server{
 		configPath: configPath,
 		exploPath:  exploPath,
 		mux:        http.NewServeMux(),
+		tmpl:       tmpl,
 	}
 	s.registerRoutes()
 	return s
@@ -41,11 +171,13 @@ func NewServer(configPath, exploPath string) *Server {
 
 func (s *Server) registerRoutes() {
 	staticFS, _ := fs.Sub(staticFiles, "static")
+	s.mux.HandleFunc("GET /{$}", s.handleIndex)
 	s.mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	s.mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
 	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
 	s.mux.HandleFunc("POST /api/wizard/step2", s.handleWizardStep2)
+	s.mux.HandleFunc("POST /api/wizard/step3", s.handleWizardStep3)
 	s.mux.HandleFunc("GET /api/browse", s.handleBrowse)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("GET /api/run/status", s.handleRunStatus)
@@ -54,6 +186,19 @@ func (s *Server) registerRoutes() {
 func (s *Server) Start(addr string) error {
 	slog.Info("Explo web UI started", "addr", addr)
 	return http.ListenAndServe(addr, s.mux)
+}
+
+// handleIndex serves the main page via Go templates.
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	fieldsJSON, err := json.Marshal(configFields)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.tmpl.ExecuteTemplate(w, "base.html", pageData{Fields: template.JS(fieldsJSON)}); err != nil {
+		slog.Error("template error", "err", err)
+	}
 }
 
 // handleGetConfig returns the raw .env file as plain text.
@@ -355,6 +500,37 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dirs)
+}
+
+// handleWizardStep3 saves downloader configuration.
+func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		DownloadServices []string `json:"download_services"`
+		YoutubeAPIKey    string   `json:"youtube_api_key"`
+		SlskdURL         string   `json:"slskd_url"`
+		SlskdAPIKey      string   `json:"slskd_api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(body.DownloadServices) == 0 {
+		http.Error(w, "at least one download service is required", http.StatusBadRequest)
+		return
+	}
+
+	updates := map[string]string{
+		"DOWNLOAD_SERVICES": strings.Join(body.DownloadServices, ","),
+		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
+		"SLSKD_URL":         body.SlskdURL,
+		"SLSKD_API_KEY":     body.SlskdAPIKey,
+	}
+
+	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, cfgPath string) []string {

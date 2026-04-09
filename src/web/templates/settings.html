@@ -1,0 +1,54 @@
+{{define "settings"}}
+<!-- ── SETTINGS VIEW ── -->
+<div id="view-settings" x-show="view === 'settings'">
+  <div class="settings">
+    <header class="settings-header">
+      <span class="wordmark small">Explo</span>
+      <nav>
+        <button class="tab-btn" :class="{ active: activeTab === 'run' }" @click="activeTab = 'run'">Run</button>
+        <button class="tab-btn" :class="{ active: activeTab === 'config' }" @click="activeTab = 'config'">Settings</button>
+      </nav>
+    </header>
+
+    <div x-show="activeTab === 'run'">
+      <div class="section">
+        <div class="section-label">Manual run</div>
+        <div class="row">
+          <label>Playlist</label>
+          <select x-model="playlist">
+            <option value="weekly-exploration">Weekly Exploration</option>
+            <option value="weekly-jams">Weekly Jams</option>
+            <option value="daily-jams">Daily Jams</option>
+          </select>
+          <label>Download mode</label>
+          <select x-model="dlmode">
+            <option value="normal">normal</option>
+            <option value="skip">skip</option>
+            <option value="force">force</option>
+          </select>
+          <label class="check-label"><input type="checkbox" x-model="noPersist"> no persist</label>
+          <label class="check-label"><input type="checkbox" x-model="excludeLocal"> exclude local</label>
+        </div>
+        <div class="row">
+          <button class="run-btn" @click="startRun()" :disabled="running">▶ Run</button>
+          <span id="status" x-text="status"></span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Output</div>
+        <div id="log" x-text="log"></div>
+      </div>
+    </div>
+
+    <div x-show="activeTab === 'config'">
+      <div class="section">
+        <p class="coming-soon">Settings sections coming soon.</p>
+      </div>
+      <div class="section">
+        <div class="section-label">Setup</div>
+        <button class="setup-btn" @click="step = 1; view = 'wizard'">Re-run setup wizard →</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
