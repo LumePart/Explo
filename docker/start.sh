@@ -4,6 +4,23 @@ WEB_UI=true WEB_CFG_PATH="${WEB_CFG_PATH:-/opt/explo/.env}" WEB_ADDR="${WEB_ADDR
 
 echo "[setup] Initializing cron jobs..."
 
+# Load *_SCHEDULE and *_FLAGS from .env if not already set in the environment.
+# This allows the web UI to configure schedules by writing to the .env file.
+_cfg="${WEB_CFG_PATH:-/opt/explo/.env}"
+if [ -f "$_cfg" ]; then
+  while IFS= read -r _line; do
+    case "$_line" in \#*|'') continue ;; esac
+    _key="${_line%%=*}"
+    case "$_key" in
+      *_SCHEDULE|*_FLAGS)
+        if [ -z "$(printenv "$_key" 2>/dev/null)" ]; then
+          export "$_key=${_line#*=}"
+        fi
+        ;;
+    esac
+  done < "$_cfg"
+fi
+
 
 # $CRON_SHCEDULE was deprecated in v0.11.0, keeping this block for backwards compatibility
 if [ -n "$CRON_SCHEDULE" ]; then

@@ -2,113 +2,202 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Explo</title>
 <link rel="stylesheet" href="/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body>
-<h1>Explo</h1>
+<body x-data="app()" x-init="init()">
 
-<div class="section">
-  <h3>Config (.env)</h3>
-  <textarea id="env-content" spellcheck="false" placeholder="Loading..."></textarea>
-  <div class="row" style="margin-top:8px">
-    <button onclick="saveConfig()">Save Config</button>
-    <span id="save-status"></span>
+<!-- ── WIZARD VIEW ── -->
+<div id="view-wizard" x-show="view === 'wizard'">
+  <div class="wizard">
+    <div class="wordmark">Explo</div>
+    <div class="step-label">Step 1 of 3 — Discovery</div>
+
+    <div class="field">
+      <label for="lb-user">ListenBrainz username</label>
+      <input id="lb-user" type="text" placeholder="e.g. musiclover42" autocomplete="off" spellcheck="false" x-model="user">
+      <span class="hint">Don't have an account? <a href="https://listenbrainz.org" target="_blank">Sign up free.</a></span>
+    </div>
+
+    <div class="field" style="margin-top:32px">
+      <label>Which playlists should Explo fetch?</label>
+      <div class="toggle-list">
+        <template x-for="p in playlists" :key="p.value">
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name" x-text="p.name"></span>
+              <span class="toggle-desc" x-text="p.desc"></span>
+            </div>
+            <input type="checkbox" :checked="checked[p.value]" @change="checked[p.value] = !checked[p.value]">
+            <span class="toggle-switch"></span>
+          </label>
+        </template>
+      </div>
+    </div>
+
+    <div class="wizard-actions">
+      <button class="btn-next" @click="nextStep()" :disabled="!wizardValid || saving" x-text="saving ? 'Saving…' : 'Next →'"></button>
+    </div>
   </div>
 </div>
 
-<div class="section">
-  <h3>Run</h3>
-  <div class="row">
-    <label>Playlist:</label>
-    <select id="playlist">
-      <option value="weekly-exploration">Weekly Exploration</option>
-      <option value="weekly-jams">Weekly Jams</option>
-      <option value="daily-jams">Daily Jams</option>
-    </select>
-    <label>Download mode:</label>
-    <select id="dlmode">
-      <option value="normal">normal</option>
-      <option value="skip">skip</option>
-      <option value="force">force</option>
-    </select>
-    <input type="checkbox" id="no-persist"> <label for="no-persist">no persist</label>
-    <input type="checkbox" id="exclude-local"> <label for="exclude-local">exclude local</label>
-  </div>
-  <div class="row">
-    <button id="run-btn" onclick="startRun()">▶ Run</button>
-    <span id="status"></span>
-  </div>
-</div>
+<!-- ── SETTINGS VIEW ── -->
+<div id="view-settings" x-show="view === 'settings'">
+  <div class="settings">
+    <header class="settings-header">
+      <span class="wordmark small">Explo</span>
+      <nav>
+        <button class="tab-btn" :class="{ active: activeTab === 'run' }" @click="activeTab = 'run'">Run</button>
+        <button class="tab-btn" :class="{ active: activeTab === 'config' }" @click="activeTab = 'config'">Settings</button>
+      </nav>
+    </header>
 
-<div class="section">
-  <h3>Output</h3>
-  <div id="log"></div>
+    <div x-show="activeTab === 'run'">
+      <div class="section">
+        <div class="section-label">Manual run</div>
+        <div class="row">
+          <label>Playlist</label>
+          <select x-model="playlist">
+            <option value="weekly-exploration">Weekly Exploration</option>
+            <option value="weekly-jams">Weekly Jams</option>
+            <option value="daily-jams">Daily Jams</option>
+          </select>
+          <label>Download mode</label>
+          <select x-model="dlmode">
+            <option value="normal">normal</option>
+            <option value="skip">skip</option>
+            <option value="force">force</option>
+          </select>
+          <label class="check-label"><input type="checkbox" x-model="noPersist"> no persist</label>
+          <label class="check-label"><input type="checkbox" x-model="excludeLocal"> exclude local</label>
+        </div>
+        <div class="row">
+          <button class="run-btn" @click="startRun()" :disabled="running">▶ Run</button>
+          <span id="status" x-text="status"></span>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Output</div>
+        <div id="log" x-text="log"></div>
+      </div>
+    </div>
+
+    <div x-show="activeTab === 'config'">
+      <div class="section">
+        <p class="coming-soon">Settings sections coming soon.</p>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-async function loadConfig() {
-  const res = await fetch('/api/config');
-  document.getElementById('env-content').value = await res.text();
-}
-
-async function saveConfig() {
-  const st = document.getElementById('save-status');
-  st.textContent = 'saving...';
-  const res = await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: document.getElementById('env-content').value,
-  });
-  st.textContent = res.ok ? 'saved ✓' : 'error: ' + await res.text();
-  setTimeout(() => { st.textContent = ''; }, 3000);
-}
-
-async function startRun() {
-  const btn = document.getElementById('run-btn');
-  const status = document.getElementById('status');
-  const log = document.getElementById('log');
-  btn.disabled = true;
-  log.textContent = '';
-  status.textContent = 'running...';
-
-  const form = new FormData();
-  form.set('playlist', document.getElementById('playlist').value);
-  form.set('download_mode', document.getElementById('dlmode').value);
-  form.set('persist', document.getElementById('no-persist').checked ? 'false' : 'true');
-  form.set('exclude_local', document.getElementById('exclude-local').checked ? 'true' : 'false');
-
-  const res = await fetch('/api/run', { method: 'POST', body: form });
-  if (res.status === 409) { log.textContent = 'already running'; btn.disabled = false; return; }
-  if (!res.ok) { log.textContent = 'error: ' + await res.text(); btn.disabled = false; return; }
-
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const parts = buf.split('\n\n');
-    buf = parts.pop();
-    for (const part of parts) {
-      let ev = '', data = '';
-      for (const l of part.split('\n')) {
-        if (l.startsWith('event: ')) ev = l.slice(7).trim();
-        if (l.startsWith('data: ')) data = l.slice(6);
-      }
-      if (ev === 'done') {
-        status.textContent = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
-        btn.disabled = false;
-      } else if (data) {
-        log.textContent += data + '\n';
-        log.scrollTop = log.scrollHeight;
-      }
-    }
+function parseEnv(text) {
+  const out = {};
+  for (const line of text.split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const idx = t.indexOf('=');
+    if (idx < 0) continue;
+    out[t.slice(0, idx).trim()] = t.slice(idx + 1).trim();
   }
+  return out;
 }
 
-loadConfig();
+function app() {
+  return {
+    view: null,
+    playlists: [
+      { value: 'weekly-exploration', name: 'Weekly Exploration', desc: '~50 tracks · refreshes every Tuesday' },
+      { value: 'weekly-jams',        name: 'Weekly Jams',        desc: '~25 tracks · refreshes every Monday' },
+      { value: 'daily-jams',         name: 'Daily Jams',         desc: '~25 tracks · refreshes daily' },
+    ],
+    checked: { 'weekly-exploration': true, 'weekly-jams': false, 'daily-jams': false },
+    user: '',
+    saving: false,
+    activeTab: 'run',
+    playlist: 'weekly-exploration',
+    dlmode: 'normal',
+    noPersist: false,
+    excludeLocal: false,
+    running: false,
+    status: '',
+    log: '',
+
+    get wizardValid() {
+      return this.user.trim() !== '' && Object.values(this.checked).some(Boolean);
+    },
+
+    async init() {
+      const res = await fetch('/api/config');
+      const cfg = parseEnv(await res.text());
+      this.view = cfg['LISTENBRAINZ_USER'] ? 'settings' : 'wizard';
+    },
+
+    async nextStep() {
+      this.saving = true;
+      try {
+        const playlists = Object.entries(this.checked).filter(([, v]) => v).map(([k]) => k);
+        const res = await fetch('/api/wizard/step1', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: this.user.trim(), playlists }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        this.view = 'settings';
+      } catch (e) {
+        alert('Error saving: ' + e.message);
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async startRun() {
+      this.running = true;
+      this.log = '';
+      this.status = 'running…';
+
+      const form = new FormData();
+      form.set('playlist', this.playlist);
+      form.set('download_mode', this.dlmode);
+      form.set('persist', this.noPersist ? 'false' : 'true');
+      form.set('exclude_local', this.excludeLocal ? 'true' : 'false');
+
+      const res = await fetch('/api/run', { method: 'POST', body: form });
+      if (res.status === 409) { this.log = 'already running'; this.running = false; return; }
+      if (!res.ok) { this.log = 'error: ' + await res.text(); this.running = false; return; }
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split('\n\n');
+        buf = parts.pop();
+        for (const part of parts) {
+          let ev = '', data = '';
+          for (const l of part.split('\n')) {
+            if (l.startsWith('event: ')) ev = l.slice(7).trim();
+            if (l.startsWith('data: ')) data = l.slice(6);
+          }
+          if (ev === 'done') {
+            this.status = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
+            this.running = false;
+          } else if (data) {
+            this.log += data + '\n';
+            this.$nextTick(() => {
+              const el = document.getElementById('log');
+              if (el) el.scrollTop = el.scrollHeight;
+            });
+          }
+        }
+      }
+    },
+  };
+}
 </script>
 </body>
 </html>

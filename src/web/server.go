@@ -18,6 +18,9 @@ import (
 //go:embed static
 var staticFiles embed.FS
 
+//go:embed sample.env
+var sampleEnv []byte
+
 type Server struct {
 	configPath string
 	exploPath  string
@@ -40,6 +43,7 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	s.mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
+	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("GET /api/run/status", s.handleRunStatus)
 }
@@ -50,10 +54,12 @@ func (s *Server) Start(addr string) error {
 }
 
 // handleGetConfig returns the raw .env file as plain text.
+// Falls back to the embedded sample.env template if no config file exists yet.
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.configPath)
 	if os.IsNotExist(err) {
-		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write(sampleEnv)
 		return
 	}
 	if err != nil {
@@ -173,6 +179,114 @@ func (s *Server) handleRunStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"running": locked})
+}
+
+// handleWizardStep1 saves discovery settings (username + enabled playlists with default schedules).
+func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		User      string   `json:"user"`
+		Playlists []string `json:"playlists"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.User == "" {
+		http.Error(w, "user is required", http.StatusBadRequest)
+		return
+	}
+
+	// Default schedules per playlist type
+	type schedDef struct{ schedule, flags string }
+	defaults := map[string]schedDef{
+		"weekly-exploration": {"15 00 * * 2", "--playlist weekly-exploration"},
+		"weekly-jams":        {"30 00 * * 1", "--playlist weekly-jams"},
+		"daily-jams":         {"15 01 * * *", "--playlist daily-jams"},
+	}
+	envPrefixes := map[string]string{
+		"weekly-exploration": "WEEKLY_EXPLORATION",
+		"weekly-jams":        "WEEKLY_JAMS",
+		"daily-jams":         "DAILY_JAMS",
+	}
+
+	enabled := make(map[string]bool, len(body.Playlists))
+	for _, p := range body.Playlists {
+		enabled[p] = true
+	}
+
+	updates := map[string]string{"LISTENBRAINZ_USER": body.User}
+	for playlist, prefix := range envPrefixes {
+		if enabled[playlist] {
+			d := defaults[playlist]
+			updates[prefix+"_SCHEDULE"] = d.schedule
+			updates[prefix+"_FLAGS"] = d.flags
+		} else {
+			// Clear so start.sh won't register a cron job for it
+			updates[prefix+"_SCHEDULE"] = ""
+			updates[prefix+"_FLAGS"] = ""
+		}
+	}
+
+	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// updateEnvKeys reads the env file (falling back to fallback if missing), updates the
+// given key=value pairs in-place preserving comments, and writes the result back.
+func updateEnvKeys(path string, updates map[string]string, fallback []byte) error {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		data = fallback
+	} else if err != nil {
+		return err
+	}
+
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	touched := make(map[string]bool)
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		idx := strings.IndexByte(trimmed, '=')
+		if idx < 0 {
+			continue
+		}
+		key := strings.TrimSpace(trimmed[:idx])
+		if val, ok := updates[key]; ok {
+			if val == "" {
+				lines[i] = "" // remove by blanking
+			} else {
+				lines[i] = key + "=" + val
+			}
+			touched[key] = true
+		}
+	}
+
+	// Append any keys that weren't already in the file
+	for k, v := range updates {
+		if !touched[k] && v != "" {
+			lines = append(lines, k+"="+v)
+		}
+	}
+
+	// Filter out consecutive blank lines left by removals
+	out := make([]string, 0, len(lines))
+	prevBlank := false
+	for _, l := range lines {
+		blank := strings.TrimSpace(l) == ""
+		if blank && prevBlank {
+			continue
+		}
+		out = append(out, l)
+		prevBlank = blank
+	}
+
+	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0600)
 }
 
 func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, cfgPath string) []string {
