@@ -90,6 +90,25 @@
         <span class="hint">Explo writes .m3u files here — MPD reads them as playlists.</span>
       </div>
 
+      <div x-show="system && system !== 'mpd'" class="field">
+        <label>Library scan wait</label>
+        <input type="number" x-model="sleepMinutes" placeholder="2" min="1" max="60" style="width:80px">
+        <span class="hint">Minutes Explo waits after triggering a library scan before creating playlists. Increase if your server is slow to index. Default: 2.</span>
+      </div>
+
+      <div x-show="system === 'subsonic'" class="field">
+        <label class="toggle-row" style="margin-top:0">
+          <div class="toggle-info">
+            <span class="toggle-name">Public playlists</span>
+            <span class="toggle-desc">Make playlists visible to all users on the server</span>
+          </div>
+          <input type="checkbox" x-model="publicPlaylist">
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
+
+      <p class="step-notice">These are the most common settings to configure upfront. Additional options — admin credentials, HTTP timeout, and more — are available in Settings after setup.</p>
+
       <div class="wizard-actions">
         <button class="btn-back" @click="step = 1" style="margin-right:auto">← Back</button>
         <button class="btn-next" @click="submitStep2()" :disabled="!step2Valid || saving" x-text="saving ? 'Saving…' : 'Next →'"></button>
@@ -127,6 +146,18 @@
         <label>YouTube API Key</label>
         <input type="text" x-model="youtubeApiKey" autocomplete="off" spellcheck="false" placeholder="AIza…">
         <span class="hint">Used to search YouTube for tracks. <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank">Enable the YouTube Data API v3.</a></span>
+      </div>
+
+      <div x-show="dlServices.youtube" class="field">
+        <label>Track format</label>
+        <input type="text" x-model="trackExtension" placeholder="opus" autocomplete="off" spellcheck="false">
+        <span class="hint">File format yt-dlp converts to. Default is <strong>opus</strong> — use <strong>mp3</strong> for broader device compatibility.</span>
+      </div>
+
+      <div x-show="dlServices.youtube" class="field">
+        <label>Exclude keywords</label>
+        <input type="text" x-model="filterList" placeholder="live,remix,instrumental,extended,clean,acapella" autocomplete="off" spellcheck="false">
+        <span class="hint">Comma-separated keywords to skip in YouTube results. Leave blank to use the defaults shown.</span>
       </div>
 
       <div x-show="dlServices.slskd" class="field" style="margin-top:24px">

@@ -39,6 +39,8 @@ function app() {
     systemUsername: '',
     systemPassword: '',
     playlistDir: '',
+    sleepMinutes: '',
+    publicPlaylist: false,
     showDirDropdown: false,
     dirSuggestions: [],
 
@@ -47,6 +49,8 @@ function app() {
     // Step 3
     dlServices: { youtube: true, slskd: false },
     youtubeApiKey: '',
+    trackExtension: '',
+    filterList: '',
     slskdUrl: '',
     slskdApiKey: '',
 
@@ -118,13 +122,15 @@ function app() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            system:        this.system,
-            url:           this.systemUrl,
-            api_key:       this.apiKey,
-            library_name:  this.libraryName,
-            username:      this.systemUsername,
-            password:      this.systemPassword,
-            playlist_dir:  this.playlistDir,
+            system:          this.system,
+            url:             this.systemUrl,
+            api_key:         this.apiKey,
+            library_name:    this.libraryName,
+            username:        this.systemUsername,
+            password:        this.systemPassword,
+            playlist_dir:    this.playlistDir,
+            sleep:           this.sleepMinutes,
+            public_playlist: this.publicPlaylist,
           }),
         });
         if (!res.ok) throw new Error(await res.text());
@@ -147,6 +153,8 @@ function app() {
           body: JSON.stringify({
             download_services: services,
             youtube_api_key:   this.youtubeApiKey,
+            track_extension:   this.trackExtension,
+            filter_list:       this.filterList,
             slskd_url:         this.slskdUrl,
             slskd_api_key:     this.slskdApiKey,
           }),

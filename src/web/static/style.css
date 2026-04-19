@@ -151,3 +151,4 @@ select {
   font-family: monospace; font-size: 12px; margin-top: 8px;
 }
 .coming-soon { color: var(--muted); padding: 8px 0; }
+.step-notice { font-size: 12px; color: var(--muted); margin-top: 28px; line-height: 1.6; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }

@@ -120,6 +120,19 @@ var configFields = []FieldDef{
 		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "mpd"},
 		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "mpd"},
 	},
+	{
+		Key: "SLEEP", Label: "Library Scan Wait (minutes)",
+		Type: "text", Section: "system",
+		Placeholder: "2",
+		Hint:        "How long to wait after triggering a library scan before creating playlists.",
+		VisibleWhen: &Condition{Field: "EXPLO_SYSTEM", In: netSystems},
+	},
+	{
+		Key: "PUBLIC_PLAYLIST", Label: "Public Playlists",
+		Type: "text", Section: "system",
+		Hint:        "Set to true to make playlists visible to all users (Subsonic).",
+		VisibleWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
+	},
 
 	// ── Downloader ─────────────────────────────────────────────────
 	{
@@ -440,13 +453,15 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 // handleWizardStep2 saves media system configuration.
 func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		System      string `json:"system"`
-		URL         string `json:"url"`
-		APIKey      string `json:"api_key"`
-		LibraryName string `json:"library_name"`
-		Username    string `json:"username"`
-		Password    string `json:"password"`
-		PlaylistDir string `json:"playlist_dir"`
+		System         string `json:"system"`
+		URL            string `json:"url"`
+		APIKey         string `json:"api_key"`
+		LibraryName    string `json:"library_name"`
+		Username       string `json:"username"`
+		Password       string `json:"password"`
+		PlaylistDir    string `json:"playlist_dir"`
+		Sleep          string `json:"sleep"`
+		PublicPlaylist bool   `json:"public_playlist"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -457,6 +472,10 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	publicPlaylist := ""
+	if body.PublicPlaylist {
+		publicPlaylist = "true"
+	}
 	updates := map[string]string{
 		"EXPLO_SYSTEM":    body.System,
 		"SYSTEM_URL":      body.URL,
@@ -465,6 +484,8 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"SYSTEM_USERNAME": body.Username,
 		"SYSTEM_PASSWORD": body.Password,
 		"PLAYLIST_DIR":    body.PlaylistDir,
+		"SLEEP":           body.Sleep,
+		"PUBLIC_PLAYLIST": publicPlaylist,
 	}
 
 	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
@@ -507,6 +528,8 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		DownloadServices []string `json:"download_services"`
 		YoutubeAPIKey    string   `json:"youtube_api_key"`
+		TrackExtension   string   `json:"track_extension"`
+		FilterList       string   `json:"filter_list"`
 		SlskdURL         string   `json:"slskd_url"`
 		SlskdAPIKey      string   `json:"slskd_api_key"`
 	}
@@ -522,6 +545,8 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	updates := map[string]string{
 		"DOWNLOAD_SERVICES": strings.Join(body.DownloadServices, ","),
 		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
+		"TRACK_EXTENSION":   body.TrackExtension,
+		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
 	}
