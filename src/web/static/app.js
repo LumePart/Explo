@@ -16,6 +16,7 @@ function app() {
     step: 1,
 
     // Step 1
+    discoveryMode: 'playlist',
     playlists: [
       { value: 'weekly-exploration', name: 'Weekly Exploration', desc: '~50 tracks · refreshes every Tuesday' },
       { value: 'weekly-jams',        name: 'Weekly Jams',        desc: '~25 tracks · refreshes every Monday' },
@@ -44,10 +45,14 @@ function app() {
     showDirDropdown: false,
     dirSuggestions: [],
 
+    envSources: {},
     saving: false,
 
     // Step 3
-    dlServices: { youtube: true, slskd: false },
+    downloadDir: '',
+    useSubdirectory: true,
+    showDownloadDirDropdown: false,
+    dlServices: { youtube: false, slskd: false },
     youtubeApiKey: '',
     trackExtension: '',
     filterList: '',
@@ -65,7 +70,9 @@ function app() {
     log: '',
 
     get step1Valid() {
-      return this.user.trim() !== '' && Object.values(this.checked).some(Boolean);
+      if (this.user.trim() === '') return false;
+      if (this.discoveryMode === 'playlist') return Object.values(this.checked).some(Boolean);
+      return true;
     },
 
     get step2Valid() {
@@ -77,17 +84,60 @@ function app() {
       return true;
     },
 
+    get urlPlaceholder() {
+      const ports = { jellyfin: '8096', emby: '8096', plex: '32400', subsonic: '4533' };
+      return `e.g. http://192.168.1.100:${ports[this.system] || '8096'}`;
+    },
+
+    get anyEnvLocked() {
+      return Object.values(this.envSources).some(s => s === 'env');
+    },
+
+    isEnvLocked(key) { return this.envSources[key] === 'env'; },
+
     get step3Valid() {
+      if (!this.downloadDir.trim()) return false;
       if (!Object.values(this.dlServices).some(Boolean)) return false;
-      if (this.dlServices.youtube && !this.youtubeApiKey.trim()) return false;
       if (this.dlServices.slskd && (!this.slskdUrl.trim() || !this.slskdApiKey.trim())) return false;
       return true;
     },
 
     async init() {
       const res = await fetch('/api/config');
-      const cfg = parseEnv(await res.text());
-      this.view = cfg['LISTENBRAINZ_USER'] ? 'settings' : 'wizard';
+      const { values: cfg, sources } = await res.json();
+      this.envSources = sources || {};
+      if (cfg.LISTENBRAINZ_USER) {
+        Object.assign(this, {
+          user: cfg.LISTENBRAINZ_USER,
+          discoveryMode: cfg.LISTENBRAINZ_DISCOVERY || 'playlist',
+          system: cfg.EXPLO_SYSTEM || '',
+          systemUrl: cfg.SYSTEM_URL || '',
+          apiKey: cfg.API_KEY || '',
+          libraryName: cfg.LIBRARY_NAME || '',
+          systemUsername: cfg.SYSTEM_USERNAME || '',
+          systemPassword: cfg.SYSTEM_PASSWORD || '',
+          playlistDir: cfg.PLAYLIST_DIR || '',
+          sleepMinutes: cfg.SLEEP || '',
+          publicPlaylist: cfg.PUBLIC_PLAYLIST === 'true',
+          downloadDir: cfg.DOWNLOAD_DIR || '',
+          useSubdirectory: cfg.USE_SUBDIRECTORY !== 'false',
+          youtubeApiKey: cfg.YOUTUBE_API_KEY || '',
+          trackExtension: cfg.TRACK_EXTENSION || '',
+          filterList: cfg.FILTER_LIST || '',
+          slskdUrl: cfg.SLSKD_URL || '',
+          slskdApiKey: cfg.SLSKD_API_KEY || '',
+        });
+        this.checked = {
+          'weekly-exploration': !!cfg.WEEKLY_EXPLORATION_SCHEDULE,
+          'weekly-jams': !!cfg.WEEKLY_JAMS_SCHEDULE,
+          'daily-jams': !!cfg.DAILY_JAMS_SCHEDULE,
+        };
+        if (cfg.DOWNLOAD_SERVICES) {
+          const s = cfg.DOWNLOAD_SERVICES.split(',');
+          this.dlServices = { youtube: s.includes('youtube'), slskd: s.includes('slskd') };
+        }
+      }
+      this.view = cfg.LISTENBRAINZ_USER ? 'settings' : 'wizard';
     },
 
     async browseDir(input) {
@@ -104,7 +154,7 @@ function app() {
         const res = await fetch('/api/wizard/step1', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user: this.user.trim(), playlists }),
+          body: JSON.stringify({ user: this.user.trim(), playlists, discovery_mode: this.discoveryMode }),
         });
         if (!res.ok) throw new Error(await res.text());
         this.step = 2;
@@ -151,6 +201,8 @@ function app() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            download_dir:      this.downloadDir,
+            use_subdirectory:  this.useSubdirectory,
             download_services: services,
             youtube_api_key:   this.youtubeApiKey,
             track_extension:   this.trackExtension,
@@ -166,6 +218,12 @@ function app() {
       } finally {
         this.saving = false;
       }
+    },
+
+    async resetConfig() {
+      if (!confirm('Reset all settings? This will delete the config file and take you back to setup.')) return;
+      await fetch('/api/config/reset', { method: 'POST' });
+      location.reload();
     },
 
     async startRun() {

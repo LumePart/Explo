@@ -42,11 +42,11 @@
 
     <div x-show="activeTab === 'config'">
       <div class="section">
-        <p class="coming-soon">Settings sections coming soon.</p>
-      </div>
-      <div class="section">
         <div class="section-label">Setup</div>
-        <button class="setup-btn" @click="step = 1; view = 'wizard'">Re-run setup wizard →</button>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+          <button class="setup-btn" @click="step = 1; view = 'wizard'">Re-run setup wizard →</button>
+          <button class="setup-btn" style="color:#c0392b" @click="resetConfig()">Reset all settings</button>
+        </div>
       </div>
     </div>
   </div>

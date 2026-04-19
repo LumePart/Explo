@@ -180,7 +180,8 @@ func (cfg *Config) ReadEnv() {
 
 func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
-	cfg.ClientCfg.URL = strings.TrimSuffix(cfg.ClientCfg.URL, "/")
+	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
+	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
 	cfg.NormalizeDir()
 }
 
@@ -197,6 +198,17 @@ func fixDir(dir string) string {
 		return dir + "/"
 	}
 	return dir
+}
+
+func fixBaseURL(rawURL string) string {
+	u := strings.TrimSpace(rawURL)
+	if u == "" {
+		return ""
+	}
+	if !strings.Contains(u, "://") {
+		u = "http://" + u
+	}
+	return strings.TrimRight(u, "/")
 }
 
 func (cfg *Config) HandleDeprecation() { // 

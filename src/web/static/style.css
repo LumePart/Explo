@@ -34,7 +34,9 @@ a { color: var(--accent); }
 }
 .field input[type="text"]:focus,
 .field input[type="password"]:focus { border-color: var(--accent); }
+.field input:disabled { opacity: 0.45; cursor: not-allowed; }
 .hint { font-size: 12px; color: var(--muted); }
+.env-notice { font-size: 12px; color: var(--muted); padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 24px; line-height: 1.5; }
 .dir-suggestions {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
   background: var(--surface); border: 1px solid var(--accent);
@@ -81,6 +83,13 @@ a { color: var(--accent); }
 .toggle-row:has(input:checked) .toggle-switch::after { transform: translateX(16px); }
 
 /* System card grid */
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.mode-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; text-align: left; cursor: pointer; color: var(--text); display: flex; flex-direction: column; gap: 5px; transition: border-color .15s; }
+.mode-card:hover { border-color: #3a3a3a; }
+.mode-card.selected { border-color: var(--accent); }
+.mode-card .mode-name { font-size: 13px; font-weight: 600; }
+.mode-card.selected .mode-name { color: var(--accent); }
+.mode-card .mode-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .system-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
 .system-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);

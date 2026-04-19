@@ -46,18 +46,56 @@ type Condition struct {
 type FieldDef struct {
 	Key          string     `json:"key"`
 	Label        string     `json:"label"`
-	Type         string     `json:"type"`                    // text | password | url | select
-	Section      string     `json:"section"`                 // discovery | system | downloader
+	Type         string     `json:"type"`    // text | password | url | select
+	Section      string     `json:"section"` // discovery | system | downloader
 	Placeholder  string     `json:"placeholder,omitempty"`
 	Hint         string     `json:"hint,omitempty"`
 	Required     bool       `json:"required,omitempty"`
-	Options      []Option   `json:"options,omitempty"`       // for type=select
-	VisibleWhen  *Condition `json:"visibleWhen,omitempty"`   // hide field when condition is false
-	RequiredWhen *Condition `json:"requiredWhen,omitempty"`  // conditionally required
+	Options      []Option   `json:"options,omitempty"`      // for type=select
+	VisibleWhen  *Condition `json:"visibleWhen,omitempty"`  // hide field when condition is false
+	RequiredWhen *Condition `json:"requiredWhen,omitempty"` // conditionally required
 }
 
 var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
 var apiKeySystems = []string{"jellyfin", "emby", "plex"}
+
+// allConfigKeys is the complete set of env keys the web UI reads and writes.
+var allConfigKeys = []string{
+	"LISTENBRAINZ_USER", "LISTENBRAINZ_DISCOVERY",
+	"WEEKLY_EXPLORATION_SCHEDULE", "WEEKLY_EXPLORATION_FLAGS",
+	"WEEKLY_JAMS_SCHEDULE", "WEEKLY_JAMS_FLAGS",
+	"DAILY_JAMS_SCHEDULE", "DAILY_JAMS_FLAGS",
+	"EXPLO_SYSTEM", "SYSTEM_URL", "API_KEY", "LIBRARY_NAME",
+	"SYSTEM_USERNAME", "SYSTEM_PASSWORD", "PLAYLIST_DIR", "SLEEP", "PUBLIC_PLAYLIST",
+	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
+	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
+	"SLSKD_URL", "SLSKD_API_KEY",
+}
+
+// ConfigResponse is returned by GET /api/config.
+type ConfigResponse struct {
+	Values  map[string]string `json:"values"`
+	Sources map[string]string `json:"sources"` // "env" | "file"
+}
+
+// parseEnvText parses key=value lines, ignoring comments and blanks.
+func parseEnvText(text string) map[string]string {
+	out := map[string]string{}
+	for line := range strings.SplitSeq(text, "\n") {
+		t := strings.TrimSpace(line)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(t, "=")
+		if !ok {
+			continue
+		}
+		if k = strings.TrimSpace(k); k != "" {
+			out[k] = strings.TrimSpace(v)
+		}
+	}
+	return out
+}
 
 // configFields is the single source of truth for the settings this web UI
 // currently owns. VisibleWhen / RequiredWhen drive the settings UI; the wizard
@@ -136,6 +174,17 @@ var configFields = []FieldDef{
 
 	// ── Downloader ─────────────────────────────────────────────────
 	{
+		Key: "DOWNLOAD_DIR", Label: "Download directory",
+		Type: "text", Section: "downloader",
+		Placeholder: "e.g. /data/ or ./downloads/",
+		Required:    true,
+	},
+	{
+		Key: "USE_SUBDIRECTORY", Label: "Use playlist subfolders",
+		Type: "text", Section: "downloader",
+		Hint: "When enabled, Explo creates a subfolder per playlist inside the download directory.",
+	},
+	{
 		Key: "YOUTUBE_API_KEY", Label: "YouTube API Key",
 		Type: "text", Section: "downloader",
 		Placeholder:  "AIza…",
@@ -188,6 +237,7 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("/", http.FileServer(http.FS(staticFS)))
 	s.mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
+	s.mux.HandleFunc("POST /api/config/reset", s.handleResetConfig)
 	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
 	s.mux.HandleFunc("POST /api/wizard/step2", s.handleWizardStep2)
 	s.mux.HandleFunc("POST /api/wizard/step3", s.handleWizardStep3)
@@ -214,21 +264,31 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleGetConfig returns the raw .env file as plain text.
-// Falls back to the embedded sample.env template if no config file exists yet.
+// handleGetConfig returns resolved config as JSON: { values, sources }.
+// Sources are "env" when set via os.Environ (takes precedence), "file" otherwise.
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.configPath)
-	if os.IsNotExist(err) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(sampleEnv)
-		return
+	var fileValues map[string]string
+	if err == nil {
+		fileValues = parseEnvText(string(data))
+	} else {
+		fileValues = parseEnvText(string(sampleEnv))
 	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+
+	values := make(map[string]string, len(allConfigKeys))
+	sources := make(map[string]string, len(allConfigKeys))
+	for _, key := range allConfigKeys {
+		if v, ok := os.LookupEnv(key); ok {
+			values[key] = v
+			sources[key] = "env"
+		} else if v := fileValues[key]; v != "" {
+			values[key] = v
+			sources[key] = "file"
+		}
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write(data)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ConfigResponse{Values: values, Sources: sources})
 }
 
 // handleSaveConfig writes the posted plain-text body directly to the .env file.
@@ -239,6 +299,15 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := os.WriteFile(s.configPath, data, 0600); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleResetConfig deletes the .env file, effectively resetting ALL settings.
+func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
+	if err := os.Remove(s.configPath); err != nil && !os.IsNotExist(err) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -345,8 +414,9 @@ func (s *Server) handleRunStatus(w http.ResponseWriter, r *http.Request) {
 // handleWizardStep1 saves discovery settings (username + enabled playlists with default schedules).
 func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		User      string   `json:"user"`
-		Playlists []string `json:"playlists"`
+		User          string   `json:"user"`
+		Playlists     []string `json:"playlists"`
+		DiscoveryMode string   `json:"discovery_mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -375,7 +445,10 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		enabled[p] = true
 	}
 
-	updates := map[string]string{"LISTENBRAINZ_USER": body.User}
+	updates := map[string]string{
+		"LISTENBRAINZ_USER":      body.User,
+		"LISTENBRAINZ_DISCOVERY": body.DiscoveryMode,
+	}
 	for playlist, prefix := range envPrefixes {
 		if enabled[playlist] {
 			d := defaults[playlist]
@@ -413,11 +486,11 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		idx := strings.IndexByte(trimmed, '=')
-		if idx < 0 {
+		key, _, ok := strings.Cut(trimmed, "=")
+		if !ok {
 			continue
 		}
-		key := strings.TrimSpace(trimmed[:idx])
+		key = strings.TrimSpace(key)
 		if val, ok := updates[key]; ok {
 			if val == "" {
 				lines[i] = "" // remove by blanking
@@ -526,6 +599,8 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 // handleWizardStep3 saves downloader configuration.
 func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		DownloadDir      string   `json:"download_dir"`
+		UseSubdirectory  bool     `json:"use_subdirectory"`
 		DownloadServices []string `json:"download_services"`
 		YoutubeAPIKey    string   `json:"youtube_api_key"`
 		TrackExtension   string   `json:"track_extension"`
@@ -537,12 +612,22 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	if body.DownloadDir == "" {
+		http.Error(w, "download_dir is required", http.StatusBadRequest)
+		return
+	}
 	if len(body.DownloadServices) == 0 {
 		http.Error(w, "at least one download service is required", http.StatusBadRequest)
 		return
 	}
 
+	useSubdir := "false"
+	if body.UseSubdirectory {
+		useSubdir = "true"
+	}
 	updates := map[string]string{
+		"DOWNLOAD_DIR":      body.DownloadDir,
+		"USE_SUBDIRECTORY":  useSubdir,
 		"DOWNLOAD_SERVICES": strings.Join(body.DownloadServices, ","),
 		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
 		"TRACK_EXTENSION":   body.TrackExtension,
