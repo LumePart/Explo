@@ -152,12 +152,27 @@ select {
 }
 .run-btn:hover:not(:disabled) { border-color: var(--accent); }
 .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.stop-btn {
+  background: none; border: 1px solid #e05555; color: #e05555;
+  padding: 7px 18px; border-radius: var(--r); font-size: 13px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.stop-btn:hover { background: #e05555; color: #fff; }
 #status { font-size: 12px; color: var(--muted); }
 #log {
-  width: 100%; height: 300px; background: #0d0d0d; color: var(--green);
+  width: 100%; height: 300px; background: #0d0d0d;
   border: 1px solid var(--border); border-radius: var(--r);
-  padding: 12px; overflow-y: auto; white-space: pre-wrap;
-  font-family: monospace; font-size: 12px; margin-top: 8px;
+  padding: 12px; overflow-y: auto; margin-top: 8px;
 }
+.log-line { display: flex; gap: 10px; align-items: baseline; padding: 2px 0; }
+.log-time { font-size: 11px; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.log-badge { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; flex-shrink: 0; }
+.level-warn { color: var(--accent); }
+.level-error { color: #e05555; }
+.level-debug { color: var(--muted); }
+.log-msg { font-size: 12px; color: var(--text); word-break: break-word; }
+.log-track { font-size: 12px; color: var(--accent); flex-shrink: 0; }
+.log-system { font-size: 11px; color: var(--green); flex-shrink: 0; }
+.log-raw { font-family: monospace; font-size: 11px; color: var(--green); white-space: pre-wrap; word-break: break-all; padding: 1px 0; }
 .coming-soon { color: var(--muted); padding: 8px 0; }
 .step-notice { font-size: 12px; color: var(--muted); margin-top: 28px; line-height: 1.6; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }

@@ -1,3 +1,20 @@
+function parseSlogLine(line) {
+  const kv = {};
+  const re = /(\w+)=("(?:[^"\\]|\\.)*"|[^ ]+)/g;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    const [, k, v] = m;
+    kv[k] = v.startsWith('"') ? v.slice(1, -1).replace(/\\"/g, '"') : v;
+  }
+  if (!kv.msg && !kv.time) return { time: '', level: 'INFO', msg: line };
+  let time = '';
+  if (kv.time) {
+    try { time = new Date(kv.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }); }
+    catch { time = kv.time; }
+  }
+  return { time, level: (kv.level || 'INFO').toUpperCase(), msg: kv.msg || line, track: kv.track || '', system: kv.system || '' };
+}
+
 function parseEnv(text) {
   const out = {};
   for (const line of text.split('\n')) {
@@ -67,7 +84,9 @@ function app() {
     excludeLocal: false,
     running: false,
     status: '',
-    log: '',
+    logEntries: [],
+    rawLog: false,
+    abortController: null,
 
     get step1Valid() {
       if (this.user.trim() === '') return false;
@@ -228,8 +247,9 @@ function app() {
 
     async startRun() {
       this.running = true;
-      this.log = '';
+      this.logEntries = [];
       this.status = 'running…';
+      this.abortController = new AbortController();
 
       const form = new FormData();
       form.set('playlist', this.playlist);
@@ -237,37 +257,48 @@ function app() {
       form.set('persist', this.noPersist ? 'false' : 'true');
       form.set('exclude_local', this.excludeLocal ? 'true' : 'false');
 
-      const res = await fetch('/api/run', { method: 'POST', body: form });
-      if (res.status === 409) { this.log = 'already running'; this.running = false; return; }
-      if (!res.ok) { this.log = 'error: ' + await res.text(); this.running = false; return; }
+      try {
+        const res = await fetch('/api/run', { method: 'POST', body: form, signal: this.abortController.signal });
+        if (res.status === 409) { this.status = 'already running'; return; }
+        if (!res.ok) { this.status = 'error'; return; }
 
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const parts = buf.split('\n\n');
-        buf = parts.pop();
-        for (const part of parts) {
-          let ev = '', data = '';
-          for (const l of part.split('\n')) {
-            if (l.startsWith('event: ')) ev = l.slice(7).trim();
-            if (l.startsWith('data: ')) data = l.slice(6);
-          }
-          if (ev === 'done') {
-            this.status = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
-            this.running = false;
-          } else if (data) {
-            this.log += data + '\n';
-            this.$nextTick(() => {
-              const el = document.getElementById('log');
-              if (el) el.scrollTop = el.scrollHeight;
-            });
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const parts = buf.split('\n\n');
+          buf = parts.pop();
+          for (const part of parts) {
+            let ev = '', data = '';
+            for (const l of part.split('\n')) {
+              if (l.startsWith('event: ')) ev = l.slice(7).trim();
+              if (l.startsWith('data: ')) data = l.slice(6);
+            }
+            if (ev === 'done') {
+              this.status = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
+            } else if (data) {
+              this.logEntries.push({ raw: data, ...parseSlogLine(data) });
+              this.$nextTick(() => {
+                const el = document.getElementById('log');
+                if (el) el.scrollTop = el.scrollHeight;
+              });
+            }
           }
         }
+      } catch (e) {
+        if (e.name === 'AbortError') this.status = 'stopped';
+        else this.status = 'error';
+      } finally {
+        this.running = false;
+        this.abortController = null;
       }
+    },
+
+    stopRun() {
+      if (this.abortController) this.abortController.abort();
     },
   };
 }

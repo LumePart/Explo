@@ -31,12 +31,31 @@
         </div>
         <div class="row">
           <button class="run-btn" @click="startRun()" :disabled="running">▶ Run</button>
+          <button class="stop-btn" @click="stopRun()" x-show="running">■ Stop</button>
           <span id="status" x-text="status"></span>
         </div>
       </div>
       <div class="section">
-        <div class="section-label">Output</div>
-        <div id="log" x-text="log"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="section-label" style="margin-bottom:0">Output</div>
+          <label class="check-label" style="font-size:11px">
+            <input type="checkbox" x-model="rawLog"> Raw
+          </label>
+        </div>
+        <div id="log">
+          <template x-for="(entry, i) in logEntries" :key="i">
+            <div>
+              <div class="log-line" x-show="!rawLog">
+                <span class="log-time" x-text="entry.time"></span>
+                <span class="log-badge" x-show="entry.level !== 'INFO'" :class="'level-' + entry.level.toLowerCase()" x-text="entry.level"></span>
+                <span class="log-msg" x-text="entry.msg"></span>
+                <span class="log-track" x-show="entry.track" x-text="entry.track"></span>
+                <span class="log-system" x-show="entry.system" x-text="entry.system"></span>
+              </div>
+              <div class="log-raw" x-show="rawLog" x-text="entry.raw"></div>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
 
