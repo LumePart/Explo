@@ -1,3 +1,23 @@
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function highlightEnv(text) {
+  return text.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('#')) return `<span class="env-comment">${escHtml(line)}</span>`;
+    const eq = line.indexOf('=');
+    if (eq >= 0) {
+      const key = line.slice(0, eq);
+      const val = line.slice(eq + 1).trim();
+      if (!val) return `<span class="env-unset">${escHtml(line)}</span>`;
+      return `<span class="env-key">${escHtml(key)}</span><span class="env-eq">=</span><span class="env-val">${escHtml(line.slice(eq + 1))}</span>`;
+    }
+    return escHtml(line);
+  }).join('\n');
+}
+
 function parseSlogLine(line) {
   const kv = {};
   const re = /(\w+)=("(?:[^"\\]|\\.)*"|[^ ]+)/g;
@@ -87,6 +107,12 @@ function app() {
     logEntries: [],
     rawLog: false,
     abortController: null,
+    rawConfig: '',
+    configSaveStatus: '',
+    editingConfig: false,
+    logFileEntries: [],
+
+    get highlightedConfig() { return highlightEnv(this.rawConfig); },
 
     get step1Valid() {
       if (this.user.trim() === '') return false;
@@ -157,6 +183,7 @@ function app() {
         }
       }
       this.view = cfg.LISTENBRAINZ_USER ? 'settings' : 'wizard';
+      await this.refreshRunStatus();
     },
 
     async browseDir(input) {
@@ -249,7 +276,6 @@ function app() {
       this.running = true;
       this.logEntries = [];
       this.status = 'running…';
-      this.abortController = new AbortController();
 
       const form = new FormData();
       form.set('playlist', this.playlist);
@@ -258,9 +284,28 @@ function app() {
       form.set('exclude_local', this.excludeLocal ? 'true' : 'false');
 
       try {
-        const res = await fetch('/api/run', { method: 'POST', body: form, signal: this.abortController.signal });
-        if (res.status === 409) { this.status = 'already running'; return; }
-        if (!res.ok) { this.status = 'error'; return; }
+        const res = await fetch('/api/run', { method: 'POST', body: form });
+        if (res.status === 409) {
+          this.status = 'already running';
+          await this.refreshRunStatus();
+          return;
+        }
+        if (!res.ok) { this.status = 'error'; this.running = false; return; }
+        this.followRun();
+      } catch (e) {
+        this.status = 'error';
+        this.running = false;
+      }
+    },
+
+    async followRun() {
+      if (this.abortController) this.abortController.abort();
+      const controller = new AbortController();
+      this.abortController = controller;
+
+      try {
+        const res = await fetch('/api/run/events', { signal: controller.signal });
+        if (!res.ok) { this.status = 'error'; this.running = false; return; }
 
         const reader = res.body.getReader();
         const dec = new TextDecoder();
@@ -271,34 +316,80 @@ function app() {
           buf += dec.decode(value, { stream: true });
           const parts = buf.split('\n\n');
           buf = parts.pop();
-          for (const part of parts) {
-            let ev = '', data = '';
-            for (const l of part.split('\n')) {
-              if (l.startsWith('event: ')) ev = l.slice(7).trim();
-              if (l.startsWith('data: ')) data = l.slice(6);
-            }
-            if (ev === 'done') {
-              this.status = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
-            } else if (data) {
-              this.logEntries.push({ raw: data, ...parseSlogLine(data) });
-              this.$nextTick(() => {
-                const el = document.getElementById('log');
-                if (el) el.scrollTop = el.scrollHeight;
-              });
-            }
-          }
+          for (const part of parts) this.handleRunEvent(part);
         }
       } catch (e) {
-        if (e.name === 'AbortError') this.status = 'stopped';
-        else this.status = 'error';
+        if (e.name !== 'AbortError') {
+          this.status = 'error';
+          this.running = false;
+        }
       } finally {
-        this.running = false;
-        this.abortController = null;
+        if (this.abortController === controller) this.abortController = null;
       }
     },
 
-    stopRun() {
-      if (this.abortController) this.abortController.abort();
+    handleRunEvent(part) {
+      let ev = '', data = '';
+      for (const l of part.split('\n')) {
+        if (l.startsWith('event: ')) ev = l.slice(7).trim();
+        if (l.startsWith('data: ')) data = l.slice(6);
+      }
+      if (ev === 'done') {
+        this.status = parseInt(data) === 0 ? 'done ✓' : 'failed (exit ' + data + ')';
+        this.running = false;
+      } else if (data) {
+        this.logEntries.push({ raw: data, ...parseSlogLine(data) });
+        this.$nextTick(() => {
+          const el = document.getElementById('log');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      }
+    },
+
+    async refreshRunStatus() {
+      const res = await fetch('/api/run/status');
+      if (!res.ok) return;
+      const status = await res.json();
+      if (status.running) {
+        this.running = true;
+        this.status = 'running…';
+        this.logEntries = [];
+        this.followRun();
+      }
+    },
+
+    async stopRun() {
+      if (!this.running) return;
+      this.status = 'stopping…';
+      const res = await fetch('/api/run/stop', { method: 'POST' });
+      if (!res.ok) this.status = 'error stopping run';
+    },
+
+    async loadRawConfig() {
+      const res = await fetch('/api/config/raw');
+      this.rawConfig = await res.text();
+      this.editingConfig = false;
+    },
+
+    async loadLog() {
+      const res = await fetch('/api/logs');
+      const text = await res.text();
+      this.logFileEntries = text.split('\n').filter(l => l.trim()).map(l => ({ raw: l, ...parseSlogLine(l) }));
+    },
+
+    async saveRawConfig() {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: this.rawConfig,
+      });
+      if (res.ok) {
+        this.editingConfig = false;
+        this.configSaveStatus = 'Saved.';
+        setTimeout(() => { this.configSaveStatus = ''; }, 2500);
+      } else {
+        this.configSaveStatus = 'Error saving.';
+      }
     },
   };
 }

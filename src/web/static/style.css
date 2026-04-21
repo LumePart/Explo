@@ -137,6 +137,20 @@ nav { display: flex; gap: 2px; align-items: flex-end; }
 .setup-btn:hover { color: var(--text); }
 
 .section { margin-top: 24px; }
+.config-editor {
+  width: 100%; height: 420px; background: #0d0d0d;
+  border: 1px solid var(--border); border-radius: var(--r);
+  color: var(--text); padding: 14px; font-family: monospace; font-size: 12px;
+  line-height: 1.6; resize: vertical; outline: none;
+  transition: border-color 0.15s;
+}
+.config-editor:focus { border-color: var(--accent); }
+.config-viewer { overflow-y: auto; white-space: pre; word-break: normal; resize: none; cursor: default; }
+.env-comment { color: var(--muted); }
+.env-unset   { color: var(--muted); }
+.env-key     { color: var(--text); }
+.env-eq      { color: var(--muted); }
+.env-val     { color: var(--text); }
 .section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 .row > label { font-size: 12px; color: var(--muted); }
@@ -174,5 +188,17 @@ select {
 .log-track { font-size: 12px; color: var(--accent); flex-shrink: 0; }
 .log-system { font-size: 11px; color: var(--green); flex-shrink: 0; }
 .log-raw { font-family: monospace; font-size: 11px; color: var(--green); white-space: pre-wrap; word-break: break-all; padding: 1px 0; }
+.log-file-list { display: flex; flex-direction: column; gap: 2px; }
+.log-file-item {
+  background: none; border: 1px solid var(--border); border-radius: var(--r);
+  color: var(--muted); font-size: 12px; cursor: pointer; font-family: monospace;
+  padding: 8px 12px; text-align: left; transition: border-color 0.15s, color 0.15s;
+}
+.log-file-item:hover { color: var(--text); border-color: #3a3a3a; }
+.log-file-item.active { color: var(--text); border-color: var(--accent); }
+.log-history {
+  height: 400px; overflow-y: auto; background: #0d0d0d;
+  border: 1px solid var(--border); border-radius: var(--r); padding: 12px;
+}
 .coming-soon { color: var(--muted); padding: 8px 0; }
 .step-notice { font-size: 12px; color: var(--muted); margin-top: 28px; line-height: 1.6; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }

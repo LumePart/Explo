@@ -6,7 +6,8 @@
       <span class="wordmark small">Explo</span>
       <nav>
         <button class="tab-btn" :class="{ active: activeTab === 'run' }" @click="activeTab = 'run'">Run</button>
-        <button class="tab-btn" :class="{ active: activeTab === 'config' }" @click="activeTab = 'config'">Settings</button>
+        <button class="tab-btn" :class="{ active: activeTab === 'config' }" @click="activeTab = 'config'; loadRawConfig()">Settings</button>
+        <button class="tab-btn" :class="{ active: activeTab === 'logs' }" @click="activeTab = 'logs'; loadLog()">Logs</button>
       </nav>
     </header>
 
@@ -61,10 +62,44 @@
 
     <div x-show="activeTab === 'config'">
       <div class="section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="section-label" style="margin-bottom:0">Config file</div>
+          <button class="setup-btn" x-show="!editingConfig" @click="editingConfig = true">Edit</button>
+          <div x-show="editingConfig" style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:12px;color:var(--muted)" x-text="configSaveStatus"></span>
+            <button class="run-btn" @click="saveRawConfig()">Save</button>
+            <button class="setup-btn" @click="loadRawConfig()">Cancel</button>
+          </div>
+        </div>
+        <pre class="config-editor config-viewer" x-show="!editingConfig" x-html="highlightedConfig"></pre>
+        <textarea class="config-editor" x-show="editingConfig" x-model="rawConfig" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
+      <div class="section">
         <div class="section-label">Setup</div>
         <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
           <button class="setup-btn" @click="step = 1; view = 'wizard'">Re-run setup wizard →</button>
           <button class="setup-btn" style="color:#c0392b" @click="resetConfig()">Reset all settings</button>
+        </div>
+      </div>
+    </div>
+
+    <div x-show="activeTab === 'logs'">
+      <div class="section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="section-label" style="margin-bottom:0">Log</div>
+          <button class="setup-btn" style="font-size:11px" @click="loadLog()">Refresh</button>
+        </div>
+        <div x-show="logFileEntries.length === 0" style="font-size:12px;color:var(--muted);padding:4px 0">No log output yet.</div>
+        <div class="log-history">
+          <template x-for="(entry, i) in logFileEntries" :key="i">
+            <div class="log-line">
+              <span class="log-time" x-text="entry.time"></span>
+              <span class="log-badge" x-show="entry.level !== 'INFO'" :class="'level-' + entry.level.toLowerCase()" x-text="entry.level"></span>
+              <span class="log-msg" x-text="entry.msg"></span>
+              <span class="log-track" x-show="entry.track" x-text="entry.track"></span>
+              <span class="log-system" x-show="entry.system" x-text="entry.system"></span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
