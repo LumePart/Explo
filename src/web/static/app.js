@@ -135,7 +135,13 @@ function app() {
     },
 
     get anyEnvLocked() {
-      return Object.values(this.envSources).some(s => s === 'env');
+      return this.lockedEnvKeys.length > 0;
+    },
+
+    get lockedEnvKeys() {
+      return Object.entries(this.envSources)
+        .filter(([k, s]) => s === 'env' && !k.endsWith('_SCHEDULE') && !k.endsWith('_FLAGS'))
+        .map(([k]) => k);
     },
 
     isEnvLocked(key) { return this.envSources[key] === 'env'; },
@@ -184,6 +190,9 @@ function app() {
       }
       this.view = cfg.LISTENBRAINZ_USER ? 'settings' : 'wizard';
       await this.refreshRunStatus();
+      this.$watch('dlServices.slskd', val => {
+        if (val && !this.downloadDir) this.downloadDir = '/slskd/';
+      });
     },
 
     async browseDir(input) {

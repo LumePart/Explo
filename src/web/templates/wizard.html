@@ -5,7 +5,8 @@
     <div class="wordmark">Explo</div>
 
     <div x-show="anyEnvLocked" class="env-notice">
-      Some settings are managed by environment variables and will take precedence over anything set here.
+      You've set the following in your Docker environment, so they can't be changed here:
+      <strong x-text="lockedEnvKeys.join(', ')"></strong>
     </div>
 
     <!-- Step 1: Discovery -->
@@ -193,7 +194,7 @@
       <div x-show="dlServices.youtube || dlServices.slskd" class="field" style="margin-top:28px">
         <label>Download directory</label>
         <div style="position:relative">
-          <input type="text" x-model="downloadDir" placeholder="e.g. /data/ or ./downloads/" autocomplete="off"
+          <input type="text" x-model="downloadDir" placeholder="/slskd/" autocomplete="off"
             :disabled="isEnvLocked('DOWNLOAD_DIR')"
             @focus="browseDir(downloadDir); showDownloadDirDropdown = true"
             @blur="setTimeout(() => showDownloadDirDropdown = false, 150)"
@@ -204,7 +205,6 @@
             </template>
           </ul>
         </div>
-        <span class="hint">Where downloaded tracks are saved. In Docker, use <strong>/data/</strong> with a volume mount. Otherwise use an absolute path or <strong>./downloads/</strong>.</span>
       </div>
 
       <div x-show="dlServices.youtube || dlServices.slskd" class="field" style="margin-top:16px">

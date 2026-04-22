@@ -1,6 +1,13 @@
 #!/bin/sh
 echo "[setup] Starting web UI..."
-WEB_UI=true WEB_CFG_PATH="${WEB_CFG_PATH:-/opt/explo/.env}" WEB_ADDR="${WEB_ADDR:-:7288}" /opt/explo/explo &
+# If user incorectly mounts the config path as a directory, we'll try to automatically append it to .env inside it instead of failing.
+WEB_CFG_PATH="${WEB_CFG_PATH:-/opt/explo/.env}"
+if [ -d "$WEB_CFG_PATH" ]; then
+    WEB_CFG_PATH="$WEB_CFG_PATH/.env"
+    echo "[setup] Config path is a directory, using $WEB_CFG_PATH"
+fi
+WEB_UI=true WEB_CFG_PATH="$WEB_CFG_PATH" WEB_ADDR="${WEB_ADDR:-:7288}" /opt/explo/explo &
+echo "[setup] Web UI available at http://localhost:${WEB_ADDR##*:}"
 
 echo "[setup] Initializing cron jobs..."
 
