@@ -59,6 +59,21 @@ function app() {
       { value: 'weekly-jams',        name: 'Weekly Jams',        desc: '~25 tracks · refreshes every Monday' },
       { value: 'daily-jams',         name: 'Daily Jams',         desc: '~25 tracks · refreshes daily' },
     ],
+    scheduleDays: [
+      { value: -1, label: 'Every day', summary: 'Daily' },
+      { value: 0, label: 'Sunday', summary: 'Every Sunday' },
+      { value: 1, label: 'Monday', summary: 'Every Monday' },
+      { value: 2, label: 'Tuesday', summary: 'Every Tuesday' },
+      { value: 3, label: 'Wednesday', summary: 'Every Wednesday' },
+      { value: 4, label: 'Thursday', summary: 'Every Thursday' },
+      { value: 5, label: 'Friday', summary: 'Every Friday' },
+      { value: 6, label: 'Saturday', summary: 'Every Saturday' },
+    ],
+    scheduleKeyMap: {
+      'weekly-exploration': 'WEEKLY_EXPLORATION_SCHEDULE',
+      'weekly-jams': 'WEEKLY_JAMS_SCHEDULE',
+      'daily-jams': 'DAILY_JAMS_SCHEDULE',
+    },
     checked: { 'weekly-exploration': true, 'weekly-jams': false, 'daily-jams': false },
     user: '',
 
@@ -96,6 +111,14 @@ function app() {
     slskdUrl: '',
     slskdApiKey: '',
 
+    // Schedules
+    schedules: {
+      'weekly-exploration': { enabled: false, day: 2,  hour: 0, minute: 15, editing: false },
+      'weekly-jams':        { enabled: false, day: 1,  hour: 0, minute: 30, editing: false },
+      'daily-jams':         { enabled: false, day: -1, hour: 1, minute: 15, editing: false },
+    },
+    scheduleSaveStatus: {},
+
     // Dashboard
     activeTab: 'run',
     playlist: 'weekly-exploration',
@@ -113,6 +136,10 @@ function app() {
     logFileEntries: [],
 
     get highlightedConfig() { return highlightEnv(this.rawConfig); },
+
+    get recentTracks() {
+      return this.logFileEntries.filter(e => e.track && e.level === 'INFO').reverse();
+    },
 
     get step1Valid() {
       if (this.user.trim() === '') return false;
@@ -145,6 +172,29 @@ function app() {
     },
 
     isEnvLocked(key) { return this.envSources[key] === 'env'; },
+
+    isScheduleLocked(name) {
+      return this.envSources[this.scheduleKeyMap[name]] === 'env';
+    },
+
+    scheduleStatusText(name) {
+      return this.isScheduleLocked(name) ? 'Set via Docker' : (this.scheduleSaveStatus[name] || '');
+    },
+
+    scheduleTime(name) {
+      const sched = this.schedules[name];
+      return `${String(sched.hour).padStart(2, '0')}:${String(sched.minute).padStart(2, '0')}`;
+    },
+
+    updateScheduleTime(name, value) {
+      const [hour = '00', minute = '00'] = value.split(':');
+      this.schedules[name].hour = parseInt(hour, 10) || 0;
+      this.schedules[name].minute = parseInt(minute, 10) || 0;
+    },
+
+    scheduleSummary(day) {
+      return this.scheduleDays.find(option => option.value === day)?.summary || 'Daily';
+    },
 
     get step3Valid() {
       if (!this.downloadDir.trim()) return false;
@@ -183,6 +233,17 @@ function app() {
           'weekly-jams': !!cfg.WEEKLY_JAMS_SCHEDULE,
           'daily-jams': !!cfg.DAILY_JAMS_SCHEDULE,
         };
+        const schedMap = {
+          'weekly-exploration': cfg.WEEKLY_EXPLORATION_SCHEDULE,
+          'weekly-jams':        cfg.WEEKLY_JAMS_SCHEDULE,
+          'daily-jams':         cfg.DAILY_JAMS_SCHEDULE,
+        };
+        for (const [name, cron] of Object.entries(schedMap)) {
+          if (cron) {
+            const f = this.cronToFields(cron);
+            this.schedules[name] = { enabled: true, ...f };
+          }
+        }
         if (cfg.DOWNLOAD_SERVICES) {
           const s = cfg.DOWNLOAD_SERVICES.split(',');
           this.dlServices = { youtube: s.includes('youtube'), slskd: s.includes('slskd') };
@@ -190,9 +251,44 @@ function app() {
       }
       this.view = cfg.LISTENBRAINZ_USER ? 'settings' : 'wizard';
       await this.refreshRunStatus();
+      this.loadLog();
       this.$watch('dlServices.slskd', val => {
         if (val && !this.downloadDir) this.downloadDir = '/slskd/';
       });
+    },
+
+    cronToFields(cron) {
+      // Parses "MM HH * * DOW" → {minute, hour, day}. DOW "*" = -1 (every day).
+      const parts = cron.trim().split(/\s+/);
+      return {
+        minute: parseInt(parts[0]) || 0,
+        hour:   parseInt(parts[1]) || 0,
+        day:    parts[4] === '*' ? -1 : (parseInt(parts[4]) || 0),
+      };
+    },
+
+    nextRunText(sched) {
+      if (!sched.enabled) return 'Disabled';
+      const hh = String(sched.hour).padStart(2, '0');
+      const mm = String(sched.minute).padStart(2, '0');
+      return `${this.scheduleSummary(sched.day)} at ${hh}:${mm}`;
+    },
+
+    async saveSchedule(name) {
+      if (this.isScheduleLocked(name)) {
+        this.scheduleSaveStatus[name] = 'Set via Docker';
+        return;
+      }
+      const s = this.schedules[name];
+      const res = await fetch('/api/config/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, enabled: s.enabled, day: s.day, hour: s.hour, minute: s.minute }),
+      });
+      this.scheduleSaveStatus[name] = res.ok ? 'Saved.' : 'Error saving.';
+      if (res.ok) {
+        setTimeout(() => { this.scheduleSaveStatus[name] = ''; }, 2000);
+      }
     },
 
     async browseDir(input) {

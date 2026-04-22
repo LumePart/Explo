@@ -248,6 +248,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/config/raw", s.handleGetConfigRaw)
 	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
 	s.mux.HandleFunc("POST /api/config/reset", s.handleResetConfig)
+	s.mux.HandleFunc("POST /api/config/schedules", s.handleSaveSchedule)
 	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
 	s.mux.HandleFunc("POST /api/wizard/step2", s.handleWizardStep2)
 	s.mux.HandleFunc("POST /api/wizard/step3", s.handleWizardStep3)
@@ -392,6 +393,57 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 // handleResetConfig deletes the .env file, effectively resetting ALL settings.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
 	if err := os.Remove(s.configPath); err != nil && !os.IsNotExist(err) {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleSaveSchedule updates a single playlist's schedule in the .env file.
+func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name    string `json:"name"`
+		Enabled bool   `json:"enabled"`
+		Day     int    `json:"day"`    // 0=Sun…6=Sat, -1=every day
+		Hour    int    `json:"hour"`
+		Minute  int    `json:"minute"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	envPrefixes := map[string]string{
+		"weekly-exploration": "WEEKLY_EXPLORATION",
+		"weekly-jams":        "WEEKLY_JAMS",
+		"daily-jams":         "DAILY_JAMS",
+	}
+	flagDefaults := map[string]string{
+		"weekly-exploration": "--playlist weekly-exploration",
+		"weekly-jams":        "--playlist weekly-jams",
+		"daily-jams":         "--playlist daily-jams",
+	}
+
+	prefix, ok := envPrefixes[body.Name]
+	if !ok {
+		http.Error(w, "unknown playlist name", http.StatusBadRequest)
+		return
+	}
+
+	updates := map[string]string{}
+	if body.Enabled {
+		dow := "*"
+		if body.Day >= 0 {
+			dow = fmt.Sprintf("%d", body.Day)
+		}
+		updates[prefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
+		updates[prefix+"_FLAGS"] = flagDefaults[body.Name]
+	} else {
+		updates[prefix+"_SCHEDULE"] = ""
+		updates[prefix+"_FLAGS"] = ""
+	}
+
+	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
