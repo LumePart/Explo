@@ -5,6 +5,8 @@ services:
     container_name: explo
     ports:
       - "7288:7288"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /path/to/.env:/opt/explo/.env
       - /path/to/musiclibrary/explo:/data/ # has to be in the same path you have your music system pointed to (it's recommended to put explo under a subfolder)
