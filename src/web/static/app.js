@@ -103,6 +103,7 @@ function app() {
     // Step 3
     downloadDir: '',
     useSubdirectory: true,
+    migrateDownloads: false,
     showDownloadDirDropdown: false,
     dlServices: { youtube: false, slskd: false },
     youtubeApiKey: '',
@@ -197,8 +198,9 @@ function app() {
     },
 
     get step3Valid() {
-      if (!this.downloadDir.trim()) return false;
       if (!Object.values(this.dlServices).some(Boolean)) return false;
+      const needsDownloadDir = this.dlServices.youtube || (this.dlServices.slskd && this.migrateDownloads);
+      if (needsDownloadDir && !this.downloadDir.trim()) return false;
       if (this.dlServices.slskd && (!this.slskdUrl.trim() || !this.slskdApiKey.trim())) return false;
       return true;
     },
@@ -222,6 +224,7 @@ function app() {
           publicPlaylist: cfg.PUBLIC_PLAYLIST === 'true',
           downloadDir: cfg.DOWNLOAD_DIR || '',
           useSubdirectory: cfg.USE_SUBDIRECTORY !== 'false',
+          migrateDownloads: cfg.MIGRATE_DOWNLOADS === 'true',
           youtubeApiKey: cfg.YOUTUBE_API_KEY || '',
           trackExtension: cfg.TRACK_EXTENSION || '',
           filterList: cfg.FILTER_LIST || '',
@@ -252,9 +255,6 @@ function app() {
       this.view = cfg.LISTENBRAINZ_USER ? 'settings' : 'wizard';
       await this.refreshRunStatus();
       this.loadLog();
-      this.$watch('dlServices.slskd', val => {
-        if (val && !this.downloadDir) this.downloadDir = '/slskd/';
-      });
     },
 
     cronToFields(cron) {
@@ -352,14 +352,15 @@ function app() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            download_dir:      this.downloadDir,
-            use_subdirectory:  this.useSubdirectory,
-            download_services: services,
-            youtube_api_key:   this.youtubeApiKey,
-            track_extension:   this.trackExtension,
-            filter_list:       this.filterList,
-            slskd_url:         this.slskdUrl,
-            slskd_api_key:     this.slskdApiKey,
+            download_dir:       this.downloadDir,
+            use_subdirectory:   this.useSubdirectory,
+            migrate_downloads:  this.migrateDownloads,
+            download_services:  services,
+            youtube_api_key:    this.youtubeApiKey,
+            track_extension:    this.trackExtension,
+            filter_list:        this.filterList,
+            slskd_url:          this.slskdUrl,
+            slskd_api_key:      this.slskdApiKey,
           }),
         });
         if (!res.ok) throw new Error(await res.text());

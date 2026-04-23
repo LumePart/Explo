@@ -193,10 +193,20 @@
           <input type="text" x-model="slskdApiKey" autocomplete="off" spellcheck="false" :disabled="isEnvLocked('SLSKD_API_KEY')">
         </div>
 
-        <div x-show="dlServices.youtube || dlServices.slskd" class="field">
+        <div x-show="dlServices.slskd" class="field">
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-desc">Move completed downloads to a separate directory</span>
+            </div>
+            <input type="checkbox" x-model="migrateDownloads" :disabled="isEnvLocked('MIGRATE_DOWNLOADS')">
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+
+        <div x-show="dlServices.youtube || (dlServices.slskd && migrateDownloads)" class="field">
           <label>Download directory</label>
           <div style="position:relative">
-            <input type="text" x-model="downloadDir" placeholder="/slskd/" autocomplete="off"
+            <input type="text" x-model="downloadDir" placeholder="e.g. /data/music/" autocomplete="off"
               :disabled="isEnvLocked('DOWNLOAD_DIR')"
               @focus="browseDir(downloadDir); showDownloadDirDropdown = true"
               @blur="setTimeout(() => showDownloadDirDropdown = false, 150)"
@@ -209,7 +219,7 @@
           </div>
         </div>
 
-        <div x-show="dlServices.youtube || dlServices.slskd" class="field">
+        <div x-show="dlServices.youtube || (dlServices.slskd && migrateDownloads)" class="field">
           <label class="toggle-row">
             <div class="toggle-info">
               <span class="toggle-name">Use playlist subfolders</span>

@@ -618,6 +618,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		DownloadDir      string   `json:"download_dir"`
 		UseSubdirectory  bool     `json:"use_subdirectory"`
+		MigrateDownloads bool     `json:"migrate_downloads"`
 		DownloadServices []string `json:"download_services"`
 		YoutubeAPIKey    string   `json:"youtube_api_key"`
 		TrackExtension   string   `json:"track_extension"`
@@ -629,12 +630,15 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if body.DownloadDir == "" {
-		http.Error(w, "download_dir is required", http.StatusBadRequest)
-		return
-	}
 	if len(body.DownloadServices) == 0 {
 		http.Error(w, "at least one download service is required", http.StatusBadRequest)
+		return
+	}
+	joined := strings.Join(body.DownloadServices, ",")
+	hasYoutube := strings.Contains(joined, "youtube")
+	hasSlskd := strings.Contains(joined, "slskd")
+	if (hasYoutube || (hasSlskd && body.MigrateDownloads)) && body.DownloadDir == "" {
+		http.Error(w, "download_dir is required", http.StatusBadRequest)
 		return
 	}
 
@@ -642,10 +646,15 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	if body.UseSubdirectory {
 		useSubdir = "true"
 	}
+	migrateDL := "false"
+	if body.MigrateDownloads {
+		migrateDL = "true"
+	}
 	updates := map[string]string{
 		"DOWNLOAD_DIR":      body.DownloadDir,
 		"USE_SUBDIRECTORY":  useSubdir,
-		"DOWNLOAD_SERVICES": strings.Join(body.DownloadServices, ","),
+		"MIGRATE_DOWNLOADS": migrateDL,
+		"DOWNLOAD_SERVICES": joined,
 		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
 		"TRACK_EXTENSION":   body.TrackExtension,
 		"FILTER_LIST":       body.FilterList,
