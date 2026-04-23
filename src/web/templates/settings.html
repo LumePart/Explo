@@ -18,7 +18,7 @@
           <div class="schedule-row">
             <div class="schedule-summary">
               <label class="toggle-row">
-                <input type="checkbox" x-model="schedules[playlistOption.value].enabled" :disabled="isScheduleLocked(playlistOption.value)">
+                <input type="checkbox" x-model="schedules[playlistOption.value].enabled" :disabled="isScheduleLocked(playlistOption.value)" @change="saveSchedule(playlistOption.value)">
                 <span class="toggle-switch"></span>
                 <span class="toggle-name" x-text="playlistOption.name"></span>
               </label>

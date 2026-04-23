@@ -35,7 +35,7 @@ COPY src/downloader/youtube_music/search_ytmusic.py .
 
 RUN chmod +x /start.sh ./explo
 
-ENV WEEKLY_EXPLORATION_SCHEDULE="15 0 * * 2"
+
 ENV WEB_ADDR=":7288"
 
 EXPOSE 7288
