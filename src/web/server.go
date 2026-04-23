@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 )
 
 //go:embed static
@@ -390,13 +392,17 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleResetConfig deletes the .env file, effectively resetting ALL settings.
+// handleResetConfig resets all settings and restarts the container.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.Remove(s.configPath); err != nil && !os.IsNotExist(err) {
+	if err := os.WriteFile(s.configPath, sampleEnv, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		syscall.Kill(1, syscall.SIGTERM)
+	}()
 }
 
 // handleSaveSchedule updates a single playlist's schedule in the .env file.

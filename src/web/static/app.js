@@ -372,9 +372,15 @@ function app() {
     },
 
     async resetConfig() {
-      if (!confirm('Reset all settings? This will delete the config file and take you back to setup.')) return;
-      await fetch('/api/config/reset', { method: 'POST' });
-      location.reload();
+      if (!confirm('Reset all settings? This will restart the container and take you back to setup.')) return;
+      const res = await fetch('/api/config/reset', { method: 'POST' });
+      if (!res.ok) { alert('Reset failed: ' + await res.text()); return; }
+      this.status = 'Restarting…';
+      const poll = async () => {
+        try { await fetch('/api/config'); location.reload(); }
+        catch { setTimeout(poll, 1500); }
+      };
+      setTimeout(poll, 3000);
     },
 
     async startRun() {
