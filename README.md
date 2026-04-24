@@ -1,6 +1,8 @@
 # Explo - Music Discovery for Self-Hosted Music Systems
 
-![Discord](https://img.shields.io/discord/1497141529696014409?style=flat&link=https%3A%2F%2Fdiscord.gg%2FuFWWPaN2zk)
+
+[![Discord](https://img.shields.io/discord/1497141529696014409?style=flat&logo=Discord&labelColor=white&color=black&link=https%3A%2F%2Fdiscord.gg%2FuFWWPaN2zk)](https://discord.gg/uFWWPaN2zk)
+
 
 **Explo** bridges the gap between music discovery and self-hosted music systems. Its main function is to act as a self-hosted alternative to Spotify’s *Discover Weekly*, automating music discovery based on your listening history.
 
@@ -50,4 +52,4 @@ Explo uses the following 3rd-party libraries:
 
 Contributions are always welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request.
 
-For discussion regarding development/help, join our [Discord!](https://discord.gg/uFWWPaN2zk)
+For discussion regarding development or help, join our [Discord!](https://discord.gg/uFWWPaN2zk)
