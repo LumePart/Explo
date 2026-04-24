@@ -1,10 +1,10 @@
 package main
 
 import (
-	"explo/src/debug"
+	"explo/src/logging"
 	"log"
-	"os"
 	"log/slog"
+	"os"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -25,10 +25,12 @@ func initHttpClient() *util.HttpClient {
 	})
 }
 
-func setup(cfg *config.Config) { // Inits debug, gets playlist name, if needed, handles deprecation
+// Inits debug, gets playlist name, if needed, handles deprecation
+func setup(cfg *config.Config) {
 	cfg.HandleDeprecation()
-	debug.Init(cfg.LogLevel)
-	cfg.GetPlaylistName()
+	notifyClient := logging.InitNotify(cfg.NotifyCfg)
+	logging.Init(cfg.LogLevel, notifyClient)
+	cfg.GenPlaylistName()
 }
 
 func main() {
@@ -44,25 +46,25 @@ func main() {
 	httpClient := initHttpClient()
 	client, err := client.NewClient(&cfg)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
 
 	tracks, err := discovery.Discover()
 	if err != nil {
-		slog.Error(err.Error())
+		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
 	if !cfg.Persist {
 		err := client.DeletePlaylist()
 		if err != nil {
-			slog.Warn(err.Error())
+			slog.Warn(err.Error(), "notify", true)
 		}
 		if cfg.DownloadCfg.UseSubDir {
 			downloader.DeleteSongs()
@@ -70,14 +72,14 @@ func main() {
 	}
 	if cfg.Flags.DownloadMode != "force" {
 		if err := client.CheckTracks(tracks); err != nil { // Check if tracks exist on system before downloading
-			slog.Warn(err.Error())
+			slog.Warn(err.Error(), "notify", true)
 		}
 	}
 
 	if cfg.Flags.DownloadMode != "skip" {
 		downloader.StartDownload(&tracks)
 		if len(tracks) == 0 {
-			slog.Error("couldn't download any tracks")
+			slog.Error("couldn't download any tracks", "notify", true)
 			os.Exit(1)
 		}
 	}
@@ -85,6 +87,6 @@ func main() {
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())
 	} else {
-		slog.Info("playlist created successfully", "system", cfg.System, "name", cfg.ClientCfg.PlaylistName)
+		slog.Info("playlist created successfully", "system", cfg.System, "playlistName", cfg.ClientCfg.PlaylistName, "notify", true)
 	}
 }

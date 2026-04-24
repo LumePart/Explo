@@ -3,10 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
-	"log/slog"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"golang.org/x/text/cases"
@@ -17,6 +18,7 @@ type Config struct {
 	DownloadCfg DownloadConfig
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg ClientConfig
+	NotifyCfg NotifyConfig
 	Flags Flags 
 	PersistENV bool `env:"PERSIST" env-default:"true"`
 	Persist bool
@@ -41,11 +43,13 @@ type ClientConfig struct {
 	DownloadDir string `env:"DOWNLOAD_DIR" env-default:"/data/"`
 	PlaylistDir string `env:"PLAYLIST_DIR"`
 	PlaylistName string
+	PlaylistNFormat string `env:"PLAYLISTNAME_FORMAT" env-default:"week"`
 	PlaylistDescr string
 	PlaylistID string
 	Sleep int `env:"SLEEP" env-default:"2"`
 	HTTPTimeout int `env:"CLIENT_HTTP_TIMEOUT" env-default:"10"`
 	Creds Credentials
+	AdminCreds AdminCredentials
 	Subsonic SubsonicConfig
 }
 
@@ -56,6 +60,11 @@ type Credentials struct {
 	Headers map[string]string
 	Token string
 	Salt string
+}
+
+type AdminCredentials struct {
+	User string `env:"ADMIN_SYSTEM_USERNAME"`
+	Password string `env:"ADMIN_SYSTEM_PASSWORD"`
 }
 
 
@@ -71,6 +80,8 @@ type DownloadConfig struct {
 	YoutubeMusic YoutubeMusic
 	Slskd Slskd
 	ExcludeLocal bool
+	KeepPermissions bool `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
+	RenameTrack bool `env:"RENAME_TRACK" env-default:"false"` // Rename track in {title}-{artist} format
 	UseSubDir bool `env:"USE_SUBDIRECTORY" env-default:"true"`
 	Discovery string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
@@ -87,6 +98,7 @@ type Youtube struct {
 	APIKey string `env:"YOUTUBE_API_KEY"`
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath string `env:"YTDLP_PATH"`
+	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"`
 	CookiesPath string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters Filters
 }
@@ -104,7 +116,6 @@ type Slskd struct {
 	DownloadAttempts int `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
 	SlskdDir string `env:"SLSKD_DIR" env-default:"/slskd/"`
 	MigrateDL bool `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
-	RenameTrack bool `env:"RENAME_TRACK" env-default:"false"` // Rename track in {title}-{artist} format
 	Timeout int `env:"SLSKD_TIMEOUT" env-default:"20"`
 	Filters Filters
 	MonitorConfig SlskdMon
@@ -126,6 +137,27 @@ type Listenbrainz struct {
 	SingleArtist bool `env:"SINGLE_ARTIST" env-default:"true"`
 }
 
+type NotifyConfig struct {
+	Matrix MatrixNotif
+	Discord DiscordNotif
+	Http HttpNotif
+}
+
+type MatrixNotif struct {
+	UserID string `env:"MATRIX_USERID"`
+	RoomID string `env:"MATRIX_ROOMID"`
+	HomeServer string `env:"MATRIX_HOMESERVER_URL"`
+	AccessToken string `env:"MATRIX_ACCESSTOKEN"`
+}
+
+type DiscordNotif struct {
+	BotToken string `env:"DISCORD_BOT_TOKEN"`
+	ChannelIDs []string `env:"DISCORD_CHANNEL_ID"`
+}
+
+type HttpNotif struct {
+	ReceiverURLs []string `env:"HTTP_RECEIVER"`
+}
 func (cfg *Config) ReadEnv() {
 
 	// Try to read from .env file first
@@ -143,10 +175,16 @@ func (cfg *Config) ReadEnv() {
 		}
 	}
 
-	cfg.VerifyDir()
+	cfg.CommonFixes()
 }
 
-func (cfg *Config) VerifyDir() {
+func (cfg *Config) CommonFixes() {
+	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
+	cfg.ClientCfg.URL = strings.TrimSuffix(cfg.ClientCfg.URL, "/")
+	cfg.NormalizeDir()
+}
+
+func (cfg *Config) NormalizeDir() {
 	if cfg.System == "mpd" {
 		cfg.ClientCfg.PlaylistDir = fixDir(cfg.ClientCfg.PlaylistDir)
 	}
@@ -175,25 +213,57 @@ func (cfg *Config) HandleDeprecation() { //
 	}
 }
 
-func (cfg *Config) GetPlaylistName() { // Generate playlist name and description
+func (cfg *Config) GenPlaylistName() { // Generate playlist name and description
 
-	toTitle := cases.Title(language.Und)
-	
-	playlistName := toTitle.String(cfg.Flags.Playlist)
-	if cfg.Persist {
-		year, week := time.Now().ISOWeek()
-		if cfg.Flags.Playlist != "daily-jams" {
-			playlistName = fmt.Sprintf("%s-%d-Week%d", playlistName, year, week)
-		} else {
-			day := time.Now().YearDay()
-			playlistName = fmt.Sprintf("%s-%d-Day%d", playlistName, year, day)
-		}
-	}
-	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf("Created for %s by Explo, using ListenBrainz recommendations.", cfg.DiscoveryCfg.Listenbrainz.User)
-	cfg.ClientCfg.PlaylistName = playlistName
+
+	cfg.ClientCfg.PlaylistName = getPlaylistName(cfg.Flags.Playlist, cfg.ClientCfg.PlaylistNFormat, cfg.Persist)
+	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf(
+		"Created for %s by Explo, using ListenBrainz recommendations.",
+		cfg.DiscoveryCfg.Listenbrainz.User)
 
 	if cfg.DownloadCfg.UseSubDir {
 	// add playlist name to downloadDir so all songs get downloaded to a single sub directory.
-		cfg.DownloadCfg.DownloadDir = fmt.Sprintf("%s%s/", cfg.DownloadCfg.DownloadDir, playlistName)
+		cfg.DownloadCfg.DownloadDir = filepath.Join(
+			cfg.DownloadCfg.DownloadDir,
+			cfg.ClientCfg.PlaylistName)
 	}
+}
+
+func getPlaylistName(playlistType, format string, persist bool) string {
+	now := time.Now()
+
+	toTitle := cases.Title(language.Und)
+	base := toTitle.String(playlistType)
+
+	// Non-persistent playlists always use base name
+	if !persist {
+		return base
+	}
+
+	// Explicit date-based naming
+	if format == "date" {
+		return fmt.Sprintf(
+			"%s-%s",
+			base,
+			now.Format("2006-01-02"),
+		)
+	}
+
+	// Persistent, non-date naming
+	if playlistType == "daily-jams" {
+		return fmt.Sprintf(
+			"%s-%d-Day%d",
+			base,
+			now.Year(),
+			now.YearDay(),
+		)
+	}
+
+	year, week := now.ISOWeek()
+	return fmt.Sprintf(
+		"%s-%d-Week%d",
+		base,
+		year,
+		week,
+	)
 }

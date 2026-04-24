@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 	"log/slog"
+	"errors"
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -57,6 +58,9 @@ type Metadata struct {
 type Recordings map[string]Metadata
 
 type CreatedFor struct {
+	Count         int `json:"count"`
+	Offset        int `json:"offset"`
+	PlaylistCount int `json:"playlist_count"`
 	Playlists     []struct {
 		Playlist struct {
 			Creator    string    `json:"creator"`
@@ -192,34 +196,39 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 	tracks := make([]*models.Track, 0, len(recordings))
 	for _, recording := range recordings {
-		title := recording.Recording.Name
+		rec := recording.Recording
+
+		title := rec.Name
 		artist := recording.Artist.Name
 		mainArtist := recording.Artist.Name
 
-		if len(recording.Artist.Artists) > 1 {
-			mainArtist = recording.Artist.Artists[0].Name
+		recArtists := recording.Artist.Artists
+		
+		if len(recArtists) > 1 {
+			mainArtist = recArtists[0].Name
 			if singleArtist {
-				var tempTitle strings.Builder
-				joinPhrase := " feat. "
-				for i, artist := range recording.Artist.Artists[1:] {
-					if i > 0 {
-						joinPhrase = ", "
-					}
-					tempTitle.WriteString(joinPhrase)
-					tempTitle.WriteString(artist.Name)
+				var b strings.Builder
+				b.WriteString(title)
+				b.WriteString(" feat. ")
+				b.WriteString(recArtists[1].Name)
+
+				for _, a := range recArtists[2:] {
+					b.WriteString(", ")
+					b.WriteString(a.Name)
 				}
-				title = fmt.Sprintf("%s%s", recording.Recording.Name, tempTitle.String())
-				artist = recording.Artist.Artists[0].Name
-			}
+
+				title = b.String()
+				artist = mainArtist
+				}
 		}
 
 		tracks = append(tracks, &models.Track{
 			Album:       recording.Release.Name,
 			Artist:      artist,
 			MainArtist:  mainArtist,
-			CleanTitle:  recording.Recording.Name,
+			CleanTitle:  rec.Name,
 			Title:       title,
-			Duration:    recording.Recording.Length,
+			Duration:    rec.Length,
 		})
 	}
 
@@ -227,44 +236,87 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 }
 
-func (c *ListenBrainz) getImportPlaylist(user string) (string, error) { // Get user LB playlists and find wanted playlists ID
-	body, err := c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor", user))
-	if err != nil {
-		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
-	}
+// Get user LB playlists and find wanted playlists ID
+func (c *ListenBrainz) getImportPlaylist(user string) (string, error) {
+	var offset int
+	for {
+		var body []byte
+		var err error
 
-	var playlists CreatedFor
-	err = util.ParseResp(body, &playlists)
-	if err != nil {
-		return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
-	}
+		for retries := range 5 {
+			body, err = c.lbRequest(fmt.Sprintf("user/%s/playlists/createdfor?offset=%d", user, offset))
+			if err == nil {
+				break
+			}
 
+			slog.Warn(
+				"failed getting response from ListenBrainz, retrying in 5 minutes",
+				"retry", retries+1,
+				"error", err,
+			)
+			time.Sleep(5 * time.Minute)
+		}
+
+		if err != nil {
+			return "", fmt.Errorf("failed getting ListenBrainz playlist after retries: %s", err.Error())
+		}
+
+		var playlists CreatedFor
+		err = util.ParseResp(body, &playlists)
+		if err != nil {
+			return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
+		}
+	
+		if id, err := c.parseCreatedFor(playlists); err == nil {
+			return id, nil
+		}
+
+		if playlists.Count+playlists.Offset >= playlists.PlaylistCount {
+			break
+		}
+
+		offset += playlists.Count
+	}
+	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one", c.cfg.ImportPlaylist)
+}
+
+func (c *ListenBrainz) parseCreatedFor(playlists CreatedFor) (string, error) {
 	var currentWeek, currentDay int
 	now := time.Now().Local()
-	if c.cfg.ImportPlaylist != "daily-jams" {
-		_, currentWeek = now.ISOWeek()
-	} else {
+	isDaily := c.cfg.ImportPlaylist == "daily-jams"
+	if isDaily {
 		currentDay = now.YearDay()
+	} else {
+		_, currentWeek = now.ISOWeek()
 	}
 	
-	for _, playlist := range playlists.Playlists {
-		var timeMatch bool
-		
-		if c.cfg.ImportPlaylist != "daily-jams" {
-			_, creationWeek := playlist.Playlist.Date.Local().ISOWeek()
-			timeMatch = currentWeek == creationWeek
-		} else {
-			creationDay := playlist.Playlist.Date.Local().YearDay()
-			timeMatch = currentDay == creationDay
+	for _, p := range playlists.Playlists {
+		meta := p.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata
+
+		if meta.AlgorithmMetadata.SourcePatch != c.cfg.ImportPlaylist {
+			continue
 		}
 
-		if playlist.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch == c.cfg.ImportPlaylist && timeMatch {
-			id := strings.Split(playlist.Playlist.Identifier, "/")
-			return id[len(id)-1], nil
+		created := p.Playlist.Date.Local()
+		var timeMatch bool
+
+		if isDaily {
+			timeMatch = created.YearDay() == currentDay
+		} else {
+			_, w := created.ISOWeek()
+			timeMatch = w == currentWeek
 		}
+
+		if !timeMatch {
+			continue
+		}
+
+		parts := strings.Split(p.Playlist.Identifier, "/")
+		return parts[len(parts)-1], nil
 	}
-	slog.Debug(fmt.Sprintf("playlist output: %v", playlists))
-	return "", fmt.Errorf("failed to get %s playlist, check if ListenBrainz has generated one this week", c.cfg.ImportPlaylist)
+
+	slog.Debug("playlist output", "playlists", playlists)
+	return "", errors.New("playlist not found in this page")
 }
 
 func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*models.Track, error) {
@@ -272,37 +324,39 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 	if err != nil {
 		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
-
 	var exploration Exploration
 	err = util.ParseResp(body, &exploration)
 	if err != nil {
 		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
-
-	if len(exploration.Playlist.Tracks) == 0 {
+	srcTracks := exploration.Playlist.Tracks
+	if len(srcTracks) == 0 {
 		return nil, fmt.Errorf("no tracks found in playlist %s", identifier)
 	}
 
-	tracks := make([]*models.Track, 0, len(exploration.Playlist.Tracks))
-	for _, track := range exploration.Playlist.Tracks {
+	tracks := make([]*models.Track, 0, len(srcTracks))
+	for _, track := range srcTracks {
 		title := track.Title
 		artist := track.Creator
 		mainArtist := track.Creator
 
-		if len(track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists) > 1 {
-			mainArtist = track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+		trackMeta := track.Extension.HTTPSJspfTrack.AdditionalMetadata
+		trackArtists := trackMeta.Artists
+
+		if len(trackMeta.Artists) > 1 {
+			mainArtist = trackMeta.Artists[0].ArtistCreditName
 			if singleArtist {
-				var tempTitle strings.Builder
-				joinPhrase := " feat. "
-				for i, artist := range track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[1:] {
-					if i > 0 {
-						joinPhrase = ", "
-					}
-					tempTitle.WriteString(joinPhrase)
-					tempTitle.WriteString(artist.ArtistCreditName)
-				}
-				title = fmt.Sprintf("%s%s", track.Title, tempTitle.String())
-				artist = track.Extension.HTTPSJspfTrack.AdditionalMetadata.Artists[0].ArtistCreditName
+				var b strings.Builder
+				b.WriteString(title)
+				b.WriteString(" feat. ")
+				b.WriteString(trackArtists[1].ArtistCreditName)
+
+				for _, a := range trackArtists[2:] {
+					b.WriteString(", ")
+					b.WriteString(a.ArtistCreditName)
+}
+				title = b.String()
+				artist = trackArtists[0].ArtistCreditName
 			}
 		}
 
@@ -320,7 +374,8 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 
 }
 
-func (c *ListenBrainz) lbRequest(path string) ([]byte, error) { // Handle ListenBrainz API requests
+// Handle ListenBrainz API requests
+func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 
 
 	reqURL := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)

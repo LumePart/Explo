@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"explo/src/debug"
+	"explo/src/logging"
 )
 
 type HttpClientConfig struct {
@@ -17,6 +17,7 @@ type HttpClientConfig struct {
 
 type HttpClient struct {
 	Client *http.Client
+	UserAgent string
 }
 
 func NewHttp(cfg HttpClientConfig) *HttpClient {
@@ -24,6 +25,7 @@ func NewHttp(cfg HttpClientConfig) *HttpClient {
 		Client: &http.Client{
 			Timeout: time.Duration(cfg.Timeout) * time.Second,
 		},
+		UserAgent: "Explo (+https://github.com/LumePart/explo))",
 	}
 }
 
@@ -34,6 +36,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
+	req.Header.Add("User-Agent", c.UserAgent)
 
 	for key, value := range headers {
 		req.Header.Add(key, value)
@@ -56,7 +59,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slog.Debug("response info", debug.RuntimeAttr(string(body)))
+		slog.Debug("response info", logging.RuntimeAttr(string(body)))
 		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
 	}
 
@@ -66,7 +69,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 func ParseResp[T any](body []byte, target *T) error {
 
 	if err := json.Unmarshal(body, target); err != nil {
-		slog.Debug("response info", debug.RuntimeAttr(string(body)))
+		slog.Debug("response info", logging.RuntimeAttr(string(body)))
 		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil

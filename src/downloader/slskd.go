@@ -4,7 +4,7 @@ import (
 	"bytes" // Could be moved to util for all clients
 	"encoding/json"
 	"explo/src/config"
-	"explo/src/debug"
+	"explo/src/logging"
 	"explo/src/models"
 	"explo/src/util"
 	"fmt"
@@ -204,7 +204,7 @@ func (c Slskd) searchStatus(ID, trackDetails string, count int) (bool, error) { 
 	} else if queryResult.IsComplete && (queryResult.FileCount == 0 || queryResult.FileCount == queryResult.LockedFileCount) {
 		return false, fmt.Errorf("search complete, did not find any available files for %s", trackDetails)
 	} else if count >= c.Cfg.Retry {
-		slog.Debug(fmt.Sprintf("failed to remove %s", ID), debug.RuntimeAttr(""))
+		slog.Debug(fmt.Sprintf("failed to remove %s", ID), logging.RuntimeAttr(""))
 		return false, fmt.Errorf("search wasn't completed after %d retries, skipping %s", count, trackDetails)
 	}
 
@@ -238,10 +238,11 @@ func (c Slskd) deleteSearch(ID string) error {
 	return nil
 }
 
-func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]File, error) { // Collect all files in response that match criteria
-	sanitizedArtist := sanitizeName(track.MainArtist)
-	sanitizedAlbum := sanitizeName(track.Album)
-	sanitizedTitle := sanitizeName(track.CleanTitle)
+// Collect all files in response that match criteria
+func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]File, error) {
+	sanitizedArtist := util.AlnumOnly(track.MainArtist)
+	sanitizedAlbum := util.AlnumOnly(track.Album)
+	sanitizedTitle := util.AlnumOnly(track.CleanTitle)
 
 	files := slices.Collect(func(yield func(File) bool) {
 		for _, result := range searchResults {
@@ -250,7 +251,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 					file.Extension = strings.TrimPrefix(strings.ToLower(file.Extension), ".")
 					if file.Extension == "" {
 						extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(string(file.Name))), ".")
-						file.Extension = sanitizeName(extension) // sanitize extension incase of bad chars
+						file.Extension = util.AlnumOnly(extension) // sanitize extension incase of bad chars
 					}
 
 					if !slices.Contains(c.Cfg.Filters.Extensions, file.Extension) && ContainsKeyword(track, file.Name, c.Cfg.Filters.FilterList) {
@@ -261,7 +262,7 @@ func (c Slskd) CollectFiles(track models.Track, searchResults SearchResults) ([]
 						continue
 					}
 
-					sanitizedFilename := sanitizeName(string(file.Name))
+					sanitizedFilename := util.AlnumOnly(string(file.Name))
 					if (containsLower(sanitizedFilename, sanitizedArtist) || containsLower(sanitizedFilename, sanitizedAlbum)) && containsLower(sanitizedFilename, sanitizedTitle) {
 						file.Username = result.Username
 						if !yield(file) {
@@ -336,7 +337,7 @@ func (c Slskd) queueDownload(files []File, track *models.Track) error {
 		continue
 	}
 	if err := c.deleteSearch(track.ID); err != nil {
-		slog.Debug("failed to delete search", debug.RuntimeAttr(err.Error()))
+		slog.Debug("failed to delete search", logging.RuntimeAttr(err.Error()))
 	}
 	return fmt.Errorf("couldn't download track: %s - %s", track.CleanTitle, track.Artist)
 }
@@ -400,10 +401,10 @@ func (c Slskd) deleteDownload(user, ID string) error {
 
 func (c *Slskd) Cleanup(track models.Track, fileID string) error {
 	if err := c.deleteSearch(track.ID); err != nil {
-		slog.Debug("failed to delete search request", debug.RuntimeAttr(err.Error()))
+		slog.Debug("failed to delete search request", logging.RuntimeAttr(err.Error()))
 	}
 	if err := c.deleteDownload(track.MainArtistID, fileID); err != nil {
-		slog.Debug("failed to delete download", debug.RuntimeAttr(err.Error()))
+		slog.Debug("failed to delete download", logging.RuntimeAttr(err.Error()))
 	}
 	return nil
 }

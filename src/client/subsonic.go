@@ -2,13 +2,14 @@ package client
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
-	"log/slog"
 
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"net/url"
 
 	"explo/src/config"
@@ -59,6 +60,24 @@ type Playlist struct {
 	Created   time.Time `json:"created"`
 	Changed   time.Time `json:"changed"`
 	CoverArt  string    `json:"coverArt"`
+}
+
+type ScanState struct {
+	SubsonicResponse struct {
+		Status        string `json:"status"`
+		Version       string `json:"version"`
+		Type          string `json:"type"`
+		ServerVersion string `json:"serverVersion"`
+		OpenSubsonic  bool   `json:"openSubsonic"`
+		ScanStatus    struct {
+			Scanning    bool      `json:"scanning"`
+			Count       int       `json:"count"`
+			FolderCount int       `json:"folderCount"`
+			LastScan    time.Time `json:"lastScan"`
+			ScanType    string    `json:"scanType"`
+			ElapsedTime int       `json:"elapsedTime"`
+		} `json:"scanStatus"`
+	} `json:"subsonic-response"`
 }
 
 type Subsonic struct {
@@ -158,12 +177,48 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 }
 
 func (c *Subsonic) RefreshLibrary() error {
+	if c.Cfg.AdminCreds.User != "" && c.Cfg.AdminCreds.Password != "" {
+		adminCfg := c.Cfg
+		adminCfg.Creds = config.Credentials{User: c.Cfg.AdminCreds.User, Password: c.Cfg.AdminCreds.Password}
+		adminClient := NewSubsonic(adminCfg, c.HttpClient)
+
+		if err := adminClient.GetAuth(); err != nil {
+			return err
+		}
+		return adminClient.startScan()
+	}
+
+	return c.startScan()
+}
+
+func (c *Subsonic) startScan() error {
 	reqParam := "startScan?f=json"
-	
 	if _, err := c.subsonicRequest(reqParam); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (c *Subsonic) CheckRefreshState() bool {
+	var state ScanState
+	reqParam := "getScanStatus?f=json"
+
+	for {
+		body, err := c.subsonicRequest(reqParam)
+		if err != nil {
+			slog.Warn("could not check scan status", "err", err.Error())
+			return false
+		}
+		if err = json.Unmarshal(body, &state); err != nil {
+			slog.Warn("failed to unmarshal scan status response", "err", err.Error())
+			return false
+		}
+		if !state.SubsonicResponse.ScanStatus.Scanning {
+			return true
+		}
+		slog.Debug("Library scan still ongoing")
+		time.Sleep(30 * time.Second)
+	}
 }
 
 func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {

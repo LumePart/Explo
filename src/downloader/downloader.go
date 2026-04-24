@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
@@ -27,8 +26,8 @@ type Downloader interface {
 	GetTrack(*models.Track) error
 	Monitor
 }
-
-func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) { // get download services from config and append them to DownloadClient
+// get download services from config and append them to DownloadClient
+func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) {
 	var downloader []Downloader
 	for _, service := range cfg.Services {
 		switch service {
@@ -128,28 +127,24 @@ func filterLocalTracks(tracks *[]*models.Track, preDownload bool) { // filter lo
 	*tracks = filteredTracks
 }
 
-
-func sanitizeName(s string) string { // return string with only letters and digits
-	var sanitizer = regexp.MustCompile(`[^\p{L}\d]+`)
-	return sanitizer.ReplaceAllString(s, "")
-}
-
 func getFilename(title, artist string) string {
+	const maxBytes = 240
 
 	// Remove illegal characters for file naming
-	re := regexp.MustCompile(`[^\p{L}\d._,\-]+`)
-	t := re.ReplaceAllString(title, "_")
-	a := re.ReplaceAllString(artist, "_")
+	t := util.FilenameSafe(title)
+	a :=util.FilenameSafe(artist)
 
-	fileName := fmt.Sprintf("%s-%s", t, a)
-	if len(fileName) > 240 { // truncate file name if it's longer than 240 chars
-		return fileName[:240]
+	// truncate long filename
+	runes := []rune(fmt.Sprintf("%s-%s", t, a))
+	for len(runes) > 0 && len(string(runes)) > maxBytes {
+		runes = runes[:len(runes)-1]
 	}
 
-	return fileName
+	return string(runes)
 }
 
-func ContainsKeyword(track models.Track, contentTitle string, filterList []string) bool { // ignore titles that have a specific keyword (defined in .env)
+// ignore titles that have a specific keyword (defined in .env)
+func ContainsKeyword(track models.Track, contentTitle string, filterList []string) bool {
 	title := strings.ToLower(track.Title)
 	artist := strings.ToLower(track.Artist)
 	content := strings.ToLower(contentTitle)
@@ -174,17 +169,13 @@ func containsLower(str string, substr string) bool {
 	)
 }
 
-func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error { // Move download from the source dir to the dest dir (download dir)
+// Move download from the source dir to the dest dir (download dir)
+func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
 	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, track.File)
 
-	if c.Cfg.Slskd.RenameTrack { // Rename file to {title}-{artist} format
+	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
 		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
-	}
-
-	info, err := os.Stat(srcFile)
-	if err != nil {
-		return fmt.Errorf("stat error: %s", err.Error())
 	}
 
 	in, err := os.Open(srcFile)
@@ -222,8 +213,15 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		return fmt.Errorf("sync failed: %s", err.Error())
 	}
 
-	if err = os.Chmod(dstFile, info.Mode()); err != nil {
-		return fmt.Errorf("chmod failed: %s", err.Error())
+	// Keep permissions, unless specified otherwise in .env (some systems don't support chmod)
+	if c.Cfg.KeepPermissions {
+		info, err := os.Stat(srcFile)
+		if err != nil {
+			return fmt.Errorf("stat error: %s", err.Error())
+		}
+		if err = os.Chmod(dstFile, info.Mode()); err != nil {
+			return fmt.Errorf("chmod failed: %s", err.Error())
+		}
 	}
 
 	// Remove only the moved file, not the directory

@@ -1,14 +1,23 @@
-package debug
+package logging
 
 import (
-	//"log"
-	"runtime"
 	"log/slog"
+	"os"
+	"runtime"
 )
 
 
-func Init(level string) {
-	slog.SetLogLoggerLevel(getLogLevel(level))
+func Init(level string, notifyClient *NotificationClient) {
+	baseHandler := slog.NewTextHandler( os.Stdout, &slog.HandlerOptions{
+		Level: getLogLevel(level), 
+	})
+
+	handler := &notifyHandler{
+		handler:   baseHandler,
+		notify: notifyClient,
+	}
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 }
 
 func RuntimeAttr(ctx string) slog.Attr {

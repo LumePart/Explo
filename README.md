@@ -44,6 +44,8 @@ Explo uses the following 3rd-party libraries:
 
 - [ytmusicapi](https://github.com/sigma67/ytmusicapi): Unofficial Youtube Music API
 
+- [notify](https://github.com/nikoksr/notify): Module for sending notifications to different services
+
 ## Contributing
 
 Contributions are always welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request.

@@ -9,10 +9,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	cfg "explo/src/config"
-	"explo/src/debug"
+	"explo/src/logging"
 	"explo/src/models"
 	"explo/src/util"
 
@@ -130,7 +131,7 @@ func queryYTMusic(track *models.Track, query string) error {
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 
-	track.File = getFilename(track.Title, track.Artist) + ".opus"
+	track.File = fmt.Sprintf("%s.%s",getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
@@ -145,7 +146,8 @@ func (c *Youtube) MonitorDownloads(track []*models.Track) error { // No need to 
 	return nil
 }
 
-func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // gets song under artist topic or personal channel
+// gets song under artist topic or personal channel
+func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string {
 
 	for _, v := range videos.Items {
 		if (strings.Contains(v.Snippet.ChannelTitle, "- Topic") || v.Snippet.ChannelTitle == track.MainArtist) && !ContainsKeyword(track, v.Snippet.Title, cfg.Filters.FilterList) {
@@ -155,7 +157,8 @@ func getTopic(cfg cfg.Youtube, videos Videos, track models.Track) string { // ge
 	return ""
 }
 
-func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) { // gets video stream using yt-dlp
+// gets video stream using yt-dlp
+func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.DownloadResult, error) {
 
 	result, err := goutubedl.New(ctx, videoID, c.gouTubeOpts)
 	if err != nil {
@@ -179,7 +182,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		}
 	}()
 
-	input := fmt.Sprintf("%s%s.tmp", c.DownloadDir, track.File)
+	input := filepath.Join(c.DownloadDir, track.File+".tmp")
 	file, err := os.Create(input)
 	if err != nil {
 		slog.Error("failed to create song file", "context", err.Error())
@@ -195,12 +198,12 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	if _, err = io.Copy(file, stream); err != nil {
 		slog.Error("failed to copy stream to file", "context", err.Error())
 		if err = os.Remove(input); err != nil {
-			slog.Debug(fmt.Sprintf("failed to remove file %s", input), debug.RuntimeAttr(err.Error()))
+			slog.Debug(fmt.Sprintf("failed to remove file %s", input), logging.RuntimeAttr(err.Error()))
 		}
 		return false
 	}
 
-	cmd := ffmpeg.Input(input).Output(fmt.Sprintf("%s%s", c.DownloadDir, track.File), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
 		"map":      "0:a",
 		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
 		"loglevel": "error",
@@ -213,17 +216,18 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	if err = cmd.Run(); err != nil {
 		slog.Error("failed to convert audio", "context", err.Error())
 		if err = os.Remove(input); err != nil {
-			slog.Debug(fmt.Sprintf("failed to remove %s", input), debug.RuntimeAttr(err.Error()))
+			slog.Debug(fmt.Sprintf("failed to remove %s", input), logging.RuntimeAttr(err.Error()))
 		}
 		return false
 	}
 	if err = os.Remove(input); err != nil {
-		slog.Debug(fmt.Sprintf("failed to remove %s", input), debug.RuntimeAttr(err.Error()))
+		slog.Debug(fmt.Sprintf("failed to remove %s", input), logging.RuntimeAttr(err.Error()))
 	}
 	return true
 }
 
-func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string { // filter out video ID
+// filter out video ID
+func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track) string {
 
 	// Try to get the video from the official or topic channel
 	if id := getTopic(cfg, videos, track); id != "" {
