@@ -4,7 +4,7 @@
 
 **Explo** bridges the gap between music discovery and self-hosted music systems. Its main function is to act as a self-hosted alternative to Spotify’s *Discover Weekly*, automating music discovery based on your listening history.
 
-Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine to retrieve personalized tracks and downloads them directly into your music library.
+Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine to retrieve personalized tracks and requests them directly into your music library.
 
 ---
 
@@ -14,7 +14,7 @@ Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine t
   - Weekly Exploration
   - Weekly Jams
   - Daily Jams
-- Download tracks from YouTube, Soulseek, or both
+- Request tracks from YouTube, Soulseek, or both
 - Add metadata (title, artist, album) to YouTube downloads
 - Create playlists in your music system
 - Keep previous playlists for later listening
@@ -31,7 +31,6 @@ Or jump directly to:
 - [System Notes](https://github.com/LumePart/Explo/wiki/4.-System-Notes) – Known issues and system-specific tips  
 - [FAQ](https://github.com/LumePart/Explo/wiki/6.-FAQ) – Common questions
 
-For discussion, join our [Discord!](https://discord.gg/uFWWPaN2zk)
 
 ## Acknowledgements
 
@@ -48,3 +47,5 @@ Explo uses the following 3rd-party libraries:
 ## Contributing
 
 Contributions are always welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request.
+
+For discussion regarding development/help, join our [Discord!](https://discord.gg/uFWWPaN2zk)
