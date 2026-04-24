@@ -37,6 +37,10 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
+		case "lidarr":
+			lidarrClient := NewLidarr(cfg.Lidarr, cfg.DownloadDir)
+			lidarrClient.AddHeader()
+			downloader = append(downloader, lidarrClient)
 		default:
 			return nil, fmt.Errorf("downloader '%s' not supported", service)
 		}

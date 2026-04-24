@@ -68,6 +68,24 @@ type AdminCredentials struct {
 }
 
 
+
+type Lidarr struct {
+	APIKey           string        `env:"LIDARR_API_KEY"`
+	Retry            int           `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
+	DownloadAttempts int           `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	LidarrDir        string        `env:"LIDARR_DIR" env-default:"/lidarr/"`
+	MigrateDL        bool          `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
+	Timeout          int           `env:"LIDARR_TIMEOUT" env-default:"20"`
+	URL              string        `env:"LIDARR_URL"`
+	Filters          Filters
+	MonitorConfig    LidarrMon
+}
+
+type LidarrMon struct {
+	Interval time.Duration `env:"SLSKD_MONITOR_INTERVAL" env-default:"1m"`
+	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
+}
+
 type SubsonicConfig struct {
 	Version	string `env:"SUBSONIC_VERSION" env-default:"1.16.1"`
 	ID string `env:"CLIENT" env-default:"explo"`
@@ -79,6 +97,7 @@ type DownloadConfig struct {
 	Youtube Youtube
 	YoutubeMusic YoutubeMusic
 	Slskd Slskd
+	Lidarr Lidarr
 	ExcludeLocal bool
 	KeepPermissions bool `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	RenameTrack bool `env:"RENAME_TRACK" env-default:"false"` // Rename track in {title}-{artist} format
@@ -165,7 +184,7 @@ func (cfg *Config) ReadEnv() {
 	if err != nil {
 		// If the error is because the file doesn't exist, fallback to env vars
 		if errors.Is(err, os.ErrNotExist) {
-			if err := cleanenv.ReadEnv(&cfg); err != nil {
+			if err := cleanenv.ReadEnv(cfg); err != nil {
 				slog.Error("failed to load config from env vars", "context", err.Error())
 				os.Exit(1)
 			}
