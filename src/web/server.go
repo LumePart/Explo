@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -21,11 +20,8 @@ import (
 	"time"
 )
 
-//go:embed static
-var staticFiles embed.FS
-
-//go:embed templates
-var templateFiles embed.FS
+//go:embed dist
+var distFiles embed.FS
 
 //go:embed sample.env
 var sampleEnv []byte
@@ -192,10 +188,6 @@ var configFields = []FieldDef{
 	},
 }
 
-type pageData struct {
-	Fields template.JS
-}
-
 // runEvent is an SSE event sent to connected browser clients.
 type runEvent struct {
 	typ  string
@@ -226,26 +218,49 @@ type Server struct {
 	exploPath  string
 	mux        *http.ServeMux
 	manualRun  manualRunState
-	tmpl       *template.Template
 }
 
 func NewServer(configPath, exploPath string) *Server {
-	tmpl := template.Must(template.ParseFS(templateFiles, "templates/*.html"))
 	s := &Server{
 		configPath: configPath,
 		exploPath:  exploPath,
 		mux:        http.NewServeMux(),
 		manualRun:  newManualRunState(),
-		tmpl:       tmpl,
 	}
 	s.registerRoutes()
 	return s
 }
 
+// spaFS returns the filesystem to serve the frontend from.
+// When WEB_DEV=true, serves directly from src/web/dist on disk so that
+// running "npm run build" reflects changes without recompiling the binary.
+func spaFS() (fs.FS, []byte) {
+	if os.Getenv("WEB_DEV") == "true" {
+		diskFS := os.DirFS("src/web/dist")
+		index, _ := fs.ReadFile(diskFS, "index.html")
+		return diskFS, index
+	}
+	embedded, _ := fs.Sub(distFiles, "dist")
+	index, _ := fs.ReadFile(embedded, "index.html")
+	return embedded, index
+}
+
 func (s *Server) registerRoutes() {
-	staticFS, _ := fs.Sub(staticFiles, "static")
-	s.mux.HandleFunc("GET /{$}", s.handleIndex)
-	s.mux.Handle("/", http.FileServer(http.FS(staticFS)))
+	distFS, indexHTML := spaFS()
+	fileServer := http.FileServer(http.FS(distFS))
+
+	// SPA fallback: serve static assets when they exist, otherwise serve index.html.
+	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path != "" {
+			if _, err := fs.Stat(distFS, path); err == nil {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexHTML)
+	})
 	s.mux.HandleFunc("GET /api/config", s.handleGetConfig)
 	s.mux.HandleFunc("GET /api/config/raw", s.handleGetConfigRaw)
 	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
@@ -304,20 +319,6 @@ func (s *Server) handleGetLog(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(data)
-}
-
-// ── Page ───────────────────────────────────────────────────────────────────
-
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	fieldsJSON, err := json.Marshal(configFields)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "base.html", pageData{Fields: template.JS(fieldsJSON)}); err != nil {
-		slog.Error("template error", "err", err)
-	}
 }
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -410,7 +411,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name    string `json:"name"`
 		Enabled bool   `json:"enabled"`
-		Day     int    `json:"day"`    // 0=Sun…6=Sat, -1=every day
+		Day     int    `json:"day"` // 0=Sun…6=Sat, -1=every day
 		Hour    int    `json:"hour"`
 		Minute  int    `json:"minute"`
 	}

@@ -62,19 +62,19 @@ func main() {
 	slog.Info("Starting Explo...")
 
 	httpClient := initHttpClient()
-	client, err := client.NewClient(&cfg)
-	if err != nil {
-		slog.Error(err.Error(), "notify", true)
-		os.Exit(1)
-	}
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
-	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
+	tracks, err := discovery.Discover()
 	if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
 
-	tracks, err := discovery.Discover()
+	client, err := client.NewClient(&cfg)
+	if err != nil {
+		slog.Error(err.Error(), "notify", true)
+		os.Exit(1)
+	}
+	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
 	if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)

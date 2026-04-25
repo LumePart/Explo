@@ -1,11 +1,11 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
-	"log/slog"
-	"errors"
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -63,16 +63,16 @@ type CreatedFor struct {
 	PlaylistCount int `json:"playlist_count"`
 	Playlists     []struct {
 		Playlist struct {
-			Creator    string    `json:"creator"`
-			Date       time.Time `json:"date"`
-			Extension  struct {
+			Creator   string    `json:"creator"`
+			Date      time.Time `json:"date"`
+			Extension struct {
 				HTTPSJspfPlaylist struct {
 					AdditionalMetadata struct {
 						AlgorithmMetadata struct {
 							SourcePatch string `json:"source_patch"`
 						} `json:"algorithm_metadata"`
 					} `json:"additional_metadata"`
-					CreatedFor     string    `json:"created_for"`
+					CreatedFor string `json:"created_for"`
 				} `json:"https://musicbrainz.org/doc/jspf#playlist"`
 			} `json:"extension"`
 			Identifier string `json:"identifier"`
@@ -88,9 +88,9 @@ type Exploration struct {
 		Identifier string    `json:"identifier"`
 		Title      string    `json:"title"`
 		Tracks     []struct {
-			Album      string `json:"album"`
-			Creator    string `json:"creator"`
-			Duration   int `json:"duration"`
+			Album     string `json:"album"`
+			Creator   string `json:"creator"`
+			Duration  int    `json:"duration"`
 			Extension struct {
 				HTTPSJspfTrack struct {
 					AddedAt            time.Time `json:"added_at"`
@@ -108,25 +108,24 @@ type Exploration struct {
 				} `json:"https://musicbrainz.org/doc/jspf#track"`
 			} `json:"extension"`
 			Identifier []string `json:"identifier"`
-			Title      string `json:"title"`
+			Title      string   `json:"title"`
 		} `json:"track"`
 	} `json:"playlist"`
 }
 
 type ListenBrainz struct {
 	HttpClient *util.HttpClient
-	cfg cfg.Listenbrainz
-	Separator string
+	cfg        cfg.Listenbrainz
+	Separator  string
 }
-
 
 func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *ListenBrainz {
 	return &ListenBrainz{
-		cfg: cfg.Listenbrainz,
+		cfg:        cfg.Listenbrainz,
 		HttpClient: httpClient,
 	}
 }
-func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
+func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
 	var tracks []*models.Track
 
 	switch c.cfg.Discovery {
@@ -139,7 +138,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error)  {
 		if err != nil {
 			return nil, err
 		}
-		
+
 	default:
 		mbids, err := c.getAPIRecommendations(c.cfg.User)
 		if err != nil {
@@ -203,7 +202,7 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 		mainArtist := recording.Artist.Name
 
 		recArtists := recording.Artist.Artists
-		
+
 		if len(recArtists) > 1 {
 			mainArtist = recArtists[0].Name
 			if singleArtist {
@@ -219,16 +218,16 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 				title = b.String()
 				artist = mainArtist
-				}
+			}
 		}
 
 		tracks = append(tracks, &models.Track{
-			Album:       recording.Release.Name,
-			Artist:      artist,
-			MainArtist:  mainArtist,
-			CleanTitle:  rec.Name,
-			Title:       title,
-			Duration:    rec.Length,
+			Album:      recording.Release.Name,
+			Artist:     artist,
+			MainArtist: mainArtist,
+			CleanTitle: rec.Name,
+			Title:      title,
+			Duration:   rec.Length,
 		})
 	}
 
@@ -266,7 +265,7 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("getImportPlaylist(): %s", err.Error())
 		}
-	
+
 		if id, err := c.parseCreatedFor(playlists); err == nil {
 			return id, nil
 		}
@@ -289,7 +288,7 @@ func (c *ListenBrainz) parseCreatedFor(playlists CreatedFor) (string, error) {
 	} else {
 		_, currentWeek = now.ISOWeek()
 	}
-	
+
 	for _, p := range playlists.Playlists {
 		meta := p.Playlist.Extension.HTTPSJspfPlaylist.AdditionalMetadata
 
@@ -354,7 +353,7 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 				for _, a := range trackArtists[2:] {
 					b.WriteString(", ")
 					b.WriteString(a.ArtistCreditName)
-}
+				}
 				title = b.String()
 				artist = trackArtists[0].ArtistCreditName
 			}
@@ -377,9 +376,7 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 // Handle ListenBrainz API requests
 func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 
-
 	reqURL := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)
-	
 	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to ListenBrainz API: %s", err)
@@ -388,6 +385,6 @@ func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 	if len(body) == 0 {
 		return nil, fmt.Errorf("ListenBrainz API returned empty response for: %s", reqURL)
 	}
-	
+
 	return body, nil
 }
