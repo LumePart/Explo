@@ -52,9 +52,11 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
 		filterLocalTracks(tracks, true)
 	}
-	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
-		slog.Error(err.Error())
-		return
+	if c.needsDownloadDir() {
+		if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
+			slog.Error(err.Error())
+			return
+		}
 	}
 
 	for _, d := range c.Downloaders {
@@ -91,6 +93,15 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 		}
 	}
 	filterLocalTracks(tracks, false)
+}
+
+func (c *DownloadClient) needsDownloadDir() bool {
+	for _, svc := range c.Cfg.Services {
+		if svc == "youtube" || svc == "youtube-music" {
+			return true
+		}
+	}
+	return c.Cfg.Slskd.MigrateDL
 }
 
 func (c *DownloadClient) DeleteSongs() {

@@ -17,6 +17,9 @@
   }
 }
 
+/* Hide scrollbar in WebKit (Chrome/Safari) while keeping scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Syntax highlight classes used in the config editor */
 .env-comment, .env-unset, .env-eq { color: var(--color-muted); }
 .env-key, .env-val { color: white; }

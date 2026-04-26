@@ -59,6 +59,21 @@ type FieldDef struct {
 var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
 var apiKeySystems = []string{"jellyfin", "emby", "plex"}
 
+// playlistDef is the single source of truth for a supported playlist type.
+// To add a new playlist: append one entry here and add the matching entry in
+// PLAYLISTS in the frontend Settings.jsx.
+type playlistDef struct {
+	EnvPrefix       string // e.g. "WEEKLY_EXPLORATION"
+	DefaultSchedule string // cron expression
+	DefaultFlags    string // CLI flags for the run
+}
+
+var playlistDefs = map[string]playlistDef{
+	"weekly-exploration": {"WEEKLY_EXPLORATION", "15 00 * * 2", "--playlist weekly-exploration"},
+	"weekly-jams":        {"WEEKLY_JAMS",        "30 00 * * 1", "--playlist weekly-jams"},
+	"daily-jams":         {"DAILY_JAMS",         "15 01 * * *", "--playlist daily-jams"},
+}
+
 // allConfigKeys is the complete set of env keys the web UI reads and writes.
 var allConfigKeys = []string{
 	"LISTENBRAINZ_USER", "LISTENBRAINZ_DISCOVERY",
@@ -275,6 +290,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/run/stop", s.handleStopRun)
 	s.mux.HandleFunc("GET /api/run/status", s.handleRunStatus)
 	s.mux.HandleFunc("GET /api/logs", s.handleGetLog)
+	s.mux.HandleFunc("GET /api/playlists", s.handleGetPlaylist)
+
+	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
 func (s *Server) Start(addr string) error {
@@ -420,18 +439,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envPrefixes := map[string]string{
-		"weekly-exploration": "WEEKLY_EXPLORATION",
-		"weekly-jams":        "WEEKLY_JAMS",
-		"daily-jams":         "DAILY_JAMS",
-	}
-	flagDefaults := map[string]string{
-		"weekly-exploration": "--playlist weekly-exploration",
-		"weekly-jams":        "--playlist weekly-jams",
-		"daily-jams":         "--playlist daily-jams",
-	}
-
-	prefix, ok := envPrefixes[body.Name]
+	def, ok := playlistDefs[body.Name]
 	if !ok {
 		http.Error(w, "unknown playlist name", http.StatusBadRequest)
 		return
@@ -443,11 +451,11 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		if body.Day >= 0 {
 			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[prefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
-		updates[prefix+"_FLAGS"] = flagDefaults[body.Name]
+		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
+		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 	} else {
-		updates[prefix+"_SCHEDULE"] = ""
-		updates[prefix+"_FLAGS"] = ""
+		updates[def.EnvPrefix+"_SCHEDULE"] = ""
+		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
 	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
@@ -530,18 +538,6 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type schedDef struct{ schedule, flags string }
-	defaults := map[string]schedDef{
-		"weekly-exploration": {"15 00 * * 2", "--playlist weekly-exploration"},
-		"weekly-jams":        {"30 00 * * 1", "--playlist weekly-jams"},
-		"daily-jams":         {"15 01 * * *", "--playlist daily-jams"},
-	}
-	envPrefixes := map[string]string{
-		"weekly-exploration": "WEEKLY_EXPLORATION",
-		"weekly-jams":        "WEEKLY_JAMS",
-		"daily-jams":         "DAILY_JAMS",
-	}
-
 	enabled := make(map[string]bool, len(body.Playlists))
 	for _, p := range body.Playlists {
 		enabled[p] = true
@@ -551,14 +547,13 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		"LISTENBRAINZ_USER":      body.User,
 		"LISTENBRAINZ_DISCOVERY": body.DiscoveryMode,
 	}
-	for playlist, prefix := range envPrefixes {
-		if enabled[playlist] {
-			d := defaults[playlist]
-			updates[prefix+"_SCHEDULE"] = d.schedule
-			updates[prefix+"_FLAGS"] = d.flags
+	for name, def := range playlistDefs {
+		if enabled[name] {
+			updates[def.EnvPrefix+"_SCHEDULE"] = def.DefaultSchedule
+			updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 		} else {
-			updates[prefix+"_SCHEDULE"] = ""
-			updates[prefix+"_FLAGS"] = ""
+			updates[def.EnvPrefix+"_SCHEDULE"] = ""
+			updates[def.EnvPrefix+"_FLAGS"] = ""
 		}
 	}
 
@@ -704,7 +699,7 @@ var errRunAlreadyStarted = errors.New("run already in progress")
 
 // handleRun starts an explo run in the background. Clients follow output via /api/run/events.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		http.Error(w, "bad form data", http.StatusBadRequest)
 		return
 	}

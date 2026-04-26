@@ -443,7 +443,7 @@ export default function Wizard({ config, envSources, onComplete }) {
   return (
     <div className="min-h-screen bg-bg flex items-center">
       <div className="max-w-[520px] w-full mx-auto px-6 py-12">
-        <div className="text-[20px] font-bold tracking-tight mb-10">Explo</div>
+        <div className="text-[20px] font-bold tracking-tight text-accent mb-10">Explo</div>
 
         {lockedKeys.length > 0 && (
           <div className="text-[12px] text-muted bg-surface border border-ui-border rounded-[6px] px-3.5 py-2.5 mb-6 leading-relaxed">
