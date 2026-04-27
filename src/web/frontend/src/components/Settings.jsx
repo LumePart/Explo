@@ -281,21 +281,37 @@ function HomeSection() {
       {/* Manual Run */}
       <div className="mt-6">
         <SectionLabel>Manual run</SectionLabel>
+        <div className="flex flex-col gap-1.5 mb-3">
+          <label className="text-[12px] text-muted">Download mode</label>
+          <div className="flex gap-1.5">
+            {[
+              { value: 'normal', name: 'Normal', desc: "Download only if the track isn't found locally" },
+              { value: 'skip',   name: 'Skip',   desc: 'No downloads — builds a playlist from tracks already in your library. Good for testing.' },
+              { value: 'force',  name: 'Force',  desc: 'Always download, ignoring local tracks' },
+            ].map(m => (
+              <button
+                key={m.value}
+                onClick={() => setDlmode(m.value)}
+                className={`px-3 py-1.5 text-[12px] rounded-[6px] border bg-surface cursor-pointer transition-colors
+                  ${dlmode === m.value ? 'border-accent text-accent' : 'border-ui-border text-muted hover:border-[#404040] hover:text-white'}`}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted">
+            {({ normal: "Download only if the track isn't found locally", skip: 'No downloads — builds a playlist from tracks already in your library. Good for testing.', force: 'Always download, ignoring local tracks' })[dlmode]}
+          </p>
+        </div>
         <div className="flex gap-2.5 items-center flex-wrap mb-2.5">
           <label className="text-[12px] text-muted">Playlist</label>
           <select className={selectCls} value={playlist} onChange={e => setPlaylist(e.target.value)}>
             {PLAYLISTS.map(p => <option key={p.value} value={p.value}>{p.name}</option>)}
           </select>
-          <label className="text-[12px] text-muted">Download mode</label>
-          <select className={selectCls} value={dlmode} onChange={e => setDlmode(e.target.value)}>
-            <option value="normal">normal</option>
-            <option value="skip">skip</option>
-            <option value="force">force</option>
-          </select>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer">
-            <input type="checkbox" checked={noPersist} onChange={e => setNoPersist(e.target.checked)} /> no persist
+          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer" title="When unchecked (default), previously generated playlists and their tracks are kept and added to over time. When checked, the playlist is wiped and rebuilt from scratch on each run.">
+            <input type="checkbox" checked={noPersist} onChange={e => setNoPersist(e.target.checked)} /> don't persist
           </label>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer">
+          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer" title="When checked, tracks already found in your local library are excluded from the generated playlist.">
             <input type="checkbox" checked={excludeLocal} onChange={e => setExcludeLocal(e.target.checked)} /> exclude local
           </label>
         </div>
