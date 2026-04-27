@@ -20,6 +20,12 @@
 /* Hide scrollbar in WebKit (Chrome/Safari) while keeping scroll */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* Playlist card aspect ratio: landscape in 3-col grid, resized to be smaller on mobile devices*/
+.playlist-card { aspect-ratio: 4 / 2; }
+@media (max-width: 419px) {
+  .playlist-card { aspect-ratio: 4 / 1; }
+}
+
 /* Syntax highlight classes used in the config editor */
 .env-comment, .env-unset, .env-eq { color: var(--color-muted); }
 .env-key, .env-val { color: white; }

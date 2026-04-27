@@ -222,7 +222,7 @@ function HomeSection() {
       {/* Scheduled Playlists */}
       <div className="mt-6">
         <SectionLabel>Scheduled Playlists</SectionLabel>
-        <div className="grid grid-cols-3 gap-3 mt-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 mt-3">
           {PLAYLISTS.map((p, i) => {
             const s = schedules[p.value]
             const locked = isScheduleLocked(p.value)
@@ -466,23 +466,30 @@ function LogsSection() {
 // ── Settings ──────────────────────────────────────────────────────────────────
 // Tab shell. Routes between Home, Settings, and Logs sections.
 
+// Module-level cache so the picked cover survives component remounts.
+let _bgCoverCache = null
+
 export default function Settings({ onWizard }) {
   const [activeTab, setActiveTab] = useState('run')
-  const [bgCover, setBgCover] = useState(null)
+  const [bgCover, setBgCover] = useState(_bgCoverCache)
 
   useEffect(() => {
+    if (_bgCoverCache) return
     Promise.all(['weekly-exploration', 'weekly-jams', 'daily-jams'].map(
       t => fetchPlaylistTracks(t).catch(() => ({ tracks: [] }))
     )).then(results => {
       const covers = results.flatMap(r => (r.tracks ?? []).map(t => t.coverUrl).filter(Boolean))
-      if (covers.length) setBgCover(covers[Math.floor(Math.random() * covers.length)])
+      if (covers.length) {
+        _bgCoverCache = covers[Math.floor(Math.random() * covers.length)]
+        setBgCover(_bgCoverCache)
+      }
     })
   }, [])
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
       {/* Page background art */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#121212', overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#121212', overflow: 'hidden', willChange: 'transform' }}>
         <AnimatePresence>
           {bgCover && (
             <motion.img
@@ -498,7 +505,8 @@ export default function Settings({ onWizard }) {
                 width: '100%', height: '100%',
                 objectFit: 'cover',
                 filter: 'blur(90px) saturate(1.8) brightness(0.14)',
-                transform: 'scale(1.15)',
+                transform: 'scale(1.15) translateZ(0)',
+                willChange: 'opacity',
               }}
             />
           )}

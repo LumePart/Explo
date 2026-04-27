@@ -162,7 +162,7 @@ const PRESETS = {
   'daily-jams': {
     background: cardGradient('#10b981', '#06b6d4', '#22c55e'),
     accent: '#34d399',
-    label: 'DAILY',
+    label: '',
   },
 }
 
@@ -251,10 +251,10 @@ export function PlaylistCard({
     >
       <div
         onClick={s.enabled ? onTracklistToggle : undefined}
+        className="playlist-card"
         style={{
           position: 'relative',
-          aspectRatio: '4 / 2',
-          borderRadius: 10,
+          borderRadius: 8,
           overflow: 'hidden',
           isolation: 'isolate',
           background: baseColor,
@@ -311,18 +311,20 @@ export function PlaylistCard({
           background: 'linear-gradient(0deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.2) 60%, transparent 100%)',
         }} />
 
-        <div style={{
-          position: 'absolute', top: 7, left: 8,
-          fontSize: 12, fontWeight: 700, letterSpacing: '0.10em',
-          color: 'white',
-          mixBlendMode: 'overlay',
-        }}>
-          {label}
-        </div>
+        {label && (
+          <div style={{
+            position: 'absolute', top: 7, left: 8,
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.10em',
+            color: 'white',
+            mixBlendMode: 'overlay',
+          }}>
+            {label}
+          </div>
+        )}
 
 
         {/* Name + schedule — bottom left */}
-        <div style={{ position: 'absolute', bottom: 8, left: 10 }}>
+        <div style={{ position: 'absolute', bottom: 8, left: 10, maxWidth: 'calc(100% - 50px)', minWidth: 0 }}>
           <div style={{
             fontFamily: "'Bebas Neue', sans-serif",
             lineHeight: 0.95,
@@ -330,8 +332,8 @@ export function PlaylistCard({
             textShadow: '0 1px 8px rgba(0,0,0,0.5)',
             letterSpacing: '0.025em',
           }}>
-            <div style={{ fontSize: 20 }}>{line1}</div>
-            {line2 && <div style={{ fontSize: 20, opacity: 0.88 }}>{line2}</div>}
+            <div style={{ fontSize: 'clamp(11px, 3.5vw, 20px)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{line1}</div>
+            {line2 && <div style={{ fontSize: 'clamp(11px, 3.5vw, 20px)', opacity: 0.88, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{line2}</div>}
           </div>
           <span
             onClick={e => { e.stopPropagation(); if (!locked) onToggleEdit() }}
