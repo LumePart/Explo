@@ -224,7 +224,7 @@ function HomeSection() {
       {/* Scheduled Playlists */}
       <div className="mt-6">
         <SectionLabel>Scheduled Playlists</SectionLabel>
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 mt-3">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
           {PLAYLISTS.map((p, i) => {
             const s = schedules[p.value]
             const locked = isScheduleLocked(p.value)
@@ -534,7 +534,7 @@ export default function Settings({ onWizard }) {
 
       {/* Content */}
       <div style={{ position: 'relative', zIndex: 1 }} className="min-h-screen">
-        <div className="max-w-[760px] mx-auto px-6 pb-12">
+        <div className="max-w-[980px] mx-auto px-6 pb-12">
           <header className="flex items-baseline gap-4 pt-5 pb-0 border-b border-ui-border mb-6">
             <span className="text-[16px] leading-none font-bold tracking-tight text-accent">Explo</span>
             <nav className="flex gap-0.5 items-baseline">
