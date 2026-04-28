@@ -76,20 +76,22 @@ function useSSE({ onLine, onDone }) {
 }
 
 const PLAYLISTS = [
-  { value: 'weekly-exploration', name: 'Weekly Exploration', scheduleKey: 'WEEKLY_EXPLORATION_SCHEDULE', defaultDay: 2,  defaultHour: 0, defaultMinute: 15 },
-  { value: 'weekly-jams',        name: 'Weekly Jams',        scheduleKey: 'WEEKLY_JAMS_SCHEDULE',        defaultDay: 1,  defaultHour: 0, defaultMinute: 30 },
-  { value: 'daily-jams',         name: 'Daily Jams',         scheduleKey: 'DAILY_JAMS_SCHEDULE',         defaultDay: -1, defaultHour: 1, defaultMinute: 15 },
+  { value: 'weekly-exploration', name: 'Weekly Exploration', scheduleKey: 'WEEKLY_EXPLORATION_SCHEDULE', defaultDay: 2,  defaultHour: 0,  defaultMinute: 15 },
+  { value: 'weekly-jams',        name: 'Weekly Jams',        scheduleKey: 'WEEKLY_JAMS_SCHEDULE',        defaultDay: 1,  defaultHour: 0,  defaultMinute: 30 },
+  { value: 'daily-jams',         name: 'Daily Jams',         scheduleKey: 'DAILY_JAMS_SCHEDULE',         defaultDay: -1, defaultHour: 1,  defaultMinute: 15 },
+  { value: 'on-repeat',          name: 'On Repeat',          scheduleKey: 'ON_REPEAT_SCHEDULE',          defaultDay: 100, defaultHour: 12, defaultMinute: 0, fixedSchedule: true },
 ]
 
 const SCHEDULE_DAYS = [
-  { value: -1, label: 'Every day',   summary: 'Daily' },
-  { value: 0,  label: 'Sunday',      summary: 'Every Sunday' },
-  { value: 1,  label: 'Monday',      summary: 'Every Monday' },
-  { value: 2,  label: 'Tuesday',     summary: 'Every Tuesday' },
-  { value: 3,  label: 'Wednesday',   summary: 'Every Wednesday' },
-  { value: 4,  label: 'Thursday',    summary: 'Every Thursday' },
-  { value: 5,  label: 'Friday',      summary: 'Every Friday' },
-  { value: 6,  label: 'Saturday',    summary: 'Every Saturday' },
+  { value: -1,  label: 'Every day',        summary: '' },
+  { value: 0,   label: 'Sunday',           summary: 'Every Sunday' },
+  { value: 1,   label: 'Monday',           summary: 'Every Monday' },
+  { value: 2,   label: 'Tuesday',          summary: 'Every Tuesday' },
+  { value: 3,   label: 'Wednesday',        summary: 'Every Wednesday' },
+  { value: 4,   label: 'Thursday',         summary: 'Every Thursday' },
+  { value: 5,   label: 'Friday',           summary: 'Every Friday' },
+  { value: 6,   label: 'Saturday',         summary: 'Every Saturday' },
+  { value: 100, label: 'Monthly (1st)',     summary: 'Every 1st of the month' },
 ]
 
 const selectCls = 'bg-surface border border-ui-border text-white rounded-[6px] px-2.5 py-1.5 text-[13px] cursor-pointer outline-none focus:border-accent'
@@ -167,7 +169,7 @@ function HomeSection() {
     return `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
   }
 
-  const scheduleSummary = day => SCHEDULE_DAYS.find(d => d.value === day)?.summary || 'Daily'
+  const scheduleSummary = day => SCHEDULE_DAYS.find(d => d.value === day)?.summary ?? ''
 
   const nextRunText = name => {
     const s = schedules[name]
@@ -232,6 +234,7 @@ function HomeSection() {
                 playlist={p}
                 schedule={s}
                 locked={locked}
+                fixedSchedule={!!p.fixedSchedule}
                 index={i}
                 nextRunText={nextRunText(p.value)}
                 scheduleSaveStatus={scheduleSaveStatus[p.value] || ''}
@@ -491,7 +494,7 @@ export default function Settings({ onWizard }) {
 
   useEffect(() => {
     if (_bgCoverCache) return
-    Promise.all(['weekly-exploration', 'weekly-jams', 'daily-jams'].map(
+    Promise.all(['weekly-exploration', 'weekly-jams', 'daily-jams', 'on-repeat'].map(
       t => fetchPlaylistTracks(t).catch(() => ({ tracks: [] }))
     )).then(results => {
       const covers = results.flatMap(r => (r.tracks ?? []).map(t => t.coverUrl).filter(Boolean))

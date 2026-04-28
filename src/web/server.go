@@ -72,6 +72,7 @@ var playlistDefs = map[string]playlistDef{
 	"weekly-exploration": {"WEEKLY_EXPLORATION", "15 00 * * 2", "--playlist weekly-exploration"},
 	"weekly-jams":        {"WEEKLY_JAMS",        "30 00 * * 1", "--playlist weekly-jams"},
 	"daily-jams":         {"DAILY_JAMS",         "15 01 * * *", "--playlist daily-jams"},
+	"on-repeat":          {"ON_REPEAT",          "0 12 1 * *",  "--playlist on-repeat"},
 }
 
 // allConfigKeys is the complete set of env keys the web UI reads and writes.
@@ -80,6 +81,7 @@ var allConfigKeys = []string{
 	"WEEKLY_EXPLORATION_SCHEDULE", "WEEKLY_EXPLORATION_FLAGS",
 	"WEEKLY_JAMS_SCHEDULE", "WEEKLY_JAMS_FLAGS",
 	"DAILY_JAMS_SCHEDULE", "DAILY_JAMS_FLAGS",
+	"ON_REPEAT_SCHEDULE", "ON_REPEAT_FLAGS",
 	"EXPLO_SYSTEM", "SYSTEM_URL", "API_KEY", "LIBRARY_NAME",
 	"SYSTEM_USERNAME", "SYSTEM_PASSWORD", "PLAYLIST_DIR", "SLEEP", "PUBLIC_PLAYLIST",
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
@@ -448,11 +450,17 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 
 	updates := map[string]string{}
 	if body.Enabled {
-		dow := "*"
-		if body.Day >= 0 {
-			dow = fmt.Sprintf("%d", body.Day)
+		var cron string
+		if body.Day == 100 { // monthly: 1st of each month
+			cron = fmt.Sprintf("%d %d 1 * *", body.Minute, body.Hour)
+		} else {
+			dow := "*"
+			if body.Day >= 0 {
+				dow = fmt.Sprintf("%d", body.Day)
+			}
+			cron = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
+		updates[def.EnvPrefix+"_SCHEDULE"] = cron
 		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 	} else {
 		updates[def.EnvPrefix+"_SCHEDULE"] = ""

@@ -50,7 +50,15 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tracks, generatedAt, err := fetchMostRecentLBPlaylist(username, playlistType)
+	var tracks [][4]string
+	var generatedAt time.Time
+	var err error
+
+	if playlistType == "on-repeat" {
+		tracks, err = fetchTopRecordingsLB(username)
+	} else {
+		tracks, generatedAt, err = fetchMostRecentLBPlaylist(username, playlistType)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -121,6 +129,38 @@ type lbPlaylistResp struct {
 			} `json:"extension"`
 		} `json:"track"`
 	} `json:"playlist"`
+}
+
+type lbStatsResp struct {
+	Payload struct {
+		Recordings []struct {
+			ArtistName  string `json:"artist_name"`
+			ReleaseMbid string `json:"release_mbid"`
+			ReleaseName string `json:"release_name"`
+			TrackName   string `json:"track_name"`
+		} `json:"recordings"`
+	} `json:"payload"`
+}
+
+func fetchTopRecordingsLB(username string) ([][4]string, error) {
+	url := fmt.Sprintf("%s/stats/user/%s/recordings?count=30&range=month", lbAPIBase, username)
+	body, err := lbGet(url)
+	if err != nil {
+		return nil, fmt.Errorf("stats fetch: %w", err)
+	}
+	var resp lbStatsResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("stats parse: %w", err)
+	}
+	out := make([][4]string, 0, len(resp.Payload.Recordings))
+	for _, r := range resp.Payload.Recordings {
+		var cover string
+		if r.ReleaseMbid != "" {
+			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/front-250", r.ReleaseMbid)
+		}
+		out = append(out, [4]string{r.TrackName, r.ArtistName, r.ReleaseName, cover})
+	}
+	return out, nil
 }
 
 func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time.Time, error) {

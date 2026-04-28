@@ -112,6 +112,17 @@ type Exploration struct {
 	} `json:"playlist"`
 }
 
+type TopRecordings struct {
+	Payload struct {
+		Recordings []struct {
+			ArtistName  string `json:"artist_name"`
+			ReleaseMbid string `json:"release_mbid"`
+			ReleaseName string `json:"release_name"`
+			TrackName   string `json:"track_name"`
+		} `json:"recordings"`
+	} `json:"payload"`
+}
+
 type ListenBrainz struct {
 	HttpClient *util.HttpClient
 	cfg        cfg.Listenbrainz
@@ -125,6 +136,11 @@ func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *List
 	}
 }
 func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
+	// Stats-based playlists bypass the discovery mode switch
+	if c.cfg.ImportPlaylist == "on-repeat" {
+		return c.getTopRecordings(c.cfg.User)
+	}
+
 	var tracks []*models.Track
 
 	switch c.cfg.Discovery {
@@ -173,6 +189,40 @@ func (c *ListenBrainz) getAPIRecommendations(user string) ([]string, error) {
 		return mbids, fmt.Errorf("no recommendations found, exiting")
 	}
 	return mbids, nil
+}
+
+func (c *ListenBrainz) getTopRecordings(user string) ([]*models.Track, error) {
+	body, err := c.lbRequest(fmt.Sprintf("stats/user/%s/recordings?count=30&range=month", user))
+	if err != nil {
+		return nil, fmt.Errorf("getTopRecordings(): %s", err.Error())
+	}
+
+	var resp TopRecordings
+	if err := util.ParseResp(body, &resp); err != nil {
+		return nil, fmt.Errorf("getTopRecordings(): %s", err.Error())
+	}
+
+	if len(resp.Payload.Recordings) == 0 {
+		return nil, fmt.Errorf("no top recordings found for user %s", user)
+	}
+
+	tracks := make([]*models.Track, 0, len(resp.Payload.Recordings))
+	for _, rec := range resp.Payload.Recordings {
+		var coverURL string
+		if rec.ReleaseMbid != "" {
+			coverURL = fmt.Sprintf("https://coverartarchive.org/release/%s/front-250", rec.ReleaseMbid)
+		}
+		tracks = append(tracks, &models.Track{
+			Title:      rec.TrackName,
+			CleanTitle: rec.TrackName,
+			Artist:     rec.ArtistName,
+			MainArtist: rec.ArtistName,
+			Album:      rec.ReleaseName,
+			CoverURL:   coverURL,
+		})
+	}
+
+	return tracks, nil
 }
 
 func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.Track, error) {

@@ -21,7 +21,7 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* Playlist card aspect ratio: landscape in 3-col grid, resized to be smaller on mobile devices*/
-.playlist-card { aspect-ratio: 4 / 2; }
+.playlist-card { aspect-ratio: 1 / 1; }
 @media (max-width: 419px) {
   .playlist-card { aspect-ratio: 4 / 1; }
 }

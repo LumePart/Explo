@@ -73,6 +73,9 @@ function TrackRow({ track }) {
 
 function nextUpdateLabel(playlistType) {
   const now = new Date()
+  if (playlistType === 'on-repeat') {
+    return 'Updates as you listen'
+  }
   if (playlistType === 'daily-jams') {
     const tomorrow = new Date(now)
     tomorrow.setDate(tomorrow.getDate() + 1)
@@ -162,7 +165,12 @@ const PRESETS = {
   'daily-jams': {
     background: cardGradient('#10b981', '#06b6d4', '#22c55e'),
     accent: '#34d399',
-    label: '',
+    label: 'DAILY',
+  },
+  'on-repeat': {
+    background: cardGradient('#e11d48', '#9f1239', '#fb7185'),
+    accent: '#fb7185',
+    label: 'MONTHLY',
   },
 }
 
@@ -173,14 +181,15 @@ const FALLBACK = {
 }
 
 const SCHEDULE_DAYS = [
-  { value: -1, label: 'Every day' },
-  { value: 0,  label: 'Sunday' },
-  { value: 1,  label: 'Monday' },
-  { value: 2,  label: 'Tuesday' },
-  { value: 3,  label: 'Wednesday' },
-  { value: 4,  label: 'Thursday' },
-  { value: 5,  label: 'Friday' },
-  { value: 6,  label: 'Saturday' },
+  { value: -1,  label: 'Every day' },
+  { value: 0,   label: 'Sunday' },
+  { value: 1,   label: 'Monday' },
+  { value: 2,   label: 'Tuesday' },
+  { value: 3,   label: 'Wednesday' },
+  { value: 4,   label: 'Thursday' },
+  { value: 5,   label: 'Friday' },
+  { value: 6,   label: 'Saturday' },
+  { value: 100, label: 'Monthly (1st)' },
 ]
 
 // Inline SVG noise — subtle film-grain texture
@@ -190,6 +199,7 @@ export function PlaylistCard({
   playlist,
   schedule: s,
   locked,
+  fixedSchedule = false,
   index = 0,
   nextRunText,
   scheduleSaveStatus,
@@ -282,6 +292,7 @@ export function PlaylistCard({
               animate={{ opacity: 0.86 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 1.5, ease: 'easeInOut' }}
+              onError={() => setBgCovers(prev => prev.filter((_, i) => i !== coverIdx))}
               style={{
                 position: 'absolute', inset: 0,
                 width: '100%', height: '100%',
@@ -336,13 +347,13 @@ export function PlaylistCard({
             {line2 && <div style={{ fontSize: 'clamp(11px, 3.5vw, 20px)', opacity: 0.88, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{line2}</div>}
           </div>
           <span
-            onClick={e => { e.stopPropagation(); if (!locked) onToggleEdit() }}
+            onClick={e => { e.stopPropagation(); if (!locked && !fixedSchedule) onToggleEdit() }}
             style={{
               display: 'block', marginTop: 4,
               fontSize: 8, fontWeight: 300,
               color: 'rgba(255,255,255,0.55)',
               mixBlendMode: 'hard-light',
-              cursor: locked ? 'default' : 'pointer',
+              cursor: (locked || fixedSchedule) ? 'default' : 'pointer',
               letterSpacing: '0.02em',
               whiteSpace: 'nowrap',
               transition: 'color 0.3s',
@@ -375,7 +386,7 @@ export function PlaylistCard({
 
       {/* Inline schedule editor */}
       <AnimatePresence>
-        {s.editing && s.enabled && !locked && (
+        {s.editing && s.enabled && !locked && !fixedSchedule && (
           <motion.div
             key="editor"
             initial={{ opacity: 0, height: 0 }}
