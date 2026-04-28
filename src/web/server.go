@@ -85,6 +85,7 @@ var allConfigKeys = []string{
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
 	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
 	"SLSKD_URL", "SLSKD_API_KEY",
+	"WIZARD_COMPLETE",
 }
 
 // ConfigResponse is returned by GET /api/config.
