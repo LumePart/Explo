@@ -2,8 +2,10 @@ package web
 
 import (
 	"encoding/json"
+	"explo/src/models"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -34,7 +36,9 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	cachePath := filepath.Join(filepath.Dir(s.configPath), "cache", playlistType+".json")
 	if raw, err := os.ReadFile(cachePath); err == nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(raw)
+		if _, err := w.Write(raw); err != nil {
+			slog.Error("failed to write playlist response", "msg", err.Error())
+		}
 		return
 	}
 
@@ -50,15 +54,7 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var tracks [][4]string
-	var generatedAt time.Time
-	var err error
-
-	if playlistType == "on-repeat" {
-		tracks, err = fetchTopRecordingsLB(username)
-	} else {
-		tracks, generatedAt, err = fetchMostRecentLBPlaylist(username, playlistType)
-	}
+	tracks, generatedAt, err := fetchMostRecentLBPlaylist(username, playlistType)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -87,7 +83,9 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response{Tracks: ct, GeneratedAt: gen})
+	if err := json.NewEncoder(w).Encode(response{Tracks: ct, GeneratedAt: gen}); err != nil {
+		slog.Error("failed to encode tracks for web", "msg", err.Error)
+	}
 }
 
 // ── LB fallback ──────────────────────────────────────────────────────────────
@@ -129,38 +127,6 @@ type lbPlaylistResp struct {
 			} `json:"extension"`
 		} `json:"track"`
 	} `json:"playlist"`
-}
-
-type lbStatsResp struct {
-	Payload struct {
-		Recordings []struct {
-			ArtistName  string `json:"artist_name"`
-			ReleaseMbid string `json:"release_mbid"`
-			ReleaseName string `json:"release_name"`
-			TrackName   string `json:"track_name"`
-		} `json:"recordings"`
-	} `json:"payload"`
-}
-
-func fetchTopRecordingsLB(username string) ([][4]string, error) {
-	url := fmt.Sprintf("%s/stats/user/%s/recordings?count=30&range=month", lbAPIBase, username)
-	body, err := lbGet(url)
-	if err != nil {
-		return nil, fmt.Errorf("stats fetch: %w", err)
-	}
-	var resp lbStatsResp
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("stats parse: %w", err)
-	}
-	out := make([][4]string, 0, len(resp.Payload.Recordings))
-	for _, r := range resp.Payload.Recordings {
-		var cover string
-		if r.ReleaseMbid != "" {
-			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/front-250", r.ReleaseMbid)
-		}
-		out = append(out, [4]string{r.TrackName, r.ArtistName, r.ReleaseName, cover})
-	}
-	return out, nil
 }
 
 func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time.Time, error) {
@@ -222,12 +188,93 @@ func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time
 	return out, bestDate, nil
 }
 
+// writePlaylistCache downloads cover art and writes a tracklist JSON for the web UI.
+// added maps "CleanTitle|Artist" → true for tracks that made it into the playlist; nil means status unknown.
+func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added map[string]bool) {
+	type cachedTrack struct {
+		Rank      int    `json:"rank"`
+		Title     string `json:"title"`
+		Artist    string `json:"artist"`
+		Release   string `json:"release"`
+		CoverURL  string `json:"coverUrl,omitempty"`
+		InLibrary *bool  `json:"inLibrary,omitempty"`
+	}
+	type cache struct {
+		Tracks []cachedTrack `json:"tracks"`
+	}
+
+	cfgDir := filepath.Dir(cfgPath)
+	coversDir := filepath.Join(cfgDir, "cache", "covers")
+	if err := os.MkdirAll(coversDir, 0755); err != nil {
+		slog.Error("failed making directory", "msg", err.Error())
+	}
+
+	ct := make([]cachedTrack, len(tracks))
+	for i, t := range tracks {
+		localCover := ""
+		if t.CoverURL != "" {
+			// Use the CAA release MBID (second-to-last path segment) as filename.
+			parts := strings.Split(strings.TrimRight(t.CoverURL, "/"), "/")
+			mbid := parts[len(parts)-2]
+			destPath := filepath.Join(coversDir, mbid+".jpg")
+			if _, err := os.Stat(destPath); os.IsNotExist(err) {
+				if resp, err := http.Get(t.CoverURL); err == nil { //nolint:noctx
+
+					defer func() {
+					if cerr := resp.Body.Close(); cerr != nil {
+						slog.Error("failed to close response", "msg", err.Error())
+						}
+							}()
+					if resp.StatusCode == http.StatusOK {
+						if data, err := io.ReadAll(resp.Body); err == nil {
+							if err:= os.WriteFile(destPath, data, 0644); err != nil {
+								slog.Error("failed writing coverart cache file", "msg", err.Error())
+							}
+						}
+					}
+				}
+			}
+			localCover = "/api/covers/" + mbid + ".jpg"
+		}
+		var inLibrary *bool
+		if added != nil {
+			v := added[t.CleanTitle+"|"+t.Artist]
+			inLibrary = &v
+		}
+		ct[i] = cachedTrack{
+			Rank:      i + 1,
+			Title:     t.CleanTitle,
+			Artist:    t.Artist,
+			Release:   t.Album,
+			CoverURL:  localCover,
+			InLibrary: inLibrary,
+		}
+	}
+
+	raw, err := json.Marshal(cache{Tracks: ct})
+	if err != nil {
+		return
+	}
+	cacheDir := filepath.Join(cfgDir, "cache")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		slog.Error("failed creating cache dir", "msg", err.Error())
+	}
+	if err := os.WriteFile(filepath.Join(cacheDir, playlist+".json"), raw, 0644); err != nil {
+		slog.Error("failed writing json file", "msg", err.Error())
+	}
+}
+
 func lbGet(url string) ([]byte, error) {
 	resp, err := http.Get(url) //nolint:noctx
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.Error("failed to close response", "msg", err.Error())
+			}
+	}()
+	
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("LB returned %d", resp.StatusCode)
 	}
