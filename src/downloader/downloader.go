@@ -26,6 +26,7 @@ type Downloader interface {
 	GetTrack(*models.Track) error
 	Monitor
 }
+
 // get download services from config and append them to DownloadClient
 func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) {
 	var downloader []Downloader
@@ -51,11 +52,13 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
 		filterLocalTracks(tracks, true)
 	}
-	if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
-		slog.Error(err.Error())
-		return
+	if c.needsDownloadDir() {
+		if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
+			slog.Error(err.Error())
+			return
+		}
 	}
-	
+
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
 		g.SetLimit(1)
@@ -90,6 +93,15 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 		}
 	}
 	filterLocalTracks(tracks, false)
+}
+
+func (c *DownloadClient) needsDownloadDir() bool {
+	for _, svc := range c.Cfg.Services {
+		if svc == "youtube" || svc == "youtube-music" {
+			return true
+		}
+	}
+	return c.Cfg.Slskd.MigrateDL
 }
 
 func (c *DownloadClient) DeleteSongs() {
@@ -132,7 +144,7 @@ func getFilename(title, artist string) string {
 
 	// Remove illegal characters for file naming
 	t := util.FilenameSafe(title)
-	a :=util.FilenameSafe(artist)
+	a := util.FilenameSafe(artist)
 
 	// truncate long filename
 	runes := []rune(fmt.Sprintf("%s-%s", t, a))
@@ -150,14 +162,14 @@ func ContainsKeyword(track models.Track, contentTitle string, filterList []strin
 	content := strings.ToLower(contentTitle)
 
 	for _, keyword := range filterList {
-	keyword = strings.ToLower(keyword)
-	if strings.Contains(title, keyword) || strings.Contains(artist, keyword) {
-		continue
+		keyword = strings.ToLower(keyword)
+		if strings.Contains(title, keyword) || strings.Contains(artist, keyword) {
+			continue
+		}
+		if strings.Contains(content, keyword) {
+			return true
+		}
 	}
-	if strings.Contains(content, keyword) {
-		return true
-	}
-}
 	return false
 }
 
@@ -191,7 +203,7 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 
 	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
-	} 
+	}
 
 	dstFile := filepath.Join(destDir, track.File)
 	out, err := os.Create(dstFile)

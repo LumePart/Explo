@@ -1,14 +1,14 @@
 package config
 
 import (
-	"slices"
 	"fmt"
-	"strings"
 	flag "github.com/spf13/pflag"
+	"slices"
+	"strings"
 )
 
 var (
-	validPlaylists    = []string{"weekly-exploration", "weekly-jams", "daily-jams"}
+	validPlaylists    = []string{"weekly-exploration", "weekly-jams", "daily-jams", "on-repeat"}
 	validDownloadMode = []string{"normal", "skip", "force"}
 )
 
@@ -20,9 +20,9 @@ func (cfg *Config) GetFlags() error {
 	var persist bool
 	// Long flags
 	flag.StringVarP(&configPath, "config", "c", ".env", "Path of the configuration file")
-	flag.StringVarP(&playlist, "playlist", "p", "weekly-exploration", "Playlist where to get tracks. Supported: weekly-exploration, weekly-jams, daily-jams")
+	flag.StringVarP(&playlist, "playlist", "p", "weekly-exploration", "Playlist where to get tracks. Supported: weekly-exploration, weekly-jams, daily-jams, on-repeat")
 	flag.StringVarP(&downloadMode, "download-mode", "d", "normal", "Download mode: 'normal' (download only when track is not found locally), 'skip' (skip downloading, only use tracks already found locally), 'force' (always download, don't check for local tracks)")
-	flag.BoolVarP(&excludeLocal, "exclude-local", "e",  false, "Exclude locally found tracks from the imported playlist")
+	flag.BoolVarP(&excludeLocal, "exclude-local", "e", false, "Exclude locally found tracks from the imported playlist")
 	flag.BoolVar(&persist, "persist", true, "Keep playlists between generations")
 
 	flag.Parse()
