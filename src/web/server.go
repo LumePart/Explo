@@ -612,7 +612,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(dirs); err != nil {
-		
+		slog.Warn("failed to encode directories to response", "err", err.Error())
 	}
 }
 
@@ -642,7 +642,9 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(s.currentRunStatus())
+	if err := json.NewEncoder(w).Encode(s.currentRunStatus()); err != nil {
+		slog.Warn("failed to encode current run status", "msg", err.Error())
+	}
 }
 
 func (s *Server) startRun(args []string) error {
@@ -667,17 +669,24 @@ func (s *Server) startRun(args []string) error {
 
 	lf, err := s.openRunLog()
 	if err != nil {
-		slog.Warn("failed to open run log", "err", err)
+		slog.Warn("failed to open run log", "err", err.Error())
 	}
 
 	s.manualRun.mu.Lock()
 	if s.manualRun.running {
 		s.manualRun.mu.Unlock()
 		cancel()
-		pr.Close()
-		pw.Close()
+		if err := pr.Close(); err != nil {
+			slog.Warn("failed to close file reader", "err", err.Error())
+		}
+
+		if err := pw.Close(); err != nil {
+			slog.Warn("failed to close file writer", "err", err.Error())
+		}
 		if lf != nil {
-			lf.Close()
+			if err := pw.Close(); err != nil {
+				slog.Warn("failed to close file writer", "err", err.Error())
+			}
 		}
 		return errRunAlreadyStarted
 	}
@@ -690,32 +699,53 @@ func (s *Server) startRun(args []string) error {
 	if err := cmd.Start(); err != nil {
 		s.finishRun(1)
 		cancel()
-		pr.Close()
-		pw.Close()
+		if err := pr.Close(); err != nil {
+			slog.Warn("failed to close file reader", "err", err.Error())
+		}
+
+		if err := pw.Close(); err != nil {
+			slog.Warn("failed to close file writer", "err", err.Error())
+		}
 		if lf != nil {
-			lf.Close()
+			if err := lf.Close(); err != nil {
+				slog.Warn("failed to close run log", "err", err.Error())
+			}
 		}
 		return fmt.Errorf("failed to start explo: %w", err)
 	}
 
 	// Close write end in parent so reader gets EOF when child exits.
-	pw.Close()
+	if err := pw.Close(); err != nil {
+			slog.Warn("failed to close file writer", "err", err.Error())
+		}
 
 	go s.collectRunOutput(cmd, pr, lf)
 	return nil
 }
 
 func (s *Server) collectRunOutput(cmd *exec.Cmd, pr *os.File, lf *os.File) {
-	defer pr.Close()
+	defer func() {
+			if cerr := pr.Close(); cerr != nil {
+				slog.Error("failed to close source file", "err", cerr.Error())
+			}
+		}()
+		
+
 	if lf != nil {
-		defer lf.Close()
+		defer func() {
+			if cerr := lf.Close(); cerr != nil {
+				slog.Error("failed to close source file", "err", cerr.Error())
+			}
+		}()
 	}
 
 	scanner := bufio.NewScanner(pr)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if lf != nil {
-			fmt.Fprintln(lf, line)
+			if _, err := fmt.Fprintln(lf, line); err != nil {
+				s.appendRunLog("failed to write run output: " + err.Error())
+			}
 		}
 		s.appendRunLog(line)
 	}
@@ -762,7 +792,9 @@ func (s *Server) currentRunStatus() RunStatus {
 
 func (s *Server) handleRunStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.currentRunStatus())
+	if err := json.NewEncoder(w).Encode(s.currentRunStatus()); err != nil {
+		slog.Warn("failed encoding current run status to response")
+	}
 }
 
 // ── SSE event stream ───────────────────────────────────────────────────────
@@ -825,9 +857,13 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 
 	sendEvent := func(typ, data string) {
 		if typ != "" {
-			fmt.Fprintf(w, "event: %s\n", typ)
+			if _, err := fmt.Fprintf(w, "event: %s\n", typ); err != nil {
+				slog.Warn("failed handling run event", "err", err.Error())
+			}
 		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			slog.Warn("failed handling run event", "err", err.Error())
+		}
 		flusher.Flush()
 	}
 
