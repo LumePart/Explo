@@ -149,7 +149,7 @@ func (s *Server) registerRoutes() {
 			slog.Error("failed writing to http", "msg", err.Error())
 		}
 	})
-	s.mux.Handle("GET /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)))
+	s.mux.HandleFunc("GET /api/ui/config", s.handleGetConfig)
 	s.mux.Handle("GET /api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
 	s.mux.Handle("POST /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)))
 	s.mux.HandleFunc("POST /api/ui/config/reset", s.handleResetConfig)
