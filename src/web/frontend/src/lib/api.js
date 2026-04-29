@@ -1,15 +1,61 @@
+let csrfToken = null
+
+async function ensureCSRF() {
+  if (csrfToken) return csrfToken
+
+  const res = await fetch('/api/ui/csrf')
+  const data = await res.json()
+  csrfToken = data.csrf_token
+  return csrfToken
+}
+
+async function apiFetch(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+
+  const headers = new Headers(options.headers || {})
+
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const token = await ensureCSRF()
+    headers.set('X-CSRF-Token', token)
+  }
+
+  return fetch(url, {
+    credentials: 'include',
+    ...options,
+    headers,
+  })
+}
+
+export async function login(username, password) {
+  const form = new URLSearchParams()
+  form.append('username', username)
+  form.append('password', password)
+
+  const res = await apiFetch('/api/ui/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+  })
+
+  if (!res.ok) {
+    throw new Error(await res.text())
+  }
+}
+
 export async function fetchConfig() {
-  const res = await fetch('/api/config')
+  const res = await apiFetch('/api/ui/config')
   return res.json()
 }
 
 export async function fetchConfigRaw() {
-  const res = await fetch('/api/config/raw')
+  const res = await apiFetch('/api/ui/config/raw')
   return res.text()
 }
 
 export async function saveConfig(text) {
-  const res = await fetch('/api/config', {
+  const res = await apiFetch('/api/ui/config', {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body: text,
@@ -18,12 +64,12 @@ export async function saveConfig(text) {
 }
 
 export async function resetConfig() {
-  const res = await fetch('/api/config/reset', { method: 'POST' })
+  const res = await apiFetch('/api/ui/config/reset', { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())
 }
 
 export async function saveSchedule(name, enabled, day, hour, minute) {
-  const res = await fetch('/api/config/schedules', {
+  const res = await apiFetch('/api/ui/config/schedules', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, enabled, day, hour, minute }),
@@ -32,7 +78,7 @@ export async function saveSchedule(name, enabled, day, hour, minute) {
 }
 
 export async function wizardStep1(user, playlists, discovery_mode) {
-  const res = await fetch('/api/wizard/step1', {
+  const res = await apiFetch('/api/ui/wizard/step1', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user, playlists, discovery_mode }),
@@ -41,7 +87,7 @@ export async function wizardStep1(user, playlists, discovery_mode) {
 }
 
 export async function wizardStep2(body) {
-  const res = await fetch('/api/wizard/step2', {
+  const res = await apiFetch('/api/ui/wizard/step2', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -50,7 +96,7 @@ export async function wizardStep2(body) {
 }
 
 export async function wizardStep3(body) {
-  const res = await fetch('/api/wizard/step3', {
+  const res = await apiFetch('/api/ui/wizard/step3', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -59,7 +105,7 @@ export async function wizardStep3(body) {
 }
 
 export async function fetchBrowse(path) {
-  const res = await fetch('/api/browse?path=' + encodeURIComponent(path || '/'))
+  const res = await apiFetch('/api/ui/browse?path=' + encodeURIComponent(path || '/'))
   return res.json()
 }
 
@@ -69,23 +115,23 @@ export async function startRun(playlist, download_mode, persist, exclude_local) 
   form.set('download_mode', download_mode)
   form.set('persist', persist ? 'true' : 'false')
   form.set('exclude_local', exclude_local ? 'true' : 'false')
-  const res = await fetch('/api/run', { method: 'POST', body: form })
+  const res = await apiFetch('/api/ui/run', { method: 'POST', body: form })
   if (res.status === 409) throw Object.assign(new Error('already running'), { conflict: true })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
 
 export async function stopRun() {
-  const res = await fetch('/api/run/stop', { method: 'POST' })
+  const res = await apiFetch('/api/ui/run/stop', { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())
 }
 
 export async function fetchRunStatus() {
-  const res = await fetch('/api/run/status')
+  const res = await apiFetch('/api/ui/run/status')
   return res.json()
 }
 
 export async function fetchLogs() {
-  const res = await fetch('/api/logs')
+  const res = await apiFetch('/api/ui/logs')
   return res.text()
 }
