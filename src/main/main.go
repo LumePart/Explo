@@ -7,7 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
-	
+
 	"explo/src/client"
 	"explo/src/config"
 	"explo/src/discovery"
@@ -49,8 +49,8 @@ func main() {
 		if addr == "" {
 			addr = ":7288"
 		}
-		srv := web.NewServer(cfgPath, exploPath)
-		log.Fatal(srv.Start(addr))
+		srv := web.NewServer(addr, cfgPath, exploPath)
+		log.Fatal(srv.Start())
 	}
 
 	var cfg config.Config
@@ -108,7 +108,7 @@ func main() {
 	for _, t := range tracks {
 		added[t.CleanTitle+"|"+t.Artist] = true
 	}
-	writePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
+	web.WritePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
 
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())
