@@ -44,6 +44,72 @@ type Libraries struct {
 	} `json:"MediaContainer"`
 }
 
+type PlexGuid struct {
+	ID string `json:"id"`
+}
+
+// PlexTrackMetadata describes a track entity returned by Plex.
+// Used by both /library/search results and /library/sections/{id}/all listings.
+type PlexTrackMetadata struct {
+	LibrarySectionTitle  string     `json:"librarySectionTitle"`
+	RatingKey            string     `json:"ratingKey"`
+	Key                  string     `json:"key"`
+	Type                 string     `json:"type"`
+	Title                string     `json:"title"`            // Track
+	GrandparentTitle     string     `json:"grandparentTitle"` // Artist
+	GrandparentRatingKey string     `json:"grandparentRatingKey"`
+	GrandparentGUID      string     `json:"grandparentGuid"`
+	ParentTitle          string     `json:"parentTitle"` // Album
+	ParentRatingKey      string     `json:"parentRatingKey"`
+	ParentGUID           string     `json:"parentGuid"`
+	OriginalTitle        string     `json:"originalTitle"`
+	Summary              string     `json:"summary"`
+	Duration             int        `json:"duration"`
+	UserRating           float64    `json:"userRating"`
+	AddedAt              int        `json:"addedAt"`
+	UpdatedAt            int        `json:"updatedAt"`
+	LastRatedAt          int        `json:"lastRatedAt"`
+	GUID                 string     `json:"guid"`
+	Guid                 []PlexGuid `json:"Guid"`
+	Media                []struct {
+		ID       int `json:"id"`
+		Duration int `json:"duration"`
+		Part     []struct {
+			ID       int    `json:"id"`
+			Key      string `json:"key"`
+			Duration int    `json:"duration"`
+			File     string `json:"file"`
+			Size     int    `json:"size"`
+		} `json:"Part"`
+		AudioChannels int    `json:"audioChannels"`
+		AudioCodec    string `json:"audioCodec"`
+		Container     string `json:"container"`
+	} `json:"Media"`
+}
+
+// PlexLibraryItems is the response shape for /library/sections/{id}/all.
+type PlexLibraryItems struct {
+	MediaContainer struct {
+		Size     int                 `json:"size"`
+		Metadata []PlexTrackMetadata `json:"Metadata"`
+	} `json:"MediaContainer"`
+}
+
+// PlexMetadataResponse is the response shape for /library/metadata/{ratingKey}.
+type PlexMetadataResponse struct {
+	MediaContainer struct {
+		Size     int `json:"size"`
+		Metadata []struct {
+			RatingKey string     `json:"ratingKey"`
+			Key       string     `json:"key"`
+			Type      string     `json:"type"`
+			Title     string     `json:"title"`
+			GUID      string     `json:"guid"`
+			Guid      []PlexGuid `json:"Guid"`
+		} `json:"Metadata"`
+	} `json:"MediaContainer"`
+}
+
 type PlexSearch struct {
 	MediaContainer struct {
 		Size         int `json:"size"`
@@ -365,6 +431,52 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 
 	slog.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
 	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
+}
+
+// GetRatedTracks returns all tracks in the configured library that have a userRating > 0.
+// Plex's filter operator syntax is finicky across versions, so this fetches all tracks
+// in the library section and filters in Go. The Explo library is small (typically <200 tracks)
+// so the cost is trivial.
+func (c *Plex) GetRatedTracks() ([]PlexTrackMetadata, error) {
+	if c.LibraryID == "" {
+		return nil, fmt.Errorf("library ID not set; call GetLibrary first")
+	}
+	params := fmt.Sprintf("/library/sections/%s/all?type=10&includeGuids=1", c.LibraryID)
+
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch library tracks: %s", err.Error())
+	}
+
+	var items PlexLibraryItems
+	if err = util.ParseResp(body, &items); err != nil {
+		return nil, fmt.Errorf("failed to parse library tracks: %s", err.Error())
+	}
+
+	rated := make([]PlexTrackMetadata, 0)
+	for _, t := range items.MediaContainer.Metadata {
+		if t.UserRating > 0 {
+			rated = append(rated, t)
+		}
+	}
+	return rated, nil
+}
+
+// GetArtistMetadata fetches a single metadata entry by ratingKey, used to resolve
+// the artist-level MBID (Plex track Guid[] only contains the recording MBID).
+func (c *Plex) GetArtistMetadata(ratingKey string) (*PlexMetadataResponse, error) {
+	params := fmt.Sprintf("/library/metadata/%s?includeGuids=1", url.PathEscape(ratingKey))
+
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch metadata for %s: %s", ratingKey, err.Error())
+	}
+
+	var resp PlexMetadataResponse
+	if err = util.ParseResp(body, &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse metadata for %s: %s", ratingKey, err.Error())
+	}
+	return &resp, nil
 }
 
 func (c *Plex) addtoPlaylist(tracks []*models.Track) {

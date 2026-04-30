@@ -58,6 +58,40 @@ export async function wizardStep3(body) {
   if (!res.ok) throw new Error(await res.text())
 }
 
+export async function wizardStep4(body) {
+  const res = await fetch('/api/wizard/step4', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function testLidarr(url, api_key) {
+  const res = await fetch('/api/lidarr/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, api_key }),
+  })
+  return res.json()
+}
+
+export async function fetchLidarrProfiles(url, api_key) {
+  const res = await fetch('/api/lidarr/profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, api_key }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function fetchLidarrWebhookUrl() {
+  const res = await fetch('/api/lidarr/webhook-url')
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function fetchBrowse(path) {
   const res = await fetch('/api/browse?path=' + encodeURIComponent(path || '/'))
   return res.json()
