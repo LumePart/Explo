@@ -65,12 +65,29 @@ type FieldDef struct {
 var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
 var apiKeySystems = []string{"jellyfin", "emby", "plex"}
 
+// playlistDef is the single source of truth for a supported playlist type.
+// To add a new playlist: append one entry here and add the matching entry in
+// PLAYLISTS in the frontend Settings.jsx.
+type playlistDef struct {
+	EnvPrefix       string // e.g. "WEEKLY_EXPLORATION"
+	DefaultSchedule string // cron expression
+	DefaultFlags    string // CLI flags for the run
+}
+
+var playlistDefs = map[string]playlistDef{
+	"weekly-exploration": {"WEEKLY_EXPLORATION", "15 00 * * 2", "--playlist weekly-exploration"},
+	"weekly-jams":        {"WEEKLY_JAMS",        "30 00 * * 1", "--playlist weekly-jams"},
+	"daily-jams":         {"DAILY_JAMS",         "15 01 * * *", "--playlist daily-jams"},
+	"on-repeat":          {"ON_REPEAT",          "0 12 1 * *",  "--playlist on-repeat"},
+}
+
 // allConfigKeys is the complete set of env keys the web UI reads and writes.
 var allConfigKeys = []string{
 	"LISTENBRAINZ_USER", "LISTENBRAINZ_DISCOVERY",
 	"WEEKLY_EXPLORATION_SCHEDULE", "WEEKLY_EXPLORATION_FLAGS",
 	"WEEKLY_JAMS_SCHEDULE", "WEEKLY_JAMS_FLAGS",
 	"DAILY_JAMS_SCHEDULE", "DAILY_JAMS_FLAGS",
+	"ON_REPEAT_SCHEDULE", "ON_REPEAT_FLAGS",
 	"EXPLO_SYSTEM", "SYSTEM_URL", "API_KEY", "LIBRARY_NAME",
 	"SYSTEM_USERNAME", "SYSTEM_PASSWORD", "PLAYLIST_DIR", "SLEEP", "PUBLIC_PLAYLIST",
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
@@ -79,6 +96,7 @@ var allConfigKeys = []string{
 	"LIDARR_ENABLED", "LIDARR_URL", "LIDARR_API_KEY",
 	"LIDARR_QUALITY_PROFILE_ID", "LIDARR_METADATA_PROFILE_ID", "LIDARR_ROOT_FOLDER",
 	"LIDARR_POLL_INTERVAL", "LIDARR_WEBHOOK_ENABLED",
+	"WIZARD_COMPLETE",
 }
 
 // ConfigResponse is returned by GET /api/config.
@@ -343,6 +361,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/lidarr/profiles", s.handleLidarrProfiles)
 	s.mux.HandleFunc("GET /api/lidarr/webhook-url", s.handleLidarrWebhookURL)
 	s.mux.HandleFunc("POST /api/plex/webhook", s.handlePlexWebhook)
+	s.mux.HandleFunc("GET /api/playlists", s.handleGetPlaylist)
+
+	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
 func (s *Server) Start(addr string) error {
@@ -572,18 +594,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envPrefixes := map[string]string{
-		"weekly-exploration": "WEEKLY_EXPLORATION",
-		"weekly-jams":        "WEEKLY_JAMS",
-		"daily-jams":         "DAILY_JAMS",
-	}
-	flagDefaults := map[string]string{
-		"weekly-exploration": "--playlist weekly-exploration",
-		"weekly-jams":        "--playlist weekly-jams",
-		"daily-jams":         "--playlist daily-jams",
-	}
-
-	prefix, ok := envPrefixes[body.Name]
+	def, ok := playlistDefs[body.Name]
 	if !ok {
 		http.Error(w, "unknown playlist name", http.StatusBadRequest)
 		return
@@ -591,15 +602,21 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 
 	updates := map[string]string{}
 	if body.Enabled {
-		dow := "*"
-		if body.Day >= 0 {
-			dow = fmt.Sprintf("%d", body.Day)
+		var cron string
+		if body.Day == 100 { // monthly: 1st of each month
+			cron = fmt.Sprintf("%d %d 1 * *", body.Minute, body.Hour)
+		} else {
+			dow := "*"
+			if body.Day >= 0 {
+				dow = fmt.Sprintf("%d", body.Day)
+			}
+			cron = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
 		}
-		updates[prefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
-		updates[prefix+"_FLAGS"] = flagDefaults[body.Name]
+		updates[def.EnvPrefix+"_SCHEDULE"] = cron
+		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 	} else {
-		updates[prefix+"_SCHEDULE"] = ""
-		updates[prefix+"_FLAGS"] = ""
+		updates[def.EnvPrefix+"_SCHEDULE"] = ""
+		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
 	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
@@ -682,18 +699,6 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type schedDef struct{ schedule, flags string }
-	defaults := map[string]schedDef{
-		"weekly-exploration": {"15 00 * * 2", "--playlist weekly-exploration"},
-		"weekly-jams":        {"30 00 * * 1", "--playlist weekly-jams"},
-		"daily-jams":         {"15 01 * * *", "--playlist daily-jams"},
-	}
-	envPrefixes := map[string]string{
-		"weekly-exploration": "WEEKLY_EXPLORATION",
-		"weekly-jams":        "WEEKLY_JAMS",
-		"daily-jams":         "DAILY_JAMS",
-	}
-
 	enabled := make(map[string]bool, len(body.Playlists))
 	for _, p := range body.Playlists {
 		enabled[p] = true
@@ -703,14 +708,13 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		"LISTENBRAINZ_USER":      body.User,
 		"LISTENBRAINZ_DISCOVERY": body.DiscoveryMode,
 	}
-	for playlist, prefix := range envPrefixes {
-		if enabled[playlist] {
-			d := defaults[playlist]
-			updates[prefix+"_SCHEDULE"] = d.schedule
-			updates[prefix+"_FLAGS"] = d.flags
+	for name, def := range playlistDefs {
+		if enabled[name] {
+			updates[def.EnvPrefix+"_SCHEDULE"] = def.DefaultSchedule
+			updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 		} else {
-			updates[prefix+"_SCHEDULE"] = ""
-			updates[prefix+"_FLAGS"] = ""
+			updates[def.EnvPrefix+"_SCHEDULE"] = ""
+			updates[def.EnvPrefix+"_FLAGS"] = ""
 		}
 	}
 
@@ -813,6 +817,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
+		"WIZARD_COMPLETE":   "true",
 	}
 
 	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {

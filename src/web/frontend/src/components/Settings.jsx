@@ -16,12 +16,15 @@ import {
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
+import { fetchPlaylistTracks } from '../lib/listenbrainz'
+import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
+import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
 
 const tabBtnCls = active =>
-  `bg-transparent border-none border-b-2 pb-2 px-3.5 text-[13px] cursor-pointer transition-colors relative top-px
-  ${active ? 'text-white border-accent' : 'text-muted border-transparent hover:text-white'}`
+  `bg-transparent border-none border-b-2 pb-2 px-3.5 text-[13px] leading-none cursor-pointer transition-colors
+  ${active ? 'text-accent border-accent' : 'text-muted border-transparent hover:text-white'}`
 
 // ── Home Tab ──────────────────────────────────────────────────────────────────
 // Manages scheduled playlists, manual runs, and live run output.
@@ -73,40 +76,33 @@ function useSSE({ onLine, onDone }) {
 }
 
 const PLAYLISTS = [
-  { value: 'weekly-exploration', name: 'Weekly Exploration' },
-  { value: 'weekly-jams',        name: 'Weekly Jams' },
-  { value: 'daily-jams',         name: 'Daily Jams' },
+  { value: 'weekly-exploration', name: 'Weekly Exploration', scheduleKey: 'WEEKLY_EXPLORATION_SCHEDULE', defaultDay: 2,  defaultHour: 0,  defaultMinute: 15 },
+  { value: 'weekly-jams',        name: 'Weekly Jams',        scheduleKey: 'WEEKLY_JAMS_SCHEDULE',        defaultDay: 1,  defaultHour: 0,  defaultMinute: 30 },
+  { value: 'daily-jams',         name: 'Daily Jams',         scheduleKey: 'DAILY_JAMS_SCHEDULE',         defaultDay: -1, defaultHour: 1,  defaultMinute: 15 },
+  { value: 'on-repeat',          name: 'On Repeat',          scheduleKey: 'ON_REPEAT_SCHEDULE',          defaultDay: 100, defaultHour: 12, defaultMinute: 0, fixedSchedule: true },
 ]
 
-const SCHEDULE_KEYS = {
-  'weekly-exploration': 'WEEKLY_EXPLORATION_SCHEDULE',
-  'weekly-jams':        'WEEKLY_JAMS_SCHEDULE',
-  'daily-jams':         'DAILY_JAMS_SCHEDULE',
-}
-
 const SCHEDULE_DAYS = [
-  { value: -1, label: 'Every day',   summary: 'Daily' },
-  { value: 0,  label: 'Sunday',      summary: 'Every Sunday' },
-  { value: 1,  label: 'Monday',      summary: 'Every Monday' },
-  { value: 2,  label: 'Tuesday',     summary: 'Every Tuesday' },
-  { value: 3,  label: 'Wednesday',   summary: 'Every Wednesday' },
-  { value: 4,  label: 'Thursday',    summary: 'Every Thursday' },
-  { value: 5,  label: 'Friday',      summary: 'Every Friday' },
-  { value: 6,  label: 'Saturday',    summary: 'Every Saturday' },
+  { value: -1,  label: 'Every day',        summary: '' },
+  { value: 0,   label: 'Sunday',           summary: 'Every Sunday' },
+  { value: 1,   label: 'Monday',           summary: 'Every Monday' },
+  { value: 2,   label: 'Tuesday',          summary: 'Every Tuesday' },
+  { value: 3,   label: 'Wednesday',        summary: 'Every Wednesday' },
+  { value: 4,   label: 'Thursday',         summary: 'Every Thursday' },
+  { value: 5,   label: 'Friday',           summary: 'Every Friday' },
+  { value: 6,   label: 'Saturday',         summary: 'Every Saturday' },
+  { value: 100, label: 'Monthly (1st)',     summary: 'Every 1st of the month' },
 ]
 
 const selectCls = 'bg-surface border border-ui-border text-white rounded-[6px] px-2.5 py-1.5 text-[13px] cursor-pointer outline-none focus:border-accent'
 
 function initSchedules(config) {
-  const defaults = {
-    'weekly-exploration': { enabled: false, day: 2,  hour: 0, minute: 15, editing: false },
-    'weekly-jams':        { enabled: false, day: 1,  hour: 0, minute: 30, editing: false },
-    'daily-jams':         { enabled: false, day: -1, hour: 1, minute: 15, editing: false },
-  }
   const out = {}
-  for (const [name, def] of Object.entries(defaults)) {
-    const cron = config[SCHEDULE_KEYS[name]]
-    out[name] = cron ? { enabled: true, editing: false, ...cronToFields(cron) } : def
+  for (const p of PLAYLISTS) {
+    const cron = config[p.scheduleKey]
+    out[p.value] = cron
+      ? { enabled: true, editing: false, ...cronToFields(cron) }
+      : { enabled: false, day: p.defaultDay, hour: p.defaultHour, minute: p.defaultMinute, editing: false }
   }
   return out
 }
@@ -115,6 +111,8 @@ function HomeSection() {
   const [schedules, setSchedules] = useState(null)
   const [envSources, setEnvSources] = useState({})
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState({})
+  const [lbUser, setLbUser] = useState('')
+  const [openTracklist, setOpenTracklist] = useState(null)
 
   const [playlist, setPlaylist] = useState('weekly-exploration')
   const [dlmode, setDlmode] = useState('normal')
@@ -125,17 +123,13 @@ function HomeSection() {
   const [status, setStatus] = useState('')
   const [logEntries, setLogEntries] = useState([])
   const [rawLog, setRawLog] = useState(false)
-  const [recentTracks, setRecentTracks] = useState([])
   const logRef = useRef(null)
 
   useEffect(() => {
     fetchConfig().then(({ values, sources }) => {
       setSchedules(initSchedules(values))
       setEnvSources(sources || {})
-    })
-    fetchLogs().then(text => {
-      const entries = text.split('\n').filter(l => l.trim()).map(l => ({ raw: l, ...parseSlogLine(l) }))
-      setRecentTracks(entries.filter(e => e.track && e.level === 'INFO').reverse())
+      setLbUser(values.LISTENBRAINZ_USER || '')
     })
   }, [])
 
@@ -165,19 +159,22 @@ function HomeSection() {
     return () => disconnect()
   }, [connect, disconnect])
 
-  const isScheduleLocked = name => envSources[SCHEDULE_KEYS[name]] === 'env'
+  const isScheduleLocked = name => {
+    const p = PLAYLISTS.find(p => p.value === name)
+    return p ? envSources[p.scheduleKey] === 'env' : false
+  }
 
   const scheduleTime = name => {
     const s = schedules[name]
     return `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
   }
 
-  const scheduleSummary = day => SCHEDULE_DAYS.find(d => d.value === day)?.summary || 'Daily'
+  const scheduleSummary = day => SCHEDULE_DAYS.find(d => d.value === day)?.summary ?? ''
 
   const nextRunText = name => {
     const s = schedules[name]
     if (!s.enabled) return 'Disabled'
-    return `${scheduleSummary(s.day)} at ${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
+    return scheduleSummary(s.day)
   }
 
   const updateScheduleTime = (name, val) => {
@@ -227,88 +224,97 @@ function HomeSection() {
       {/* Scheduled Playlists */}
       <div className="mt-6">
         <SectionLabel>Scheduled Playlists</SectionLabel>
-        {PLAYLISTS.map(p => {
-          const s = schedules[p.value]
-          const locked = isScheduleLocked(p.value)
-          return (
-            <div key={p.value} className="py-2.5 border-b border-ui-border last:border-b-0">
-              <div className="flex items-center gap-3.5">
-                <label className={`flex items-center gap-2.5 ${locked ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'}`}>
-                  <Toggle
-                    checked={s.enabled}
-                    onChange={v => {
-                      setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], enabled: v } }))
-                      setTimeout(() => handleSaveSchedule(p.value), 0)
-                    }}
-                    disabled={locked}
-                  />
-                  <span className="text-[14px] font-medium">{p.name}</span>
-                </label>
-                <button
-                  disabled={locked}
-                  onClick={() => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: !prev[p.value].editing } }))}
-                  className="text-[12px] text-accent bg-surface border border-ui-border rounded-[6px] px-2.5 py-1 ml-auto cursor-pointer hover:border-accent hover:bg-[#242424] transition-colors disabled:opacity-45 disabled:cursor-not-allowed"
-                >
-                  {nextRunText(p.value)}
-                </button>
-                <span className="text-[12px] text-muted">{locked ? 'Set via Docker' : (scheduleSaveStatus[p.value] || '')}</span>
-              </div>
-
-              {s.editing && s.enabled && !locked && (
-                <div className="flex flex-col gap-2 pt-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[12px] text-muted">Runs</span>
-                    <select
-                      className={selectCls}
-                      value={s.day}
-                      onChange={e => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], day: parseInt(e.target.value) } }))}
-                    >
-                      {SCHEDULE_DAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                    </select>
-                    <span className="text-[12px] text-muted">at</span>
-                    <input
-                      type="time"
-                      value={scheduleTime(p.value)}
-                      onChange={e => updateScheduleTime(p.value, e.target.value)}
-                      className="bg-surface border border-ui-border text-white rounded-[6px] px-2 py-1.5 text-[13px] outline-none focus:border-accent"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button style={{ padding: '4px 12px', fontSize: 12 }}
-                      onClick={() => { handleSaveSchedule(p.value); setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: false } })) }}>
-                      Save
-                    </Button>
-                    <Button style={{ padding: '4px 10px', fontSize: 12 }}
-                      onClick={() => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: false } }))}>
-                      ✕
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
+          {PLAYLISTS.map((p, i) => {
+            const s = schedules[p.value]
+            const locked = isScheduleLocked(p.value)
+            return (
+              <PlaylistCard
+                key={p.value}
+                playlist={p}
+                schedule={s}
+                locked={locked}
+                fixedSchedule={!!p.fixedSchedule}
+                index={i}
+                nextRunText={nextRunText(p.value)}
+                scheduleSaveStatus={scheduleSaveStatus[p.value] || ''}
+                tracklistOpen={openTracklist === p.value}
+                onTracklistToggle={() => setOpenTracklist(v => v === p.value ? null : p.value)}
+                onToggle={v => {
+                  // Read current schedule synchronously — avoids stale-closure bug where
+                  // handleSaveSchedule would see the pre-toggle enabled value.
+                  const cur = schedules[p.value]
+                  setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], enabled: v } }))
+                  saveSchedule(p.value, v, cur.day, cur.hour, cur.minute)
+                    .then(() => {
+                      setScheduleSaveStatus(prev => ({ ...prev, [p.value]: 'Saved.' }))
+                      setTimeout(() => setScheduleSaveStatus(prev => ({ ...prev, [p.value]: '' })), 2000)
+                    })
+                    .catch(() => setScheduleSaveStatus(prev => ({ ...prev, [p.value]: 'Error saving.' })))
+                }}
+                onToggleEdit={() => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: !prev[p.value].editing } }))}
+                onSave={() => { handleSaveSchedule(p.value); setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: false } })) }}
+                onCancelEdit={() => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: false } }))}
+                onDayChange={day => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], day } }))}
+                onTimeChange={val => updateScheduleTime(p.value, val)}
+              />
+            )
+          })}
+        </div>
+        <AnimatePresence>
+          {openTracklist && (
+            <motion.div
+              key={openTracklist}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}
+            >
+              <TracklistDropdown
+                lbUser={lbUser}
+                playlist={openTracklist}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
         <p className="text-[12px] text-muted mt-3">Schedule changes take effect after restarting the container.</p>
       </div>
 
       {/* Manual Run */}
       <div className="mt-6">
         <SectionLabel>Manual run</SectionLabel>
+        <div className="flex flex-col gap-1.5 mb-3">
+          <label className="text-[12px] text-muted">Download mode</label>
+          <div className="flex gap-1.5">
+            {[
+              { value: 'normal', name: 'Normal', desc: "Download only if the track isn't found locally" },
+              { value: 'skip',   name: 'Skip',   desc: 'No downloads — builds a playlist from tracks already in your library. Good for testing.' },
+              { value: 'force',  name: 'Force',  desc: 'Always download, ignoring local tracks' },
+            ].map(m => (
+              <button
+                key={m.value}
+                onClick={() => setDlmode(m.value)}
+                className={`px-3 py-1.5 text-[12px] rounded-[6px] border bg-surface cursor-pointer transition-colors
+                  ${dlmode === m.value ? 'border-accent text-accent' : 'border-ui-border text-muted hover:border-[#404040] hover:text-white'}`}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted">
+            {({ normal: "Download only if the track isn't found locally", skip: 'No downloads — builds a playlist from tracks already in your library. Good for testing.', force: 'Always download, ignoring local tracks' })[dlmode]}
+          </p>
+        </div>
         <div className="flex gap-2.5 items-center flex-wrap mb-2.5">
           <label className="text-[12px] text-muted">Playlist</label>
           <select className={selectCls} value={playlist} onChange={e => setPlaylist(e.target.value)}>
             {PLAYLISTS.map(p => <option key={p.value} value={p.value}>{p.name}</option>)}
           </select>
-          <label className="text-[12px] text-muted">Download mode</label>
-          <select className={selectCls} value={dlmode} onChange={e => setDlmode(e.target.value)}>
-            <option value="normal">normal</option>
-            <option value="skip">skip</option>
-            <option value="force">force</option>
-          </select>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer">
-            <input type="checkbox" checked={noPersist} onChange={e => setNoPersist(e.target.checked)} /> no persist
+          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer" title="When unchecked (default), previously generated playlists and their tracks are kept and added to over time. When checked, the playlist is wiped and rebuilt from scratch on each run.">
+            <input type="checkbox" checked={noPersist} onChange={e => setNoPersist(e.target.checked)} /> don't persist
           </label>
-          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer">
+          <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer" title="When checked, tracks already found in your local library are excluded from the generated playlist.">
             <input type="checkbox" checked={excludeLocal} onChange={e => setExcludeLocal(e.target.checked)} /> exclude local
           </label>
         </div>
@@ -325,21 +331,6 @@ function HomeSection() {
           <span className="text-[12px] text-muted">{status}</span>
         </div>
       </div>
-
-      {/* Recent Tracks */}
-      {recentTracks.length > 0 && (
-        <div className="mt-6">
-          <SectionLabel>Recent tracks</SectionLabel>
-          <Panel className="h-[400px]">
-            {recentTracks.slice(0, 50).map((e, i) => (
-              <div key={i} className="flex gap-2.5 items-baseline py-0.5">
-                <span className="text-[11px] text-muted flex-shrink-0 tabular-nums">{e.time}</span>
-                <span className="text-[12px] text-accent flex-shrink-0">{e.track}</span>
-              </div>
-            ))}
-          </Panel>
-        </div>
-      )}
 
       {/* Output */}
       <div className="mt-6">
@@ -494,24 +485,69 @@ function LogsSection() {
 // ── Settings ──────────────────────────────────────────────────────────────────
 // Tab shell. Routes between Home, Settings, and Logs sections.
 
+// Module-level cache so the picked cover survives component remounts.
+let _bgCoverCache = null
+
 export default function Settings({ onWizard }) {
   const [activeTab, setActiveTab] = useState('run')
+  const [bgCover, setBgCover] = useState(_bgCoverCache)
+
+  useEffect(() => {
+    if (_bgCoverCache) return
+    Promise.all(['weekly-exploration', 'weekly-jams', 'daily-jams', 'on-repeat'].map(
+      t => fetchPlaylistTracks(t).catch(() => ({ tracks: [] }))
+    )).then(results => {
+      const covers = results.flatMap(r => (r.tracks ?? []).map(t => t.coverUrl).filter(Boolean))
+      if (covers.length) {
+        _bgCoverCache = covers[Math.floor(Math.random() * covers.length)]
+        setBgCover(_bgCoverCache)
+      }
+    })
+  }, [])
 
   return (
-    <div className="bg-bg min-h-screen">
-      <div className="max-w-[760px] mx-auto px-6 pb-12">
-        <header className="flex items-center gap-4 pt-5 pb-0 border-b border-ui-border mb-6">
-          <span className="text-[16px] font-bold tracking-tight">Explo</span>
-          <nav className="flex gap-0.5 items-end">
-            <button className={tabBtnCls(activeTab === 'run')} onClick={() => setActiveTab('run')}>Home</button>
-            <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
-            <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
-          </nav>
-        </header>
+    <div style={{ position: 'relative', minHeight: '100vh' }}>
+      {/* Page background art */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#121212', overflow: 'hidden', willChange: 'transform' }}>
+        <AnimatePresence>
+          {bgCover && (
+            <motion.img
+              key={bgCover}
+              src={bgCover}
+              alt=""
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, ease: 'easeInOut' }}
+              style={{
+                position: 'absolute', inset: 0,
+                width: '100%', height: '100%',
+                objectFit: 'cover',
+                filter: 'blur(90px) saturate(1.8) brightness(0.14)',
+                transform: 'scale(1.15) translateZ(0)',
+                willChange: 'opacity',
+              }}
+            />
+          )}
+        </AnimatePresence>
+      </div>
 
-        {activeTab === 'run' && <HomeSection />}
-        {activeTab === 'config' && <ConfigSection onWizard={onWizard} />}
-        {activeTab === 'logs' && <LogsSection />}
+      {/* Content */}
+      <div style={{ position: 'relative', zIndex: 1 }} className="min-h-screen">
+        <div className="max-w-[980px] mx-auto px-6 pb-12">
+          <header className="flex items-baseline gap-4 pt-5 pb-0 border-b border-ui-border mb-6">
+            <span className="text-[16px] leading-none font-bold tracking-tight text-accent">Explo</span>
+            <nav className="flex gap-0.5 items-baseline">
+              <button className={tabBtnCls(activeTab === 'run')} onClick={() => setActiveTab('run')}>Home</button>
+              <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
+              <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
+            </nav>
+          </header>
+
+          {activeTab === 'run' && <HomeSection />}
+          {activeTab === 'config' && <ConfigSection onWizard={onWizard} />}
+          {activeTab === 'logs' && <LogsSection />}
+        </div>
       </div>
     </div>
   )

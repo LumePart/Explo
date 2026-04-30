@@ -12,7 +12,7 @@ export default function App() {
     fetchConfig().then(({ values, sources }) => {
       setConfig(values)
       setEnvSources(sources || {})
-      setView(values.LISTENBRAINZ_USER ? 'settings' : 'wizard')
+      setView(values.WIZARD_COMPLETE === 'true' ? 'settings' : 'wizard')
     })
   }, [])
 

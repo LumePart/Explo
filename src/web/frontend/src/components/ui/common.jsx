@@ -49,8 +49,9 @@ Panel.displayName = 'Panel'
 
 // A single structured log entry row (structured view, not raw).
 export function LogRow({ entry }) {
+  const displayTrack = entry.track || (entry.file ? entry.file.replace(/.*[/\\]/, '') : '')
   return (
-    <div className="flex gap-2.5 items-baseline py-0.5">
+    <div className="flex gap-2.5 items-baseline py-0.5 flex-wrap">
       <span className="text-[11px] text-muted flex-shrink-0 tabular-nums">{entry.time}</span>
       {entry.level !== 'INFO' && (
         <span className={`text-[10px] font-semibold tracking-wide flex-shrink-0 ${
@@ -60,8 +61,12 @@ export function LogRow({ entry }) {
         </span>
       )}
       <span className="text-[12px] text-white break-words">{entry.msg}</span>
-      {entry.track && <span className="text-[12px] text-accent flex-shrink-0">{entry.track}</span>}
-      {entry.system && <span className="text-[11px] text-accent flex-shrink-0">{entry.system}</span>}
+      {displayTrack && (
+        <span className="text-[12px] text-accent flex-shrink-0">
+          {displayTrack}{entry.artist && <span className="text-muted"> — {entry.artist}</span>}
+        </span>
+      )}
+      {entry.system && <span className="text-[11px] text-muted flex-shrink-0">{entry.system}</span>}
     </div>
   )
 }

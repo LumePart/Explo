@@ -7,3 +7,4 @@ logs/
 explo
 src/web/dist/
 src/web/frontend/node_modules/
+/cache

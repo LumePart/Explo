@@ -1,4 +1,30 @@
-export function Toggle({ checked, onChange, disabled }) {
+export function Toggle({ checked, onChange, disabled, small, tiny }) {
+  if (tiny) return (
+    <div
+      className={`w-[26px] h-[15px] rounded-full relative flex-shrink-0 transition-colors
+        ${checked ? 'bg-accent' : 'bg-ui-border'}
+        ${disabled ? 'opacity-45' : 'cursor-pointer'}`}
+      onClick={() => !disabled && onChange(!checked)}
+    >
+      <span
+        className={`absolute top-[2px] left-[2px] w-[11px] h-[11px] bg-white rounded-full transition-transform
+          ${checked ? 'translate-x-[11px]' : 'translate-x-0'}`}
+      />
+    </div>
+  )
+  if (small) return (
+    <div
+      className={`w-6 h-3.5 rounded-full relative flex-shrink-0 transition-colors
+        ${checked ? 'bg-accent' : 'bg-ui-border'}
+        ${disabled ? 'opacity-45' : 'cursor-pointer'}`}
+      onClick={() => !disabled && onChange(!checked)}
+    >
+      <span
+        className={`absolute top-[2px] left-[2px] w-2.5 h-2.5 bg-white rounded-full transition-transform
+          ${checked ? 'translate-x-[10px]' : 'translate-x-0'}`}
+      />
+    </div>
+  )
   return (
     <div
       className={`w-9 h-5 rounded-full relative flex-shrink-0 transition-colors
