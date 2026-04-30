@@ -716,16 +716,16 @@ export default function Wizard({ config, envSources, onComplete }) {
                 <Step3
                   fields={fields} setField={setField}
                   envSources={envSources}
-                  onBack={() => goToStep(2)} onFinish={handleStep3} saving={saving}
+                  onBack={() => goToStep(2)} onNext={handleStep3} saving={saving}
                 />
               )}
               {step === 4 && (
-          <Step4
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onBack={() => setStep(3)} onFinish={handleStep4} saving={saving}
-          />
-        )}
+                <Step4
+                  fields={fields} setField={setField}
+                  envSources={envSources}
+                  onBack={() => setStep(3)} onFinish={handleStep4} saving={saving}
+                />
+              )}
             </motion.div>
         </AnimatePresence>
       </div>
