@@ -241,7 +241,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 // Collects download service selection (YouTube, Slskd) and their respective
 // credentials, download directory, and file format preferences.
 
-function Step3({ fields, setField, envSources, onBack, onNext, saving }) {
+function Step3({ fields, setField, envSources, onBack, onNext, saving, isLastStep }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
           youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey } = fields
   const isLocked = key => envSources[key] === 'env'
@@ -351,7 +351,7 @@ function Step3({ fields, setField, envSources, onBack, onNext, saving }) {
 
       <div className="mt-8 flex">
         <BackBtn onClick={onBack} />
-        <NextBtn onClick={onNext} disabled={!valid()} saving={saving} />
+        <NextBtn onClick={onNext} disabled={!valid()} saving={saving} label={isLastStep ? 'Finish →' : 'Next →'} />
       </div>
     </div>
   )
@@ -647,7 +647,11 @@ export default function Wizard({ config, envSources, onComplete }) {
         youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
         filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,
       })
-      setStep(4)
+      if (fields.system === 'plex') {
+        setStep(4)
+      } else {
+        onComplete()
+      }
     } catch (e) {
       alert('Error saving: ' + e.message)
     } finally {
@@ -717,6 +721,7 @@ export default function Wizard({ config, envSources, onComplete }) {
                   fields={fields} setField={setField}
                   envSources={envSources}
                   onBack={() => goToStep(2)} onNext={handleStep3} saving={saving}
+                  isLastStep={fields.system !== 'plex'}
                 />
               )}
               {step === 4 && (

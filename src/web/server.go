@@ -299,6 +299,7 @@ type Server struct {
 
 	lidarrSync   *LidarrSync
 	lidarrCancel context.CancelFunc
+	lidarrMu     sync.Mutex
 }
 
 func NewServer(configPath, exploPath string) *Server {
@@ -457,6 +458,20 @@ func (s *Server) initLidarrSync() error {
 	return nil
 }
 
+// restartLidarrSync tears down any running sync and re-reads the .env. Called
+// after the wizard or settings page writes new LIDARR_* values so the change
+// takes effect without a container restart.
+func (s *Server) restartLidarrSync() error {
+	s.lidarrMu.Lock()
+	defer s.lidarrMu.Unlock()
+	if s.lidarrCancel != nil {
+		s.lidarrCancel()
+		s.lidarrCancel = nil
+		s.lidarrSync = nil
+	}
+	return s.initLidarrSync()
+}
+
 // ── Logging ────────────────────────────────────────────────────────────────
 
 // logPath returns the path to the single rolling log file.
@@ -563,6 +578,9 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	if err := os.WriteFile(s.configPath, data, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if err := s.restartLidarrSync(); err != nil {
+		slog.Warn("Lidarr sync restart failed", "err", err.Error())
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -1242,6 +1260,9 @@ func (s *Server) handleWizardStep4(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if err := s.restartLidarrSync(); err != nil {
+			slog.Warn("Lidarr sync restart failed", "err", err.Error())
+		}
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -1270,6 +1291,9 @@ func (s *Server) handleWizardStep4(w http.ResponseWriter, r *http.Request) {
 	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if err := s.restartLidarrSync(); err != nil {
+		slog.Warn("Lidarr sync restart failed", "err", err.Error())
 	}
 	w.WriteHeader(http.StatusOK)
 }

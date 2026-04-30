@@ -435,7 +435,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 
 // GetRatedTracks returns all tracks in the configured library that have a userRating > 0.
 // Plex's filter operator syntax is finicky across versions, so this fetches all tracks
-// in the library section and filters in Go. The Explo library is small (typically <200 tracks)
+// in the library section and filters in Go. The Explo library is small with persist off (typically <200 tracks)
 // so the cost is trivial.
 func (c *Plex) GetRatedTracks() ([]PlexTrackMetadata, error) {
 	if c.LibraryID == "" {

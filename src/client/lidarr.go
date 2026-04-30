@@ -41,11 +41,17 @@ type LidarrArtist struct {
 }
 
 type LidarrAlbum struct {
-	ID             int    `json:"id"`
-	ForeignAlbumID string `json:"foreignAlbumId"`
-	Title          string `json:"title"`
-	ArtistID       int    `json:"artistId"`
-	Monitored      bool   `json:"monitored"`
+	ID             int                   `json:"id"`
+	ForeignAlbumID string                `json:"foreignAlbumId"`
+	Title          string                `json:"title"`
+	ArtistID       int                   `json:"artistId"`
+	Monitored      bool                  `json:"monitored"`
+	Statistics     *LidarrAlbumStatistics `json:"statistics,omitempty"`
+}
+
+type LidarrAlbumStatistics struct {
+	TrackFileCount  int `json:"trackFileCount"`
+	TotalTrackCount int `json:"totalTrackCount"`
 }
 
 type LidarrCommand struct {

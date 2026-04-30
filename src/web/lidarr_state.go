@@ -28,6 +28,7 @@ type RatingStateEntry struct {
 type ratingStateFile struct {
 	Version      int                         `json:"version"`
 	WebhookToken string                      `json:"webhook_token,omitempty"`
+	Bootstrapped bool                        `json:"bootstrapped,omitempty"`
 	Entries      map[string]RatingStateEntry `json:"entries"`
 }
 
@@ -80,10 +81,29 @@ func (s *RatingState) Has(ratingKey string) bool {
 	if !ok {
 		return false
 	}
-	if entry.Status == "ok" {
+	if entry.Status == "ok" || entry.Status == "bootstrap" {
 		return true
 	}
 	return entry.RetryCount >= maxRatingRetries
+}
+
+// IsBootstrapped reports whether the initial-snapshot pass has run.
+func (s *RatingState) IsBootstrapped() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Bootstrapped
+}
+
+// MarkBootstrapped records existing ratings in bulk and sets the bootstrap flag.
+// One flush at the end so we don't write to disk per-entry.
+func (s *RatingState) MarkBootstrapped(entries map[string]RatingStateEntry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, v := range entries {
+		s.data.Entries[k] = v
+	}
+	s.data.Bootstrapped = true
+	return s.flushLocked()
 }
 
 func (s *RatingState) Get(ratingKey string) (RatingStateEntry, bool) {

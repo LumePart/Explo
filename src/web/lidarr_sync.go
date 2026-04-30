@@ -77,12 +77,53 @@ func NewLidarrSync(cfg config.LidarrConfig, plex *client.Plex, lidarr *client.Li
 func (s *LidarrSync) WebhookToken() string { return s.webhookToken }
 
 // Start launches the worker goroutine and (if poll interval > 0) the poll-ticker goroutine.
-// Both exit when ctx is canceled.
+// Both exit when ctx is canceled. On first run, ratings that already exist in Plex are
+// snapshotted (marked synced without enqueuing) so enabling Lidarr doesn't trigger a
+// flood of historical adds — only new ratings going forward are processed.
 func (s *LidarrSync) Start(ctx context.Context) {
 	go s.worker(ctx)
-	if s.cfg.PollInterval > 0 {
-		go s.poller(ctx)
+	go func() {
+		if !s.state.IsBootstrapped() {
+			if err := s.bootstrap(ctx); err != nil {
+				slog.Warn("lidarr bootstrap failed; will retry on next start", "err", err.Error())
+				return
+			}
+		}
+		if s.cfg.PollInterval > 0 {
+			s.poller(ctx)
+		}
+	}()
+}
+
+// bootstrap snapshots all currently-rated tracks in Plex and marks them as
+// already-synced, so the first poll won't enqueue every historical rating.
+// Called once per state-file lifetime — clearing lidarr_synced.json re-bootstraps.
+func (s *LidarrSync) bootstrap(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
+	tracks, err := s.plex.GetRatedTracks()
+	if err != nil {
+		return fmt.Errorf("snapshot rated tracks: %w", err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	entries := make(map[string]RatingStateEntry, len(tracks))
+	for _, t := range tracks {
+		if t.Type != plexTrackType {
+			continue
+		}
+		entries[t.RatingKey] = RatingStateEntry{
+			SyncedAt: now,
+			Artist:   t.GrandparentTitle,
+			Album:    t.ParentTitle,
+			Status:   "bootstrap",
+		}
+	}
+	if err := s.state.MarkBootstrapped(entries); err != nil {
+		return fmt.Errorf("persist bootstrap: %w", err)
+	}
+	slog.Info("lidarr sync bootstrapped — existing ratings snapshotted, only new ratings will be processed", "count", len(entries))
+	return nil
 }
 
 func (s *LidarrSync) worker(ctx context.Context) {
@@ -266,8 +307,11 @@ func (s *LidarrSync) processEvent(ctx context.Context, ev ratingEvent) error {
 			return fmt.Errorf("monitor album: %w", err)
 		}
 	}
-	if err := s.lidarr.SearchAlbum(album.ID); err != nil {
-		return fmt.Errorf("search album: %w", err)
+	complete := albumComplete(album)
+	if !complete {
+		if err := s.lidarr.SearchAlbum(album.ID); err != nil {
+			return fmt.Errorf("search album: %w", err)
+		}
 	}
 
 	entry := RatingStateEntry{
@@ -281,8 +325,21 @@ func (s *LidarrSync) processEvent(ctx context.Context, ev ratingEvent) error {
 	if err := s.state.Mark(ev.RatingKey, entry); err != nil {
 		slog.Warn("failed to persist successful rating state", "err", err.Error())
 	}
-	slog.Info("queued album for download in Lidarr", "artist", ev.ArtistName, "album", ev.AlbumName, "albumId", album.ID)
+	if complete {
+		slog.Info("album already present in Lidarr, marked synced", "artist", ev.ArtistName, "album", ev.AlbumName, "albumId", album.ID)
+	} else {
+		slog.Info("queued album for download in Lidarr", "artist", ev.ArtistName, "album", ev.AlbumName, "albumId", album.ID)
+	}
 	return nil
+}
+
+// albumComplete reports whether Lidarr already has every track for the album on disk.
+// A nil/zero Statistics block is treated as "unknown" → not complete, so we still search.
+func albumComplete(a *client.LidarrAlbum) bool {
+	if a == nil || a.Statistics == nil {
+		return false
+	}
+	return a.Statistics.TotalTrackCount > 0 && a.Statistics.TrackFileCount >= a.Statistics.TotalTrackCount
 }
 
 func (s *LidarrSync) resolveArtistMBID(grandparentRatingKey string) (string, error) {
