@@ -7,6 +7,7 @@ on:
       - dev
   pull_request:
     branches: ['*']
+  workflow_dispatch:
 
 name: Latest Release
 
