@@ -27,7 +27,7 @@ jobs:
 
       # Create a dummy directory to appease the go:embed typechecker
       - name: Create dummy dist directory
-        run: mkdir -p src/web/dist && touch src/web/dist/.keep
+        run: mkdir -p src/web/dist && touch src/web/dist/index.html
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8.0.0
