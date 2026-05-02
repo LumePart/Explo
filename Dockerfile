@@ -1,11 +1,11 @@
-FROM node:20-alpine AS ui-builder
+FROM --platform=$BUILDPLATFORM node:20-alpine AS ui-builder
 WORKDIR /app/src/web/frontend
 COPY src/web/frontend/package*.json ./
 RUN npm ci
 COPY src/web/frontend/ ./
 RUN npm run build
 
-FROM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 # Set the working directory
 WORKDIR /app
