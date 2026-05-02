@@ -9,8 +9,8 @@
  */
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useState } from 'react'
-import { wizardStep1, wizardStep2, wizardStep3 } from '../lib/api'
+import { useEffect, useState } from 'react'
+import { wizardStep1, wizardStep2, wizardStep3, wizardStep4, testLidarr, fetchLidarrProfiles, fetchLidarrWebhookUrl } from '../lib/api'
 import { ToggleRow } from './ui/Toggle'
 import { DirInput } from './ui/DirInput'
 import { TextField } from './ui/common'
@@ -53,7 +53,7 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
 
   return (
     <div>
-      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 1 of 3 — Discovery</div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 1 of 4 — Discovery</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
         Explo uses your ListenBrainz listening history to find music recommendations.
       </p>
@@ -146,7 +146,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 
   return (
     <div>
-      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 2 of 3 — Media System</div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 2 of 4 — Media System</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
         Explo will add discovered tracks to your library and create playlists automatically. It needs access to your media server to do this.
       </p>
@@ -241,7 +241,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 // Collects download service selection (YouTube, Slskd) and their respective
 // credentials, download directory, and file format preferences.
 
-function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
+function Step3({ fields, setField, envSources, onBack, onNext, saving, isLastStep }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
           youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey } = fields
   const isLocked = key => envSources[key] === 'env'
@@ -256,7 +256,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 
   return (
     <div>
-      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 3 of 3 — Downloader</div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 3 of 4 — Downloader</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
         Explo downloads tracks using one or both services. Enable what you have access to — if both are enabled, YouTube is tried first.
       </p>
@@ -351,6 +351,179 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 
       <div className="mt-8 flex">
         <BackBtn onClick={onBack} />
+        <NextBtn onClick={onNext} disabled={!valid()} saving={saving} label={isLastStep ? 'Finish →' : 'Next →'} />
+      </div>
+    </div>
+  )
+}
+
+// ── Step 4: Lidarr (optional) ─────────────────────────────────────────────────
+// Optional integration that adds the Artist + Album to Lidarr when you rate a
+// track in your Plex library. Skippable.
+
+function Step4({ fields, setField, envSources, onBack, onFinish, saving }) {
+  const { lidarrEnabled, lidarrUrl, lidarrApiKey, lidarrRootFolder,
+          lidarrQualityProfileId, lidarrMetadataProfileId, lidarrPollInterval, lidarrWebhookEnabled } = fields
+  const isLocked = key => envSources[key] === 'env'
+
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null) // { ok, version|error }
+  const [profiles, setProfiles] = useState(null) // { root_folders, quality_profiles, metadata_profiles }
+  const [profilesError, setProfilesError] = useState('')
+  const [webhookPath, setWebhookPath] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!lidarrEnabled) return
+    fetchLidarrWebhookUrl().then(r => setWebhookPath(r.path)).catch(() => {})
+  }, [lidarrEnabled])
+
+  const handleTest = async () => {
+    setTesting(true); setTestResult(null); setProfiles(null); setProfilesError('')
+    try {
+      const r = await testLidarr(lidarrUrl.trim(), lidarrApiKey.trim())
+      setTestResult(r)
+      if (r.ok) {
+        try {
+          const p = await fetchLidarrProfiles(lidarrUrl.trim(), lidarrApiKey.trim())
+          setProfiles(p)
+        } catch (e) {
+          setProfilesError(e.message)
+        }
+      }
+    } catch (e) {
+      setTestResult({ ok: false, error: e.message })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const copyWebhook = async () => {
+    if (!webhookPath) return
+    const fullUrl = window.location.origin + webhookPath
+    try {
+      await navigator.clipboard.writeText(fullUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {}
+  }
+
+  const valid = () => {
+    if (!lidarrEnabled) return true
+    if (!lidarrUrl.trim() || !lidarrApiKey.trim()) return false
+    if (!lidarrRootFolder || !lidarrQualityProfileId || !lidarrMetadataProfileId) return false
+    return true
+  }
+
+  return (
+    <div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 4 of 4 — Lidarr (optional)</div>
+      <p className="text-[13px] text-muted mb-7 leading-relaxed">
+        Connect Lidarr so that any track you rate in your Plex library gets its artist and album auto-added for permanent download. Skip this step if you don't use Lidarr.
+      </p>
+
+      <div className="flex flex-col gap-5">
+        <ToggleRow
+          checked={lidarrEnabled}
+          onChange={v => setField('lidarrEnabled', v)}
+          disabled={isLocked('LIDARR_ENABLED')}
+          name="Enable Lidarr sync"
+          desc="When on, rating any track in your Plex library triggers a Lidarr add"
+        />
+
+        {lidarrEnabled && (
+          <>
+            <TextField label="Lidarr URL">
+              <input type="text" className={inputCls} value={lidarrUrl} onChange={e => setField('lidarrUrl', e.target.value)}
+                placeholder="e.g. http://localhost:8686" disabled={isLocked('LIDARR_URL')} />
+            </TextField>
+            <TextField label="Lidarr API Key" hint="Settings → General in the Lidarr UI">
+              <input type="password" className={inputCls} value={lidarrApiKey} onChange={e => setField('lidarrApiKey', e.target.value)}
+                autoComplete="off" spellCheck={false} disabled={isLocked('LIDARR_API_KEY')} />
+            </TextField>
+
+            <div>
+              <button
+                onClick={handleTest}
+                disabled={testing || !lidarrUrl.trim() || !lidarrApiKey.trim()}
+                className="bg-transparent border border-ui-border text-white rounded-[6px] px-4 py-2 text-[13px] cursor-pointer hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {testing ? 'Testing…' : 'Test connection'}
+              </button>
+              {testResult && testResult.ok && (
+                <span className="ml-3 text-[12px] text-accent">✓ Connected (Lidarr v{testResult.version})</span>
+              )}
+              {testResult && !testResult.ok && (
+                <span className="ml-3 text-[12px] text-red-400">✗ {testResult.error || 'failed'}</span>
+              )}
+            </div>
+
+            {profiles && (
+              <>
+                <TextField label="Root folder">
+                  <select className={inputCls} value={lidarrRootFolder} onChange={e => setField('lidarrRootFolder', e.target.value)}>
+                    <option value="">— select —</option>
+                    {profiles.root_folders.map(f => (
+                      <option key={f.id} value={f.path}>{f.path}</option>
+                    ))}
+                  </select>
+                </TextField>
+                <TextField label="Quality profile">
+                  <select className={inputCls} value={lidarrQualityProfileId} onChange={e => setField('lidarrQualityProfileId', e.target.value)}>
+                    <option value="">— select —</option>
+                    {profiles.quality_profiles.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </TextField>
+                <TextField label="Metadata profile">
+                  <select className={inputCls} value={lidarrMetadataProfileId} onChange={e => setField('lidarrMetadataProfileId', e.target.value)}>
+                    <option value="">— select —</option>
+                    {profiles.metadata_profiles.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </TextField>
+              </>
+            )}
+            {profilesError && (
+              <div className="text-[12px] text-red-400">Profiles load failed: {profilesError}</div>
+            )}
+
+            <TextField label="Polling interval"
+              hint="Webhook fallback poll cadence — Go duration string (e.g. 5m, 15m, 1h).">
+              <input type="text" className={inputCls} style={{ width: 120 }}
+                value={lidarrPollInterval} onChange={e => setField('lidarrPollInterval', e.target.value)}
+                placeholder="15m" disabled={isLocked('LIDARR_POLL_INTERVAL')} />
+            </TextField>
+
+            <ToggleRow
+              checked={lidarrWebhookEnabled}
+              onChange={v => setField('lidarrWebhookEnabled', v)}
+              disabled={isLocked('LIDARR_WEBHOOK_ENABLED')}
+              name="Plex webhook listener"
+              desc="Real-time rating events (requires Plex Pass)"
+            />
+
+            {lidarrWebhookEnabled && webhookPath && (
+              <TextField label="Plex webhook URL"
+                hint="Paste this into Plex → Settings → Webhooks. The token is generated per-instance and is required.">
+                <div className="flex gap-2">
+                  <input type="text" readOnly className={inputCls}
+                    value={typeof window !== 'undefined' ? window.location.origin + webhookPath : webhookPath} />
+                  <button onClick={copyWebhook}
+                    className="bg-transparent border border-ui-border text-white rounded-[6px] px-3 py-2 text-[13px] cursor-pointer hover:border-accent transition-colors whitespace-nowrap">
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </TextField>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="mt-8 flex">
+        <BackBtn onClick={onBack} />
         <NextBtn onClick={onFinish} disabled={!valid()} saving={saving} label="Finish →" />
       </div>
     </div>
@@ -412,6 +585,15 @@ export default function Wizard({ config, envSources, onComplete }) {
       filterList:       config.FILTER_LIST || '',
       slskdUrl:         config.SLSKD_URL || '',
       slskdApiKey:      config.SLSKD_API_KEY || '',
+      // Step 4
+      lidarrEnabled:           config.LIDARR_ENABLED === 'true',
+      lidarrUrl:               config.LIDARR_URL || '',
+      lidarrApiKey:            config.LIDARR_API_KEY || '',
+      lidarrRootFolder:        config.LIDARR_ROOT_FOLDER || '',
+      lidarrQualityProfileId:  config.LIDARR_QUALITY_PROFILE_ID || '',
+      lidarrMetadataProfileId: config.LIDARR_METADATA_PROFILE_ID || '',
+      lidarrPollInterval:      config.LIDARR_POLL_INTERVAL || '15m',
+      lidarrWebhookEnabled:    config.LIDARR_WEBHOOK_ENABLED !== 'false',
     }
   })
 
@@ -465,6 +647,31 @@ export default function Wizard({ config, envSources, onComplete }) {
         youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
         filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,
       })
+      if (fields.system === 'plex') {
+        setStep(4)
+      } else {
+        onComplete()
+      }
+    } catch (e) {
+      alert('Error saving: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleStep4() {
+    setSaving(true)
+    try {
+      await wizardStep4({
+        enabled:             fields.lidarrEnabled,
+        url:                 fields.lidarrUrl.trim(),
+        api_key:             fields.lidarrApiKey.trim(),
+        root_folder:         fields.lidarrRootFolder,
+        quality_profile_id:  Number(fields.lidarrQualityProfileId) || 0,
+        metadata_profile_id: Number(fields.lidarrMetadataProfileId) || 0,
+        poll_interval:       fields.lidarrPollInterval || '15m',
+        webhook_enabled:     fields.lidarrWebhookEnabled,
+      })
       onComplete()
     } catch (e) {
       alert('Error saving: ' + e.message)
@@ -513,7 +720,15 @@ export default function Wizard({ config, envSources, onComplete }) {
                 <Step3
                   fields={fields} setField={setField}
                   envSources={envSources}
-                  onBack={() => goToStep(2)} onFinish={handleStep3} saving={saving}
+                  onBack={() => goToStep(2)} onNext={handleStep3} saving={saving}
+                  isLastStep={fields.system !== 'plex'}
+                />
+              )}
+              {step === 4 && (
+                <Step4
+                  fields={fields} setField={setField}
+                  envSources={envSources}
+                  onBack={() => setStep(3)} onFinish={handleStep4} saving={saving}
                 />
               )}
             </motion.div>

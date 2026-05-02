@@ -19,12 +19,25 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg    ClientConfig
 	NotifyCfg    NotifyConfig
+	LidarrCfg    LidarrConfig
 	Flags        Flags
 	PersistENV   bool `env:"PERSIST" env-default:"true"`
 	Persist      bool
 	System       string `env:"EXPLO_SYSTEM"`
 	Debug        bool   `env:"DEBUG" env-default:"false"`
 	LogLevel     string `env:"LOG_LEVEL" env-default:"INFO"`
+}
+
+type LidarrConfig struct {
+	Enabled           bool          `env:"LIDARR_ENABLED" env-default:"false"`
+	URL               string        `env:"LIDARR_URL"`
+	APIKey            string        `env:"LIDARR_API_KEY"`
+	QualityProfileID  int           `env:"LIDARR_QUALITY_PROFILE_ID"`
+	MetadataProfileID int           `env:"LIDARR_METADATA_PROFILE_ID"`
+	RootFolderPath    string        `env:"LIDARR_ROOT_FOLDER"`
+	PollInterval      time.Duration `env:"LIDARR_POLL_INTERVAL" env-default:"15m"`
+	WebhookEnabled    bool          `env:"LIDARR_WEBHOOK_ENABLED" env-default:"true"`
+	HTTPTimeout       int           `env:"LIDARR_HTTP_TIMEOUT" env-default:"30"`
 }
 
 type Flags struct {
@@ -182,6 +195,7 @@ func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
 	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
 	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
+	cfg.LidarrCfg.URL = fixBaseURL(cfg.LidarrCfg.URL)
 	cfg.NormalizeDir()
 }
 

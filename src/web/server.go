@@ -18,6 +18,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"explo/src/client"
+	"explo/src/config"
+	"explo/src/util"
+
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
 //go:embed dist
@@ -87,6 +93,9 @@ var allConfigKeys = []string{
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
 	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
 	"SLSKD_URL", "SLSKD_API_KEY",
+	"LIDARR_ENABLED", "LIDARR_URL", "LIDARR_API_KEY",
+	"LIDARR_QUALITY_PROFILE_ID", "LIDARR_METADATA_PROFILE_ID", "LIDARR_ROOT_FOLDER",
+	"LIDARR_POLL_INTERVAL", "LIDARR_WEBHOOK_ENABLED",
 	"WIZARD_COMPLETE",
 }
 
@@ -204,6 +213,57 @@ var configFields = []FieldDef{
 		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 	},
+
+	// ── Lidarr (rate-to-download) ──────────────────────────────────
+	{
+		Key: "LIDARR_ENABLED", Label: "Enable Lidarr Sync",
+		Type: "text", Section: "lidarr",
+		Hint: "When 'true', rated tracks in your Plex library are auto-added to Lidarr.",
+	},
+	{
+		Key: "LIDARR_URL", Label: "Lidarr URL",
+		Type: "url", Section: "lidarr",
+		Placeholder:  "e.g. http://localhost:8686",
+		VisibleWhen:  &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+		RequiredWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
+	{
+		Key: "LIDARR_API_KEY", Label: "Lidarr API Key",
+		Type: "password", Section: "lidarr",
+		VisibleWhen:  &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+		RequiredWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
+	{
+		Key: "LIDARR_ROOT_FOLDER", Label: "Lidarr Root Folder",
+		Type: "text", Section: "lidarr",
+		VisibleWhen:  &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+		RequiredWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
+	{
+		Key: "LIDARR_QUALITY_PROFILE_ID", Label: "Lidarr Quality Profile ID",
+		Type: "text", Section: "lidarr",
+		VisibleWhen:  &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+		RequiredWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
+	{
+		Key: "LIDARR_METADATA_PROFILE_ID", Label: "Lidarr Metadata Profile ID",
+		Type: "text", Section: "lidarr",
+		VisibleWhen:  &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+		RequiredWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
+	{
+		Key: "LIDARR_POLL_INTERVAL", Label: "Polling Interval",
+		Type: "text", Section: "lidarr",
+		Placeholder: "15m",
+		Hint:        "Webhook fallback poll cadence (Go duration string, e.g. 5m, 15m, 1h).",
+		VisibleWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
+	{
+		Key: "LIDARR_WEBHOOK_ENABLED", Label: "Webhook Listener",
+		Type: "text", Section: "lidarr",
+		Hint:        "Set to 'true' to accept Plex webhook events (Plex Pass required).",
+		VisibleWhen: &Condition{Field: "LIDARR_ENABLED", Eq: "true"},
+	},
 }
 
 // runEvent is an SSE event sent to connected browser clients.
@@ -236,6 +296,10 @@ type Server struct {
 	exploPath  string
 	mux        *http.ServeMux
 	manualRun  manualRunState
+
+	lidarrSync   *LidarrSync
+	lidarrCancel context.CancelFunc
+	lidarrMu     sync.Mutex
 }
 
 func NewServer(configPath, exploPath string) *Server {
@@ -287,12 +351,17 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
 	s.mux.HandleFunc("POST /api/wizard/step2", s.handleWizardStep2)
 	s.mux.HandleFunc("POST /api/wizard/step3", s.handleWizardStep3)
+	s.mux.HandleFunc("POST /api/wizard/step4", s.handleWizardStep4)
 	s.mux.HandleFunc("GET /api/browse", s.handleBrowse)
 	s.mux.HandleFunc("POST /api/run", s.handleRun)
 	s.mux.HandleFunc("GET /api/run/events", s.handleRunEvents)
 	s.mux.HandleFunc("POST /api/run/stop", s.handleStopRun)
 	s.mux.HandleFunc("GET /api/run/status", s.handleRunStatus)
 	s.mux.HandleFunc("GET /api/logs", s.handleGetLog)
+	s.mux.HandleFunc("POST /api/lidarr/test", s.handleLidarrTest)
+	s.mux.HandleFunc("POST /api/lidarr/profiles", s.handleLidarrProfiles)
+	s.mux.HandleFunc("GET /api/lidarr/webhook-url", s.handleLidarrWebhookURL)
+	s.mux.HandleFunc("POST /api/plex/webhook", s.handlePlexWebhook)
 	s.mux.HandleFunc("GET /api/playlists", s.handleGetPlaylist)
 
 	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
@@ -301,8 +370,106 @@ func (s *Server) registerRoutes() {
 
 func (s *Server) Start(addr string) error {
 	s.initServerLog()
+	if err := s.initLidarrSync(); err != nil {
+		slog.Warn("Lidarr sync disabled", "err", err.Error())
+	}
 	slog.Info("Explo web UI started", "addr", addr)
 	return http.ListenAndServe(addr, s.mux)
+}
+
+// initLidarrSync reads the persisted .env, and if Lidarr is enabled, builds a
+// Plex client + Lidarr client + state store and starts the background workers.
+// Errors here are non-fatal — the server boots even if Lidarr is misconfigured.
+func (s *Server) initLidarrSync() error {
+	cfg := &config.Config{}
+	cfg.Flags.CfgPath = s.configPath
+
+	// cleanenv's .env parser calls os.Setenv on every key in the file, which
+	// would make handleGetConfig later report all of them as source="env" and
+	// make the wizard lock the fields. Snapshot the real environment first and
+	// unset whatever cleanenv added.
+	preExisting := make(map[string]struct{}, len(os.Environ()))
+	for _, kv := range os.Environ() {
+		if i := strings.IndexByte(kv, '='); i >= 0 {
+			preExisting[kv[:i]] = struct{}{}
+		}
+	}
+	defer func() {
+		for _, kv := range os.Environ() {
+			i := strings.IndexByte(kv, '=')
+			if i < 0 {
+				continue
+			}
+			if _, was := preExisting[kv[:i]]; !was {
+				os.Unsetenv(kv[:i])
+			}
+		}
+	}()
+
+	if err := cleanenv.ReadConfig(s.configPath, cfg); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("read config: %w", err)
+		}
+		// no env file yet — that's fine, just don't enable Lidarr
+		return nil
+	}
+	cfg.CommonFixes()
+
+	if !cfg.LidarrCfg.Enabled {
+		return nil
+	}
+	if cfg.LidarrCfg.URL == "" || cfg.LidarrCfg.APIKey == "" {
+		return fmt.Errorf("LIDARR_URL and LIDARR_API_KEY are required")
+	}
+	if cfg.LidarrCfg.RootFolderPath == "" || cfg.LidarrCfg.QualityProfileID == 0 || cfg.LidarrCfg.MetadataProfileID == 0 {
+		return fmt.Errorf("LIDARR_ROOT_FOLDER, LIDARR_QUALITY_PROFILE_ID, and LIDARR_METADATA_PROFILE_ID are required")
+	}
+	if cfg.System != "plex" {
+		return fmt.Errorf("Lidarr sync currently only supports Plex")
+	}
+
+	mediaClient, err := client.NewClient(cfg)
+	if err != nil {
+		return fmt.Errorf("plex setup: %w", err)
+	}
+	plexClient, ok := mediaClient.API.(*client.Plex)
+	if !ok {
+		return fmt.Errorf("expected Plex client, got %T", mediaClient.API)
+	}
+
+	lidarrClient := client.NewLidarr(cfg.LidarrCfg, util.NewHttp(util.HttpClientConfig{Timeout: cfg.LidarrCfg.HTTPTimeout}))
+
+	statePath := filepath.Join(filepath.Dir(s.configPath), "lidarr_synced.json")
+	state := NewRatingState(statePath)
+	if err := state.Load(); err != nil {
+		return fmt.Errorf("load state: %w", err)
+	}
+
+	sync, err := NewLidarrSync(cfg.LidarrCfg, plexClient, lidarrClient, state, cfg.ClientCfg)
+	if err != nil {
+		return fmt.Errorf("init sync: %w", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.lidarrSync = sync
+	s.lidarrCancel = cancel
+	sync.Start(ctx)
+	slog.Info("Lidarr sync enabled", "poll_interval", cfg.LidarrCfg.PollInterval, "webhook_enabled", cfg.LidarrCfg.WebhookEnabled)
+	return nil
+}
+
+// restartLidarrSync tears down any running sync and re-reads the .env. Called
+// after the wizard or settings page writes new LIDARR_* values so the change
+// takes effect without a container restart.
+func (s *Server) restartLidarrSync() error {
+	s.lidarrMu.Lock()
+	defer s.lidarrMu.Unlock()
+	if s.lidarrCancel != nil {
+		s.lidarrCancel()
+		s.lidarrCancel = nil
+		s.lidarrSync = nil
+	}
+	return s.initLidarrSync()
 }
 
 // ── Logging ────────────────────────────────────────────────────────────────
@@ -411,6 +578,9 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	if err := os.WriteFile(s.configPath, data, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if err := s.restartLidarrSync(); err != nil {
+		slog.Warn("Lidarr sync restart failed", "err", err.Error())
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -963,6 +1133,169 @@ func (s *Server) unsubscribeRun(ch chan runEvent) {
 	s.manualRun.mu.Lock()
 	delete(s.manualRun.subscribers, ch)
 	s.manualRun.mu.Unlock()
+}
+
+// ── Lidarr handlers ────────────────────────────────────────────────────────
+
+// handleLidarrTest validates a URL/API-key pair against Lidarr's /system/status.
+// Used by the wizard before the user has saved Lidarr config to .env.
+func (s *Server) handleLidarrTest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URL    string `json:"url"`
+		APIKey string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.URL == "" || body.APIKey == "" {
+		http.Error(w, "url and api_key are required", http.StatusBadRequest)
+		return
+	}
+	c := client.NewLidarr(
+		config.LidarrConfig{URL: body.URL, APIKey: body.APIKey},
+		util.NewHttp(util.HttpClientConfig{Timeout: 15}),
+	)
+	version, err := c.TestConnection()
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "version": version})
+}
+
+// handleLidarrProfiles returns root folders, quality profiles, and metadata profiles.
+// Body: {url, api_key}. POST so credentials aren't logged in URLs.
+func (s *Server) handleLidarrProfiles(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URL    string `json:"url"`
+		APIKey string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.URL == "" || body.APIKey == "" {
+		http.Error(w, "url and api_key are required", http.StatusBadRequest)
+		return
+	}
+	c := client.NewLidarr(
+		config.LidarrConfig{URL: body.URL, APIKey: body.APIKey},
+		util.NewHttp(util.HttpClientConfig{Timeout: 15}),
+	)
+	roots, err := c.GetRootFolders()
+	if err != nil {
+		http.Error(w, "rootfolders: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	quality, err := c.GetQualityProfiles()
+	if err != nil {
+		http.Error(w, "qualityprofiles: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	metadata, err := c.GetMetadataProfiles()
+	if err != nil {
+		http.Error(w, "metadataprofiles: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"root_folders":       roots,
+		"quality_profiles":   quality,
+		"metadata_profiles":  metadata,
+	})
+}
+
+// handleLidarrWebhookURL returns the persisted webhook URL the user should paste into Plex.
+// Returns the path (with token query); the host is whatever Plex can reach the web server at.
+func (s *Server) handleLidarrWebhookURL(w http.ResponseWriter, r *http.Request) {
+	statePath := filepath.Join(filepath.Dir(s.configPath), "lidarr_synced.json")
+	state := NewRatingState(statePath)
+	if err := state.Load(); err != nil {
+		http.Error(w, "load state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	token, err := state.WebhookToken()
+	if err != nil {
+		http.Error(w, "token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"path": "/api/plex/webhook?token=" + token,
+	})
+}
+
+// handlePlexWebhook delegates to the LidarrSync if enabled, otherwise 404.
+func (s *Server) handlePlexWebhook(w http.ResponseWriter, r *http.Request) {
+	if s.lidarrSync == nil {
+		http.Error(w, "lidarr sync disabled", http.StatusNotFound)
+		return
+	}
+	s.lidarrSync.HandleWebhook(w, r)
+}
+
+// handleWizardStep4 saves Lidarr settings.
+func (s *Server) handleWizardStep4(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled           bool   `json:"enabled"`
+		URL               string `json:"url"`
+		APIKey            string `json:"api_key"`
+		RootFolder        string `json:"root_folder"`
+		QualityProfileID  int    `json:"quality_profile_id"`
+		MetadataProfileID int    `json:"metadata_profile_id"`
+		PollInterval      string `json:"poll_interval"`
+		WebhookEnabled    bool   `json:"webhook_enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if !body.Enabled {
+		updates := map[string]string{"LIDARR_ENABLED": "false"}
+		if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.restartLidarrSync(); err != nil {
+			slog.Warn("Lidarr sync restart failed", "err", err.Error())
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if body.URL == "" || body.APIKey == "" || body.RootFolder == "" || body.QualityProfileID == 0 || body.MetadataProfileID == 0 {
+		http.Error(w, "url, api_key, root_folder, quality_profile_id, metadata_profile_id are required", http.StatusBadRequest)
+		return
+	}
+	if body.PollInterval == "" {
+		body.PollInterval = "15m"
+	}
+	webhook := "false"
+	if body.WebhookEnabled {
+		webhook = "true"
+	}
+	updates := map[string]string{
+		"LIDARR_ENABLED":             "true",
+		"LIDARR_URL":                 body.URL,
+		"LIDARR_API_KEY":             body.APIKey,
+		"LIDARR_ROOT_FOLDER":         body.RootFolder,
+		"LIDARR_QUALITY_PROFILE_ID":  fmt.Sprintf("%d", body.QualityProfileID),
+		"LIDARR_METADATA_PROFILE_ID": fmt.Sprintf("%d", body.MetadataProfileID),
+		"LIDARR_POLL_INTERVAL":       body.PollInterval,
+		"LIDARR_WEBHOOK_ENABLED":     webhook,
+	}
+	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.restartLidarrSync(); err != nil {
+		slog.Warn("Lidarr sync restart failed", "err", err.Error())
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
