@@ -3,7 +3,7 @@ package main
 import (
 	"explo/src/logging"
 	"explo/src/models"
-	"explo/src/web"
+	"explo/src/web/backend"
 	"log"
 	"log/slog"
 	"os"
@@ -49,7 +49,7 @@ func main() {
 		if addr == "" {
 			addr = ":7288"
 		}
-		srv := web.NewServer(addr, cfgPath, exploPath)
+		srv := backend.NewServer(addr, cfgPath, exploPath)
 		log.Fatal(srv.Start())
 	}
 
@@ -108,7 +108,7 @@ func main() {
 	for _, t := range tracks {
 		added[t.CleanTitle+"|"+t.Artist] = true
 	}
-	web.WritePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
+	backend.WritePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
 
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())

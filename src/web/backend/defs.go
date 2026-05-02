@@ -1,6 +1,6 @@
 // place for confs/variables in use by the UI
 
-package web
+package backend
 // configFields is the single source of truth for the settings this web UI
 // currently owns. VisibleWhen / RequiredWhen drive the settings UI; the wizard
 // uses bespoke HTML but references the same logical rules.

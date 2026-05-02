@@ -1,12 +1,10 @@
-package web
+package backend
 
 import (
 	"bufio"
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
-	"explo/src/web/backend"
 	"fmt"
 	"io"
 	"io/fs"
@@ -19,14 +17,10 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"explo/src/web"
 	
 )
-
-//go:embed dist/*
-var distFiles embed.FS
-
-//go:embed sample.env
-var sampleEnv []byte
 
 // Option is a value/label pair for select-type fields.
 type Option struct {
@@ -79,20 +73,20 @@ type Server struct {
 	exploPath  string
 	mux        *http.ServeMux
 	server	   *http.Server
-	authStore  *backend.AuthStore
-	sessionManager *backend.SessionManager
+	authStore  *AuthStore
+	sessionManager *SessionManager
 	manualRun  manualRunState
 }
 
 func NewServer(addr, configPath, exploPath string) *Server {
-	sessionManager := backend.NewSessionManager(
-		backend.NewInMemorySessionStore(),
+	sessionManager := NewSessionManager(
+		NewInMemorySessionStore(),
 		1 * time.Hour,
 		7 * (24 * time.Hour),
 		"session",
 	)
 
-	authStore := backend.NewAuthStore(os.Getenv("UI_USERNAME"), os.Getenv("UI_PASSWORD"))
+	authStore := NewAuthStore(os.Getenv("UI_USERNAME"), os.Getenv("UI_PASSWORD"))
 	
 	mux := http.NewServeMux()
 	s := &Server{
@@ -126,7 +120,7 @@ func spaFS() (fs.FS, []byte) {
 		index, _ := fs.ReadFile(diskFS, "index.html")
 		return diskFS, index
 	}
-	embedded, _ := fs.Sub(distFiles, "dist")
+	embedded, _ := fs.Sub(web.DistFiles, "dist")
 	index, _ := fs.ReadFile(embedded, "index.html")
 	return embedded, index
 }
@@ -218,7 +212,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
-	sess := backend.GetSession(r)
+	sess := GetSession(r)
 	sess.Put("authenticated", true)
 	sess.Put("username", username)
 	//s.sessionManager.Migrate(sess)
@@ -239,7 +233,7 @@ func (s *Server) handleGetLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) csrfHandler(w http.ResponseWriter, r *http.Request) {
-	session := backend.GetSession(r)
+	session := GetSession(r)
 
 	token, _ := session.Get("csrf_token").(string)
 
@@ -281,7 +275,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		fileValues = parseEnvText(string(data))
 	} else {
-		fileValues = parseEnvText(string(sampleEnv))
+		fileValues = parseEnvText(string(web.SampleEnv))
 	}
 
 	values := make(map[string]string, len(allConfigKeys))
@@ -306,7 +300,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetConfigRaw(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.configPath)
 	if err != nil {
-		data = sampleEnv
+		data = web.SampleEnv
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	if _, err := w.Write(data); err != nil {
@@ -330,7 +324,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleResetConfig resets all settings and restarts the container.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.WriteFile(s.configPath, sampleEnv, 0600); err != nil {
+	if err := os.WriteFile(s.configPath, web.SampleEnv, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -377,7 +371,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -476,7 +470,7 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -521,7 +515,7 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST": publicPlaylist,
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -577,7 +571,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

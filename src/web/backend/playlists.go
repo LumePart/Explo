@@ -1,4 +1,4 @@
-package web
+package backend
 
 import (
 	"encoding/json"
