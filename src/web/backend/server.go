@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"explo/src/web"
-	
 )
 
 // Option is a value/label pair for select-type fields.
@@ -69,36 +68,36 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	configPath string
-	exploPath  string
-	mux        *http.ServeMux
-	server	   *http.Server
-	authStore  *AuthStore
+	configPath     string
+	exploPath      string
+	mux            *http.ServeMux
+	server         *http.Server
+	authStore      *AuthStore
 	sessionManager *SessionManager
-	manualRun  manualRunState
+	manualRun      manualRunState
 }
 
 func NewServer(addr, configPath, exploPath string) *Server {
 	sessionManager := NewSessionManager(
 		NewInMemorySessionStore(),
-		1 * time.Hour,
-		7 * (24 * time.Hour),
+		1*time.Hour,
+		7*(24*time.Hour),
 		"session",
 	)
 
 	authStore := NewAuthStore(os.Getenv("UI_USERNAME"), os.Getenv("UI_PASSWORD"))
-	
+
 	mux := http.NewServeMux()
 	s := &Server{
 		configPath: configPath,
 		exploPath:  exploPath,
 		mux:        mux,
-		server: 		&http.Server{
-			Addr: 		addr,
+		server: &http.Server{
+			Addr:    addr,
 			Handler: sessionManager.Handle(mux),
 		},
 		authStore: authStore,
-		manualRun:  newManualRunState(),
+		manualRun: newManualRunState(),
 	}
 
 	s.registerRoutes()
@@ -146,24 +145,25 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("GET /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)))
 	s.mux.Handle("GET /api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
 	s.mux.Handle("POST /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)))
-	s.mux.HandleFunc("POST /api/ui/config/reset", s.handleResetConfig)
-	s.mux.HandleFunc("POST /api/ui/config/schedules", s.handleSaveSchedule)
+	s.mux.Handle("POST /api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
+	s.mux.Handle("POST /api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
 	s.mux.Handle("POST /api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
 	s.mux.Handle("POST /api/ui/wizard/step2", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep2)))
 	s.mux.Handle("POST /api/ui/wizard/step3", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep3)))
-	s.mux.HandleFunc("GET /api/ui/browse", s.handleBrowse)
+	s.mux.Handle("GET /api/ui/browse", s.authStore.RequireAuth(http.HandlerFunc(s.handleBrowse)))
 	s.mux.Handle("POST /api/ui/run", s.authStore.RequireAuth(http.HandlerFunc(s.handleRun)))
-	s.mux.HandleFunc("GET /api/ui/run/events", s.handleRunEvents)
-	s.mux.HandleFunc("POST /api/ui/run/stop", s.handleStopRun)
-	s.mux.HandleFunc("GET /api/ui/run/status", s.handleRunStatus)
-	s.mux.HandleFunc("GET /api/ui/logs", s.handleGetLog)
-	s.mux.HandleFunc("GET /api/ui/playlists", s.handleGetPlaylist)
+	s.mux.Handle("GET /api/ui/run/events", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunEvents)))
+	s.mux.Handle("POST /api/ui/run/stop", s.authStore.RequireAuth(http.HandlerFunc(s.handleStopRun)))
+	s.mux.Handle("GET /api/ui/run/status", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunStatus)))
+	s.mux.Handle("GET /api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
+	s.mux.Handle("GET /api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
+	s.mux.Handle("POST /api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
 	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
 	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
 	s.mux.HandleFunc("GET /api/ui/auth/status", s.handleAuthStatus)
 
 	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
-	s.mux.Handle("/api/ui/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
+	s.mux.Handle("/api/covers/", s.authStore.RequireAuth(http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir)))))
 }
 
 // ── Logging ────────────────────────────────────────────────────────────────
@@ -211,13 +211,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-    	http.Error(w, "bad request", http.StatusBadRequest)
-    	return
-}
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
 
 	username := r.FormValue("username")
 	password := r.FormValue("password")
-
 
 	if !s.authStore.CompareCreds(username, password) {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
@@ -721,8 +720,8 @@ func (s *Server) startRun(args []string) error {
 
 	// Close write end in parent so reader gets EOF when child exits.
 	if err := pw.Close(); err != nil {
-			slog.Warn("failed to close file writer", "err", err.Error())
-		}
+		slog.Warn("failed to close file writer", "err", err.Error())
+	}
 
 	go s.collectRunOutput(cmd, pr, lf)
 	return nil
@@ -730,11 +729,10 @@ func (s *Server) startRun(args []string) error {
 
 func (s *Server) collectRunOutput(cmd *exec.Cmd, pr *os.File, lf *os.File) {
 	defer func() {
-			if cerr := pr.Close(); cerr != nil {
-				slog.Error("failed to close source file", "err", cerr.Error())
-			}
-		}()
-		
+		if cerr := pr.Close(); cerr != nil {
+			slog.Error("failed to close source file", "err", cerr.Error())
+		}
+	}()
 
 	if lf != nil {
 		defer func() {

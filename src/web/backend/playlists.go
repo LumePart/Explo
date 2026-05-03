@@ -25,7 +25,7 @@ var validPlaylistTypes = func() map[string]bool {
 }()
 
 // handleGetPlaylist serves the tracklist cache written by explo during its last run.
-// Falls back to fetching the most recent playlist from ListenBrainz if no cache exists.
+// Returns an empty track list if no cache exists yet.
 func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	playlistType := r.URL.Query().Get("type")
 	if !validPlaylistTypes[playlistType] {
@@ -42,49 +42,11 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No cache yet — fall back to the most recent LB playlist (any date).
-	username := os.Getenv("LISTENBRAINZ_USER")
-	if username == "" {
-		if data, err := os.ReadFile(s.configPath); err == nil {
-			username = parseEnvText(string(data))["LISTENBRAINZ_USER"]
-		}
-	}
-	if username == "" {
-		http.Error(w, "LISTENBRAINZ_USER not configured", http.StatusBadRequest)
-		return
-	}
-
-	tracks, generatedAt, err := fetchMostRecentLBPlaylist(username, playlistType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-
-	type cachedTrack struct {
-		Rank     int    `json:"rank"`
-		Title    string `json:"title"`
-		Artist   string `json:"artist"`
-		Release  string `json:"release"`
-		CoverURL string `json:"coverUrl,omitempty"`
-	}
-	type response struct {
-		Tracks      []cachedTrack `json:"tracks"`
-		GeneratedAt *time.Time    `json:"generatedAt,omitempty"`
-	}
-
-	ct := make([]cachedTrack, len(tracks))
-	for i, t := range tracks {
-		ct[i] = cachedTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: t[3]}
-	}
-
-	var gen *time.Time
-	if !generatedAt.IsZero() {
-		gen = &generatedAt
-	}
-
+	// No cache yet — return an empty response. Run explo or use the prefetch
+	// endpoint to populate the cache.
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response{Tracks: ct, GeneratedAt: gen}); err != nil {
-		slog.Error("failed to encode tracks for web", "msg", err.Error)
+	if _, err := w.Write([]byte(`{"tracks":[]}`)); err != nil {
+		slog.Error("failed to write empty playlist response", "msg", err.Error())
 	}
 }
 
@@ -114,9 +76,9 @@ type lbCreatedForResp struct {
 type lbPlaylistResp struct {
 	Playlist struct {
 		Track []struct {
-			Title   string `json:"title"`
-			Creator string `json:"creator"`
-			Album   string `json:"album"`
+			Title     string `json:"title"`
+			Creator   string `json:"creator"`
+			Album     string `json:"album"`
 			Extension struct {
 				JspfTrack struct {
 					AdditionalMetadata struct {
@@ -211,31 +173,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 
 	ct := make([]cachedTrack, len(tracks))
 	for i, t := range tracks {
-		localCover := ""
-		if t.CoverURL != "" {
-			// Use the CAA release MBID (second-to-last path segment) as filename.
-			parts := strings.Split(strings.TrimRight(t.CoverURL, "/"), "/")
-			mbid := parts[len(parts)-2]
-			destPath := filepath.Join(coversDir, mbid+".jpg")
-			if _, err := os.Stat(destPath); os.IsNotExist(err) {
-				if resp, err := http.Get(t.CoverURL); err == nil { //nolint:noctx
-
-					defer func() {
-					if cerr := resp.Body.Close(); cerr != nil {
-						slog.Error("failed to close response", "msg", err.Error())
-						}
-							}()
-					if resp.StatusCode == http.StatusOK {
-						if data, err := io.ReadAll(resp.Body); err == nil {
-							if err:= os.WriteFile(destPath, data, 0644); err != nil {
-								slog.Error("failed writing coverart cache file", "msg", err.Error())
-							}
-						}
-					}
-				}
-			}
-			localCover = "/api/covers/" + mbid + ".jpg"
-		}
+		localCover := downloadCover(t.CoverURL, coversDir)
 		var inLibrary *bool
 		if added != nil {
 			v := added[t.CleanTitle+"|"+t.Artist]
@@ -272,11 +210,149 @@ func lbGet(url string) ([]byte, error) {
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
 			slog.Error("failed to close response", "msg", err.Error())
-			}
+		}
 	}()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("LB returned %d", resp.StatusCode)
 	}
 	return io.ReadAll(resp.Body)
+}
+
+// downloadCover downloads coverURL into coversDir and returns "/api/covers/<mbid>.jpg".
+// Returns "" if url is empty.
+func downloadCover(url, coversDir string) string {
+	if url == "" {
+		return ""
+	}
+	parts := strings.Split(strings.TrimRight(url, "/"), "/")
+	mbid := parts[len(parts)-2]
+	destPath := filepath.Join(coversDir, mbid+".jpg")
+	if _, err := os.Stat(destPath); os.IsNotExist(err) {
+		resp, err := http.Get(url) //nolint:noctx
+		if err == nil {
+			func() {
+				defer func() {
+					if cerr := resp.Body.Close(); cerr != nil {
+						slog.Error("failed to close cover response", "err", cerr.Error())
+					}
+				}()
+				if resp.StatusCode == http.StatusOK {
+					if data, err := io.ReadAll(resp.Body); err == nil {
+						if err := os.WriteFile(destPath, data, 0644); err != nil {
+							slog.Error("failed writing cover", "path", destPath, "err", err.Error())
+						}
+					}
+				}
+			}()
+		}
+	}
+	return "/api/covers/" + mbid + ".jpg"
+}
+
+// handlePrefetchCovers fetches the most recent LB playlists for the given user,
+// writes a preliminary JSON cache for the web UI, then downloads cover art.
+// Runs in the background — returns 202 immediately.
+func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		User      string   `json:"user"`
+		Playlists []string `json:"playlists"`
+		Source    string   `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.User == "" || len(body.Playlists) == 0 {
+		http.Error(w, "user and playlists are required", http.StatusBadRequest)
+		return
+	}
+
+	cfgDir := filepath.Dir(s.configPath)
+	forceRefresh := body.Source == "wizard"
+	w.WriteHeader(http.StatusAccepted)
+
+	slog.Info("prefetch: starting", "user", body.User, "playlists", body.Playlists, "source", body.Source, "force_refresh", forceRefresh)
+	go func() {
+		for _, pt := range body.Playlists {
+			if !validPlaylistTypes[pt] {
+				slog.Warn("prefetch: unknown playlist type", "type", pt)
+				continue
+			}
+			// Normal prefetch keeps an existing cache intact; wizard prefetch refreshes it
+			// after the user updates discovery settings.
+			cachePath := filepath.Join(cfgDir, "cache", pt+".json")
+			if _, err := os.Stat(cachePath); err == nil && !forceRefresh {
+				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
+				continue
+			}
+			tracks, _, err := fetchMostRecentLBPlaylist(body.User, pt)
+			if err != nil {
+				slog.Warn("prefetch: failed to fetch LB playlist", "type", pt, "err", err)
+				continue
+			}
+			slog.Info("prefetch: fetched tracks", "playlist", pt, "count", len(tracks))
+			writePrefetchCache(cfgDir, pt, tracks)
+		}
+	}()
+}
+
+type cachedPrefetchTrack struct {
+	Rank     int    `json:"rank"`
+	Title    string `json:"title"`
+	Artist   string `json:"artist"`
+	Release  string `json:"release"`
+	CoverURL string `json:"coverUrl,omitempty"`
+}
+
+func writePrefetchCache(cfgDir, playlistType string, tracks [][4]string) {
+	ct := make([]cachedPrefetchTrack, len(tracks))
+	for i, t := range tracks {
+		ct[i] = cachedPrefetchTrack{
+			Rank:     i + 1,
+			Title:    t[0],
+			Artist:   t[1],
+			Release:  t[2],
+			CoverURL: t[3],
+		}
+	}
+
+	if !writeTrackCache(cfgDir, playlistType, ct) {
+		return
+	}
+	slog.Info("prefetch: cache written", "playlist", playlistType, "covers", "remote")
+
+	coversDir := filepath.Join(cfgDir, "cache", "covers")
+	if err := os.MkdirAll(coversDir, 0755); err != nil {
+		slog.Error("prefetch: failed to create covers dir", "err", err.Error())
+		return
+	}
+
+	for i, t := range tracks {
+		ct[i].CoverURL = downloadCover(t[3], coversDir)
+	}
+	if writeTrackCache(cfgDir, playlistType, ct) {
+		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
+	}
+}
+
+func writeTrackCache(cfgDir, playlistType string, tracks []cachedPrefetchTrack) bool {
+	type cache struct {
+		Tracks []cachedPrefetchTrack `json:"tracks"`
+	}
+	raw, err := json.Marshal(cache{Tracks: tracks})
+	if err != nil {
+		slog.Error("prefetch: failed to marshal cache", "err", err.Error())
+		return false
+	}
+	cacheDir := filepath.Join(cfgDir, "cache")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		slog.Error("prefetch: failed to create cache dir", "err", err.Error())
+		return false
+	}
+	if err := os.WriteFile(filepath.Join(cacheDir, playlistType+".json"), raw, 0644); err != nil {
+		slog.Error("prefetch: failed to write cache", "err", err.Error())
+		return false
+	}
+	return true
 }

@@ -140,3 +140,11 @@ export async function fetchLogs() {
   const res = await apiFetch('/api/ui/logs')
   return res.text()
 }
+
+export async function prefetchPlaylists(user, playlists, options = {}) {
+  await apiFetch('/api/ui/playlists/prefetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user, playlists, ...options }),
+  })
+}

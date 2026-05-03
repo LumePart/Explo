@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react'
-import { wizardStep1, wizardStep2, wizardStep3 } from '../lib/api'
+import { wizardStep1, wizardStep2, wizardStep3, prefetchPlaylists } from '../lib/api'
 import { ToggleRow } from './ui/Toggle'
 import { DirInput } from './ui/DirInput'
 import { TextField } from './ui/common'
@@ -397,6 +397,9 @@ export default function Wizard({ config, envSources, onComplete }) {
     try {
       const playlists = Object.entries(fields.checked).filter(([, v]) => v).map(([k]) => k)
       await wizardStep1(fields.user.trim(), playlists, fields.discoveryMode)
+      if (playlists.length > 0) {
+        prefetchPlaylists(fields.user.trim(), playlists, { source: 'wizard' }).catch(() => {})
+      }
       setStep(2)
     } catch (e) {
       alert('Error saving: ' + e.message)
