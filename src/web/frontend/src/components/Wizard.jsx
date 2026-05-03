@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react'
-import { login, wizardStep1, wizardStep2, wizardStep3 } from '../lib/api'
+import { wizardStep1, wizardStep2, wizardStep3 } from '../lib/api'
 import { ToggleRow } from './ui/Toggle'
 import { DirInput } from './ui/DirInput'
 import { TextField } from './ui/common'
@@ -34,69 +34,6 @@ const BackBtn = ({ onClick }) => (
     ← Back
   </button>
 )
-
-// Step 0: Login -------------
-// sends auth creds to backend
-
-function Login({ onSuccess }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      await login(username, password)
-      onSuccess()
-    } catch (err) {
-      setError('Invalid credentials')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="max-w-[420px] mx-auto">
-      <div className="text-[20px] font-bold text-accent mb-6">Login</div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input
-          className={inputCls}
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-        />
-
-        <input
-          className={inputCls}
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-
-        {error && (
-          <div className="text-red-400 text-[13px]">{error}</div>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-accent text-white rounded-[6px] px-6 py-2.5 text-[14px]"
-        >
-          {loading ? 'Logging in…' : 'Login'}
-        </button>
-      </form>
-    </div>
-  )
-}
 
 // ── Step 1: Discovery ─────────────────────────────────────────────────────────
 // Collects the ListenBrainz username, discovery mode (playlist vs API), and
@@ -412,7 +349,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 // Receives existing config/envSources from App to pre-populate fields.
 
 export default function Wizard({ config, envSources, onComplete }) {
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
 
   const [fields, setFields] = useState(() => {
@@ -514,10 +451,6 @@ export default function Wizard({ config, envSources, onComplete }) {
             <strong>{lockedKeys.join(', ')}</strong>
           </div>
         )}
-
-        {step === 0 && (
-        <Login onSuccess={() => setStep(1)} />
-      )}
 
         {step === 1 && (
           <Step1

@@ -143,7 +143,7 @@ func (s *Server) registerRoutes() {
 			slog.Error("failed writing to http", "msg", err.Error())
 		}
 	})
-	s.mux.HandleFunc("GET /api/ui/config", s.handleGetConfig)
+	s.mux.Handle("GET /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)))
 	s.mux.Handle("GET /api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
 	s.mux.Handle("POST /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)))
 	s.mux.HandleFunc("POST /api/ui/config/reset", s.handleResetConfig)
@@ -160,6 +160,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/ui/playlists", s.handleGetPlaylist)
 	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
 	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
+	s.mux.HandleFunc("GET /api/ui/auth/status", s.handleAuthStatus)
 
 	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
 	s.mux.Handle("/api/ui/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
@@ -190,6 +191,16 @@ func (s *Server) openRunLog() (*os.File, error) {
 		return nil, err
 	}
 	return os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+}
+
+func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
+	auth, _ := sess.Get("authenticated").(bool)
+	if !auth {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {

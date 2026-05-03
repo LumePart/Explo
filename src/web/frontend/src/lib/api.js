@@ -26,6 +26,11 @@ async function apiFetch(url, options = {}) {
   })
 }
 
+export async function checkAuth() {
+  const res = await fetch('/api/ui/auth/status', { credentials: 'include' })
+  return res.ok
+}
+
 export async function login(username, password) {
   const form = new URLSearchParams()
   form.append('username', username)
