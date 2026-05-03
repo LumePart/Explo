@@ -158,12 +158,15 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("GET /api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
 	s.mux.Handle("GET /api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
 	s.mux.Handle("POST /api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
+	s.mux.Handle("POST /api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
 	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
 	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
 	s.mux.HandleFunc("GET /api/ui/auth/status", s.handleAuthStatus)
+	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
+	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
 
 	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
-	s.mux.Handle("/api/covers/", s.authStore.RequireAuth(http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir)))))
+	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
 // ── Logging ────────────────────────────────────────────────────────────────
@@ -191,6 +194,18 @@ func (s *Server) openRunLog() (*os.File, error) {
 		return nil, err
 	}
 	return os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+}
+
+// handleSetupStatus returns {"wizard_complete": bool} for first time setups. Public — no auth required.
+func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
+	wizardComplete := false
+	if data, err := os.ReadFile(s.configPath); err == nil {
+		wizardComplete = parseEnvText(string(data))["WIZARD_COMPLETE"] == "true"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]bool{"wizard_complete": wizardComplete}); err != nil {
+		slog.Error("failed encoding setup status", "err", err.Error())
+	}
 }
 
 func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
@@ -227,6 +242,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	sess.Put("username", username)
 	//s.sessionManager.Migrate(sess)
 	slog.Info("successful login", "user", username)
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
+	sess.Delete("authenticated")
+	sess.Delete("username")
+	w.WriteHeader(http.StatusOK)
 }
 
 // handleGetLog returns the contents of the rolling log file.

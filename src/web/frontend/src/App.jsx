@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { checkAuth, fetchConfig } from './lib/api'
+import { checkAuth, fetchConfig, fetchSetupStatus, fetchBackgroundArt, logout } from './lib/api'
 import Login from './components/Login'
 import Wizard from './components/Wizard'
 import Settings from './components/Settings'
@@ -8,33 +8,55 @@ export default function App() {
   const [view, setView] = useState(null)
   const [config, setConfig] = useState({})
   const [envSources, setEnvSources] = useState({})
+  const [isFirstTime, setIsFirstTime] = useState(false)
+  const [bgUrl, setBgUrl] = useState(null)
+  const [bgLoaded, setBgLoaded] = useState(false)
+  const [fadingOut, setFadingOut] = useState(false)
 
   useEffect(() => {
-    checkAuth().then(authed => {
+    Promise.all([
+      checkAuth(),
+      fetchSetupStatus(),
+      fetchBackgroundArt(),
+    ]).then(([authed, status, artUrl]) => {
+      if (artUrl) setBgUrl(artUrl)
+      setIsFirstTime(status ? !status.wizard_complete : false)
       if (authed) {
-        handleLoginSuccess()
+        handleLoginSuccess({ fromLogin: false })
       } else {
         setView('login')
       }
     })
   }, [])
 
-  async function handleLoginSuccess() {
+  async function handleLoginSuccess({ fromLogin = false } = {}) {
     const { values, sources } = await fetchConfig()
     setConfig(values)
     setEnvSources(sources || {})
-    setView(values.WIZARD_COMPLETE === 'true' ? 'settings' : 'wizard')
+    const nextView = values.WIZARD_COMPLETE === 'true' ? 'settings' : 'wizard'
+    if (nextView === 'wizard' && fromLogin) {
+      setFadingOut(true)
+      setTimeout(() => {
+        setView('wizard')
+        setFadingOut(false)
+      }, 350)
+    } else {
+      setView(nextView)
+    }
   }
 
   if (view === null) return <div className="min-h-screen bg-bg" />
 
   if (view === 'login') {
     return (
-      <div className="min-h-screen bg-bg flex items-center">
-        <div className="max-w-[520px] w-full mx-auto px-6 py-12">
-          <div className="text-[20px] font-bold tracking-tight text-accent mb-10">Explo</div>
-          <Login onSuccess={handleLoginSuccess} />
-        </div>
+      <div className={`transition-all duration-300 ${fadingOut ? 'opacity-0 blur-sm' : ''}`}>
+        <Login
+          isFirstTime={isFirstTime}
+          bgUrl={bgUrl}
+          bgLoaded={bgLoaded}
+          onBgLoad={() => setBgLoaded(true)}
+          onSuccess={() => handleLoginSuccess({ fromLogin: true })}
+        />
       </div>
     )
   }
@@ -44,6 +66,9 @@ export default function App() {
       <Wizard
         config={config}
         envSources={envSources}
+        bgUrl={bgUrl}
+        bgLoaded={bgLoaded}
+        onBgLoad={() => setBgLoaded(true)}
         onComplete={() => {
           fetchConfig().then(({ values, sources }) => {
             setConfig(values)
@@ -55,5 +80,10 @@ export default function App() {
     )
   }
 
-  return <Settings onWizard={() => setView('wizard')} />
+  return (
+    <Settings
+      onWizard={() => setView('wizard')}
+      onLogout={() => logout().then(() => setView('login'))}
+    />
+  )
 }

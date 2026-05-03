@@ -488,7 +488,7 @@ function LogsSection() {
 // Module-level cache so the picked cover survives component remounts.
 let _bgCoverCache = null
 
-export default function Settings({ onWizard }) {
+export default function Settings({ onWizard, onLogout }) {
   const [activeTab, setActiveTab] = useState('run')
   const [bgCover, setBgCover] = useState(_bgCoverCache)
 
@@ -537,11 +537,17 @@ export default function Settings({ onWizard }) {
         <div className="max-w-[980px] mx-auto px-6 pb-12">
           <header className="flex items-baseline gap-4 pt-5 pb-0 border-b border-ui-border mb-6">
             <span className="text-[16px] leading-none font-bold tracking-tight text-accent">Explo</span>
-            <nav className="flex gap-0.5 items-baseline">
+            <nav className="flex gap-0.5 items-baseline flex-1">
               <button className={tabBtnCls(activeTab === 'run')} onClick={() => setActiveTab('run')}>Home</button>
               <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
               <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
             </nav>
+            <button
+              onClick={onLogout}
+              className="pb-2 text-[12px] text-muted hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+            >
+              Sign out
+            </button>
           </header>
 
           {activeTab === 'run' && <HomeSection />}

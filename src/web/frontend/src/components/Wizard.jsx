@@ -310,12 +310,17 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
                 autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
             </TextField>
-            <ToggleRow
-              checked={migrateDownloads}
-              onChange={v => setField('migrateDownloads', v)}
-              disabled={isLocked('MIGRATE_DOWNLOADS')}
-              desc="Move completed downloads to a separate directory"
-            />
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[12px] text-muted leading-relaxed">
+                By default, slskd saves tracks to whichever download path is configured in your slskd instance.
+              </p>
+              <ToggleRow
+                checked={migrateDownloads}
+                onChange={v => setField('migrateDownloads', v)}
+                disabled={isLocked('MIGRATE_DOWNLOADS')}
+                desc="Move completed downloads to a separate directory after transfer"
+              />
+            </div>
           </>
         )}
 
@@ -348,7 +353,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 // Owns all wizard state and calls wizardStep1/2/3 APIs to save each step.
 // Receives existing config/envSources from App to pre-populate fields.
 
-export default function Wizard({ config, envSources, onComplete }) {
+export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, onComplete }) {
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
 
@@ -444,8 +449,29 @@ export default function Wizard({ config, envSources, onComplete }) {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-center">
-      <div className="max-w-[520px] w-full mx-auto px-6 py-12">
+    <div className="min-h-screen relative overflow-hidden flex items-center" style={{ background: '#121212' }}>
+
+      {/* Artwork backdrop — blurred ambient glow, matches the Settings page treatment */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+        {bgUrl && (
+          <img
+            src={bgUrl}
+            onLoad={onBgLoad}
+            className={`transition-opacity duration-[1500ms] ${bgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              filter: 'blur(90px) saturate(1.8) brightness(0.14)',
+              transform: 'scale(1.15) translateZ(0)',
+              willChange: 'opacity',
+            }}
+            alt=""
+          />
+        )}
+      </div>
+
+      <div className="relative z-10 max-w-[520px] w-full mx-auto px-6 py-12">
         <div className="text-[20px] font-bold tracking-tight text-accent mb-10">Explo</div>
 
         {lockedKeys.length > 0 && (
@@ -455,27 +481,29 @@ export default function Wizard({ config, envSources, onComplete }) {
           </div>
         )}
 
-        {step === 1 && (
-          <Step1
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onNext={handleStep1} saving={saving}
-          />
-        )}
-        {step === 2 && (
-          <Step2
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onBack={() => setStep(1)} onNext={handleStep2} saving={saving}
-          />
-        )}
-        {step === 3 && (
-          <Step3
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onBack={() => setStep(2)} onFinish={handleStep3} saving={saving}
-          />
-        )}
+        <div key={step} className="animate-fade-up">
+          {step === 1 && (
+            <Step1
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onNext={handleStep1} saving={saving}
+            />
+          )}
+          {step === 2 && (
+            <Step2
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onBack={() => setStep(1)} onNext={handleStep2} saving={saving}
+            />
+          )}
+          {step === 3 && (
+            <Step3
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onBack={() => setStep(2)} onFinish={handleStep3} saving={saving}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

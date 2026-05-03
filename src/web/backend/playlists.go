@@ -1,11 +1,15 @@
 package backend
 
 import (
+	"bytes"
 	"encoding/json"
 	"explo/src/models"
 	"fmt"
+	"image"
+	_ "image/jpeg"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -334,6 +338,131 @@ func writePrefetchCache(cfgDir, playlistType string, tracks [][4]string) {
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
 	}
+}
+
+// ── Background art ───────────────────────────────────────────────────────────
+
+type sitewideReleasesResp struct {
+	Payload struct {
+		Releases []struct {
+			ReleaseMbid string `json:"release_mbid"`
+		} `json:"releases"`
+	} `json:"payload"`
+}
+
+// handleBackgroundArt returns a single cover art URL for use as a login page backdrop.
+// It picks a random local cover if any exist; otherwise it fetches the top global
+// albums from ListenBrainz and downloads cover art for the first available one.
+func (s *Server) handleBackgroundArt(w http.ResponseWriter, r *http.Request) {
+	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+
+	url := randomLocalCoverHiRes(coversDir)
+	if url == "" {
+		url = fetchSitewideCovers(coversDir)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"url": url}); err != nil {
+		slog.Error("background-art: failed to write response", "err", err.Error())
+	}
+}
+
+// randomLocalCoverHiRes picks a random cover from the existing library, ensures a
+// 1200px background version is cached (as {mbid}-bg.jpg), and returns its API URL.
+// Playlist thumbnails are stored at 250px; this fetches full-res on demand from CAA.
+func randomLocalCoverHiRes(coversDir string) string {
+	entries, err := os.ReadDir(coversDir)
+	if err != nil {
+		return ""
+	}
+	var mbids []string
+	for _, e := range entries {
+		name := e.Name()
+		if !e.IsDir() && strings.HasSuffix(name, ".jpg") && !strings.HasSuffix(name, "-bg.jpg") {
+			mbids = append(mbids, strings.TrimSuffix(name, ".jpg"))
+		}
+	}
+	if len(mbids) == 0 {
+		return ""
+	}
+	rand.Shuffle(len(mbids), func(i, j int) { mbids[i], mbids[j] = mbids[j], mbids[i] })
+	for _, mbid := range mbids[:min(3, len(mbids))] {
+		bgFile := mbid + "-bg.jpg"
+		bgPath := filepath.Join(coversDir, bgFile)
+		if _, err := os.Stat(bgPath); err == nil {
+			return "/api/covers/" + bgFile
+		}
+		// Download hi-res from Cover Art Archive using the release MBID
+		resp, err := http.Get("https://coverartarchive.org/release/" + mbid + "/front-1200") //nolint:noctx
+		if err != nil || resp.StatusCode != http.StatusOK {
+			if resp != nil {
+				resp.Body.Close()
+			}
+			continue
+		}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		if err := os.WriteFile(bgPath, data, 0644); err != nil {
+			slog.Error("background-art: failed to write hi-res cover", "err", err.Error())
+			continue
+		}
+		return "/api/covers/" + bgFile
+	}
+	return ""
+}
+
+// fetchSitewideCovers downloads cover art for the top global LB albums and
+// returns a "/api/covers/<mbid>.jpg" URL for the first one that meets the
+// minimum resolution requirement (1000px).
+func fetchSitewideCovers(coversDir string) string {
+	if err := os.MkdirAll(coversDir, 0755); err != nil {
+		return ""
+	}
+	body, err := lbGet(lbAPIBase + "/stats/sitewide/releases?count=10&range=week")
+	if err != nil {
+		slog.Warn("background-art: LB sitewide fetch failed", "err", err)
+		return ""
+	}
+	var resp sitewideReleasesResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		slog.Warn("background-art: LB sitewide parse failed", "err", err)
+		return ""
+	}
+	for _, rel := range resp.Payload.Releases {
+		if rel.ReleaseMbid == "" {
+			continue
+		}
+		url := "https://coverartarchive.org/release/" + rel.ReleaseMbid + "/front-1200"
+
+		dlResp, err := http.Get(url) //nolint:noctx
+		if err != nil || dlResp.StatusCode != http.StatusOK {
+			if dlResp != nil {
+				dlResp.Body.Close()
+			}
+			continue
+		}
+		data, err := io.ReadAll(dlResp.Body)
+		dlResp.Body.Close()
+		if err != nil {
+			continue
+		}
+
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+		if err != nil || cfg.Width < 1000 || cfg.Height < 1000 {
+			continue
+		}
+
+		destPath := filepath.Join(coversDir, rel.ReleaseMbid+".jpg")
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			slog.Error("background-art: failed to write sitewide cover", "err", err.Error())
+			continue
+		}
+		return "/api/covers/" + rel.ReleaseMbid + ".jpg"
+	}
+	return ""
 }
 
 func writeTrackCache(cfgDir, playlistType string, tracks []cachedPrefetchTrack) bool {

@@ -148,3 +148,28 @@ export async function prefetchPlaylists(user, playlists, options = {}) {
     body: JSON.stringify({ user, playlists, ...options }),
   })
 }
+
+export async function logout() {
+  await apiFetch('/api/ui/logout', { method: 'POST' })
+}
+
+export async function fetchSetupStatus() {
+  try {
+    const res = await fetch('/api/ui/setup-status')
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function fetchBackgroundArt() {
+  try {
+    const res = await fetch('/api/ui/background-art')
+    if (!res.ok) return null
+    const { url } = await res.json()
+    return url || null
+  } catch {
+    return null
+  }
+}
