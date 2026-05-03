@@ -39,9 +39,9 @@ export default function Login({ isFirstTime, bgUrl, bgLoaded, onBgLoad, onSucces
       )}
 
       {/* Dark base gradient — vertical on mobile, horizontal on desktop */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-bg/60 via-bg/80 to-bg sm:bg-gradient-to-r sm:from-bg sm:via-bg/80 sm:to-bg/20" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-bg/40 via-bg/60 to-bg/85 sm:bg-gradient-to-r sm:from-bg sm:via-bg/80 sm:to-bg/20" />
       {/* Green accent tint */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent to-accent/15 sm:bg-gradient-to-r sm:from-accent/20 sm:via-accent/8 sm:to-transparent" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent to-accent/8 sm:bg-gradient-to-r sm:from-accent/20 sm:via-accent/8 sm:to-transparent" />
 
       {/* Form — centered on mobile, left-anchored on desktop */}
       <div className="relative z-10 w-full px-6 sm:px-0 sm:ml-[8%] sm:max-w-[400px]">
@@ -53,36 +53,28 @@ export default function Login({ isFirstTime, bgUrl, bgLoaded, onBgLoad, onSucces
         <h1 className="text-[32px] sm:text-[40px] font-bold leading-tight text-white mb-1">
           {isFirstTime ? "Let's get started" : 'Welcome back'}<span className="text-accent">.</span>
         </h1>
-        <p className="text-muted text-[14px] mb-10">
+        <p className="text-muted text-[14px] mb-7">
           {isFirstTime ? 'Sign in to begin setup.' : 'Sign in to continue.'}
         </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] tracking-wider uppercase text-muted font-semibold">
-              Username
-            </label>
-            <input
-              className={inputCls}
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            className={inputCls}
+            type="text"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+          />
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] tracking-wider uppercase text-muted font-semibold">
-              Password
-            </label>
-            <input
-              className={inputCls}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
+          <input
+            className={inputCls}
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
 
           {error && (
             <div className="text-danger text-[13px]">{error}</div>
