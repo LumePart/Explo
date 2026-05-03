@@ -30,7 +30,7 @@ const tabBtnCls = active =>
 // Manages scheduled playlists, manual runs, and live run output.
 // Fetches its own config on mount to initialise schedule state and locked keys.
 
-// Streams live run output from /api/run/events
+// Streams live run output from /api/ui/run/events
 function useSSE({ onLine, onDone }) {
   const abortRef = useRef(null)
 
@@ -39,7 +39,7 @@ function useSSE({ onLine, onDone }) {
     const controller = new AbortController()
     abortRef.current = controller
     try {
-      const res = await fetch('/api/run/events', { signal: controller.signal })
+      const res = await fetch('/api/ui/run/events', { credentials: 'include', signal: controller.signal })
       if (!res.ok) { onDone(null); return }
       const reader = res.body.getReader()
       const dec = new TextDecoder()

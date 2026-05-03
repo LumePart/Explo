@@ -370,11 +370,14 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 
 	updates := map[string]string{}
 	if body.Enabled {
+		dom := "*"
 		dow := "*"
-		if body.Day >= 0 {
+		if body.Day == 100 {
+			dom = "1"
+		} else if body.Day >= 0 {
 			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
+		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
 		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 	} else {
 		updates[def.EnvPrefix+"_SCHEDULE"] = ""
@@ -624,7 +627,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 
 var errRunAlreadyStarted = errors.New("run already in progress")
 
-// handleRun starts an explo run in the background. Clients follow output via /api/run/events.
+// handleRun starts an explo run in the background. Clients follow output via /api/ui/run/events.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		http.Error(w, "bad form data", http.StatusBadRequest)
