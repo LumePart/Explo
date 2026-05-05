@@ -18,7 +18,8 @@ COPY --from=ui-builder /app/src/web/dist ./src/web/dist
 
 # Build the Go binary based on the target architecture
 ARG TARGETARCH
-RUN GOOS=linux GOARCH=$TARGETARCH go build -o explo ./src/main/
+ARG VERSION=dev
+RUN GOOS=linux GOARCH=$TARGETARCH go build -ldflags "-X explo/src/config.Version=${VERSION}" -o explo ./src/main/
 
 FROM python:3.12-alpine
 

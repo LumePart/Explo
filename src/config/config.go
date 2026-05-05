@@ -14,6 +14,8 @@ import (
 	"golang.org/x/text/language"
 )
 
+var Version = "dev"
+
 type Config struct {
 	DownloadCfg  DownloadConfig
 	DiscoveryCfg DiscoveryConfig
