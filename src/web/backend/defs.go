@@ -1,6 +1,7 @@
 // place for confs/variables in use by the UI
 
 package backend
+
 // configFields is the single source of truth for the settings this web UI
 // currently owns. VisibleWhen / RequiredWhen drive the settings UI; the wizard
 // uses bespoke HTML but references the same logical rules.
@@ -141,8 +142,9 @@ type playlistDef struct {
 
 var playlistDefs = map[string]playlistDef{
 	"weekly-exploration": {"WEEKLY_EXPLORATION", "15 00 * * 2", "--playlist weekly-exploration"},
-	"weekly-jams":        {"WEEKLY_JAMS",        "30 00 * * 1", "--playlist weekly-jams"},
-	"daily-jams":         {"DAILY_JAMS",         "15 01 * * *", "--playlist daily-jams"},
+	"weekly-jams":        {"WEEKLY_JAMS", "30 00 * * 1", "--playlist weekly-jams"},
+	"daily-jams":         {"DAILY_JAMS", "15 01 * * *", "--playlist daily-jams"},
+	"on-repeat":          {"ON_REPEAT", "0 12 1 * *", "--playlist on-repeat"},
 }
 
 // allConfigKeys is the complete set of env keys the web UI reads and writes.
@@ -151,9 +153,11 @@ var allConfigKeys = []string{
 	"WEEKLY_EXPLORATION_SCHEDULE", "WEEKLY_EXPLORATION_FLAGS",
 	"WEEKLY_JAMS_SCHEDULE", "WEEKLY_JAMS_FLAGS",
 	"DAILY_JAMS_SCHEDULE", "DAILY_JAMS_FLAGS",
+	"ON_REPEAT_SCHEDULE", "ON_REPEAT_FLAGS",
 	"EXPLO_SYSTEM", "SYSTEM_URL", "API_KEY", "LIBRARY_NAME",
 	"SYSTEM_USERNAME", "SYSTEM_PASSWORD", "PLAYLIST_DIR", "SLEEP", "PUBLIC_PLAYLIST",
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
 	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
 	"SLSKD_URL", "SLSKD_API_KEY",
+	"WIZARD_COMPLETE",
 }

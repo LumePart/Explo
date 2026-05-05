@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react'
-import { login, wizardStep1, wizardStep2, wizardStep3 } from '../lib/api'
+import { wizardStep1, wizardStep2, wizardStep3, prefetchPlaylists } from '../lib/api'
 import { ToggleRow } from './ui/Toggle'
 import { DirInput } from './ui/DirInput'
 import { TextField } from './ui/common'
@@ -34,69 +34,6 @@ const BackBtn = ({ onClick }) => (
     ← Back
   </button>
 )
-
-// Step 0: Login -------------
-// sends auth creds to backend
-
-function Login({ onSuccess }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      await login(username, password)
-      onSuccess()
-    } catch (err) {
-      setError('Invalid credentials')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="max-w-[420px] mx-auto">
-      <div className="text-[20px] font-bold text-accent mb-6">Login</div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input
-          className={inputCls}
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-        />
-
-        <input
-          className={inputCls}
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-
-        {error && (
-          <div className="text-red-400 text-[13px]">{error}</div>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-accent text-white rounded-[6px] px-6 py-2.5 text-[14px]"
-        >
-          {loading ? 'Logging in…' : 'Login'}
-        </button>
-      </form>
-    </div>
-  )
-}
 
 // ── Step 1: Discovery ─────────────────────────────────────────────────────────
 // Collects the ListenBrainz username, discovery mode (playlist vs API), and
@@ -299,6 +236,20 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
   )
 }
 
+function Collapse({ open, children }) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateRows: open ? '1fr' : '0fr',
+      transition: 'grid-template-rows 220ms ease-out',
+    }}>
+      <div className={`overflow-hidden min-h-0 transition-opacity duration-200 ${open ? 'opacity-100 delay-75' : 'opacity-0'}`}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 // ── Step 3: Downloader ────────────────────────────────────────────────────────
 // Collects download service selection (YouTube, Slskd) and their respective
 // credentials, download directory, and file format preferences.
@@ -307,11 +258,10 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
           youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey } = fields
   const isLocked = key => envSources[key] === 'env'
-  const showDownloadDir = dlServices.youtube || (dlServices.slskd && migrateDownloads)
 
   const valid = () => {
     if (!Object.values(dlServices).some(Boolean)) return false
-    if (showDownloadDir && !downloadDir.trim()) return false
+    if ((dlServices.youtube || (dlServices.slskd && migrateDownloads)) && !downloadDir.trim()) return false
     if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim())) return false
     return true
   }
@@ -323,80 +273,97 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         Explo downloads tracks using one or both services. Enable what you have access to — if both are enabled, YouTube is tried first.
       </p>
 
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <label className="text-[13px] font-medium text-muted">Which download services should Explo use?</label>
-          <div className="flex flex-col gap-0.5">
-            <ToggleRow
-              checked={dlServices.youtube}
-              onChange={v => setField('dlServices', { ...dlServices, youtube: v })}
-              name="YouTube"
-              desc="Downloads via yt-dlp · falls back to ytmusicapi if no API key is set"
-            />
-            <ToggleRow
-              checked={dlServices.slskd}
-              onChange={v => setField('dlServices', { ...dlServices, slskd: v })}
-              name="Slskd"
-              desc="Downloads from the Soulseek P2P network · requires a running Slskd instance"
-            />
-          </div>
+      <div className="flex flex-col gap-6">
+
+        {/* YouTube section */}
+        <div className="flex flex-col gap-4">
+          <ToggleRow
+            checked={dlServices.youtube}
+            onChange={v => setField('dlServices', { ...dlServices, youtube: v })}
+            name="YouTube"
+            desc="Downloads via yt-dlp · falls back to ytmusicapi if no API key is set"
+          />
+          <Collapse open={dlServices.youtube}>
+            <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
+              <TextField label={<>YouTube API Key <span className="font-normal opacity-50">(optional)</span></>}
+                hint={<>If set, uses the official YouTube Data API. Otherwise falls back to <strong>ytmusicapi</strong>.{' '}
+                  <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" className="text-accent">Get an API key.</a></>}>
+                <input type="text" className={inputCls} value={youtubeApiKey} onChange={e => setField('youtubeApiKey', e.target.value)}
+                  autoComplete="off" spellCheck={false} placeholder="AIza…" disabled={isLocked('YOUTUBE_API_KEY')} />
+              </TextField>
+              <TextField label="Track format"
+                hint={<>File format yt-dlp converts to. Default is <strong>opus</strong> — use <strong>mp3</strong> for broader device compatibility.</>}>
+                <input type="text" className={inputCls} value={trackExtension} onChange={e => setField('trackExtension', e.target.value)}
+                  placeholder="opus" autoComplete="off" spellCheck={false} disabled={isLocked('TRACK_EXTENSION')} />
+              </TextField>
+              <TextField label="Exclude keywords"
+                hint="Comma-separated keywords to skip in YouTube results. Leave blank to use the defaults shown.">
+                <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                  placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
+              </TextField>
+              <TextField label="Download directory">
+                <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
+                  placeholder="e.g. /data/music/" />
+              </TextField>
+              <ToggleRow
+                checked={useSubdirectory}
+                onChange={v => setField('useSubdirectory', v)}
+                disabled={isLocked('USE_SUBDIRECTORY')}
+                name="Use playlist subfolders"
+                desc="Create a subfolder per playlist inside the download directory"
+              />
+            </div>
+          </Collapse>
         </div>
 
-        {dlServices.youtube && (
-          <>
-            <TextField label={<>YouTube API Key <span className="font-normal opacity-50">(optional)</span></>}
-              hint={<>If set, uses the official YouTube Data API. Otherwise falls back to <strong>ytmusicapi</strong>.{' '}
-                <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" className="text-accent">Get an API key.</a></>}>
-              <input type="text" className={inputCls} value={youtubeApiKey} onChange={e => setField('youtubeApiKey', e.target.value)}
-                autoComplete="off" spellCheck={false} placeholder="AIza…" disabled={isLocked('YOUTUBE_API_KEY')} />
-            </TextField>
-            <TextField label="Track format"
-              hint={<>File format yt-dlp converts to. Default is <strong>opus</strong> — use <strong>mp3</strong> for broader device compatibility.</>}>
-              <input type="text" className={inputCls} value={trackExtension} onChange={e => setField('trackExtension', e.target.value)}
-                placeholder="opus" autoComplete="off" spellCheck={false} disabled={isLocked('TRACK_EXTENSION')} />
-            </TextField>
-            <TextField label="Exclude keywords"
-              hint="Comma-separated keywords to skip in YouTube results. Leave blank to use the defaults shown.">
-              <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
-                placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
-            </TextField>
-          </>
-        )}
-
-        {dlServices.slskd && (
-          <>
-            <TextField label="Slskd URL">
-              <input type="text" className={inputCls} value={slskdUrl} onChange={e => setField('slskdUrl', e.target.value)}
-                placeholder="e.g. http://192.168.1.100:5030" disabled={isLocked('SLSKD_URL')} />
-            </TextField>
-            <TextField label="Slskd API Key">
-              <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
-                autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
-            </TextField>
-            <ToggleRow
-              checked={migrateDownloads}
-              onChange={v => setField('migrateDownloads', v)}
-              disabled={isLocked('MIGRATE_DOWNLOADS')}
-              desc="Move completed downloads to a separate directory"
-            />
-          </>
-        )}
-
-        {showDownloadDir && (
-          <>
-            <TextField label="Download directory">
-              <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
-                placeholder="e.g. /data/music/" />
-            </TextField>
-            <ToggleRow
-              checked={useSubdirectory}
-              onChange={v => setField('useSubdirectory', v)}
-              disabled={isLocked('USE_SUBDIRECTORY')}
-              name="Use playlist subfolders"
-              desc="Create a subfolder per playlist inside the download directory"
-            />
-          </>
-        )}
+        {/* Slskd section */}
+        <div className="flex flex-col gap-4">
+          <ToggleRow
+            checked={dlServices.slskd}
+            onChange={v => setField('dlServices', { ...dlServices, slskd: v })}
+            name="Slskd"
+            desc="Downloads from the Soulseek P2P network · requires a running Slskd instance"
+          />
+          <Collapse open={dlServices.slskd}>
+            <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
+              <TextField label="Slskd URL">
+                <input type="text" className={inputCls} value={slskdUrl} onChange={e => setField('slskdUrl', e.target.value)}
+                  placeholder="e.g. http://192.168.1.100:5030" disabled={isLocked('SLSKD_URL')} />
+              </TextField>
+              <TextField label="Slskd API Key">
+                <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
+                  autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
+              </TextField>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] text-muted leading-relaxed">
+                  By default, slskd saves tracks to whichever download path is configured in your slskd instance.
+                </p>
+                <ToggleRow
+                  checked={migrateDownloads}
+                  onChange={v => setField('migrateDownloads', v)}
+                  disabled={isLocked('MIGRATE_DOWNLOADS')}
+                  desc="Move completed downloads to a separate directory after transfer"
+                />
+              </div>
+              {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
+              <Collapse open={migrateDownloads && !dlServices.youtube}>
+                <div className="flex flex-col gap-4 pt-4 pb-1">
+                  <TextField label="Download directory">
+                    <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
+                      placeholder="e.g. /data/music/" />
+                  </TextField>
+                  <ToggleRow
+                    checked={useSubdirectory}
+                    onChange={v => setField('useSubdirectory', v)}
+                    disabled={isLocked('USE_SUBDIRECTORY')}
+                    name="Use playlist subfolders"
+                    desc="Create a subfolder per playlist inside the download directory"
+                  />
+                </div>
+              </Collapse>
+            </div>
+          </Collapse>
+        </div>
       </div>
 
       <div className="mt-8 flex">
@@ -411,8 +378,8 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 // Owns all wizard state and calls wizardStep1/2/3 APIs to save each step.
 // Receives existing config/envSources from App to pre-populate fields.
 
-export default function Wizard({ config, envSources, onComplete }) {
-  const [step, setStep] = useState(0)
+export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, onComplete }) {
+  const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
 
   const [fields, setFields] = useState(() => {
@@ -460,6 +427,9 @@ export default function Wizard({ config, envSources, onComplete }) {
     try {
       const playlists = Object.entries(fields.checked).filter(([, v]) => v).map(([k]) => k)
       await wizardStep1(fields.user.trim(), playlists, fields.discoveryMode)
+      if (playlists.length > 0) {
+        prefetchPlaylists(fields.user.trim(), playlists, { source: 'wizard' }).catch(() => {})
+      }
       setStep(2)
     } catch (e) {
       alert('Error saving: ' + e.message)
@@ -504,8 +474,29 @@ export default function Wizard({ config, envSources, onComplete }) {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-center">
-      <div className="max-w-[520px] w-full mx-auto px-6 py-12">
+    <div className="min-h-screen relative overflow-hidden flex items-center" style={{ background: '#121212' }}>
+
+      {/* Artwork backdrop — blurred ambient glow, matches the Settings page treatment */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+        {bgUrl && (
+          <img
+            src={bgUrl}
+            onLoad={onBgLoad}
+            className={`transition-opacity duration-[1500ms] ${bgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              filter: 'blur(90px) saturate(1.8) brightness(0.14)',
+              transform: 'scale(1.15) translateZ(0)',
+              willChange: 'opacity',
+            }}
+            alt=""
+          />
+        )}
+      </div>
+
+      <div className="relative z-10 max-w-[520px] w-full mx-auto px-6 py-12">
         <div className="text-[20px] font-bold tracking-tight text-accent mb-10">Explo</div>
 
         {lockedKeys.length > 0 && (
@@ -515,31 +506,29 @@ export default function Wizard({ config, envSources, onComplete }) {
           </div>
         )}
 
-        {step === 0 && (
-        <Login onSuccess={() => setStep(1)} />
-      )}
-
-        {step === 1 && (
-          <Step1
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onNext={handleStep1} saving={saving}
-          />
-        )}
-        {step === 2 && (
-          <Step2
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onBack={() => setStep(1)} onNext={handleStep2} saving={saving}
-          />
-        )}
-        {step === 3 && (
-          <Step3
-            fields={fields} setField={setField}
-            envSources={envSources}
-            onBack={() => setStep(2)} onFinish={handleStep3} saving={saving}
-          />
-        )}
+        <div key={step} className="animate-fade-up">
+          {step === 1 && (
+            <Step1
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onNext={handleStep1} saving={saving}
+            />
+          )}
+          {step === 2 && (
+            <Step2
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onBack={() => setStep(1)} onNext={handleStep2} saving={saving}
+            />
+          )}
+          {step === 3 && (
+            <Step3
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onBack={() => setStep(2)} onFinish={handleStep3} saving={saving}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

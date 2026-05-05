@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -162,6 +161,5 @@ func (m *SessionManager) verifyCSRFToken(r *http.Request, session *Session) bool
 	if token == "" {
 		token = r.Header.Get("X-CSRF-Token")
 	}
-	fmt.Println(token)
 	return token == sToken
 }

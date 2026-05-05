@@ -26,6 +26,13 @@
   .playlist-card { aspect-ratio: 4 / 1; }
 }
 
+/* Wizard step fade-up entrance */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.4s ease both; }
+
 /* Syntax highlight classes used in the config editor */
 .env-comment, .env-unset, .env-eq { color: var(--color-muted); }
 .env-key, .env-val { color: white; }

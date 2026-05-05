@@ -97,14 +97,30 @@ export function TracklistDropdown({ playlist }) {
   useEffect(() => {
     if (!playlist) return
     let cancelled = false
+    let retry = 0
+    let retryTimer = null
     setLoading(true)
     setError(null)
-    fetchPlaylistTracks(playlist)
-      .then(({ tracks: t, generatedAt: g }) => {
-        if (!cancelled) { setTracks(t); setGeneratedAt(g); setLoading(false) }
-      })
-      .catch(e => { if (!cancelled) { setError(e.message); setLoading(false) } })
-    return () => { cancelled = true }
+    const load = () => {
+      fetchPlaylistTracks(playlist, { force: retry > 0 })
+        .then(({ tracks: t, generatedAt: g }) => {
+          if (cancelled) return
+          if (t.length === 0 && retry < 8) {
+            retry += 1
+            retryTimer = setTimeout(load, 1500)
+            return
+          }
+          setTracks(t)
+          setGeneratedAt(g)
+          setLoading(false)
+        })
+        .catch(e => { if (!cancelled) { setError(e.message); setLoading(false) } })
+    }
+    load()
+    return () => {
+      cancelled = true
+      if (retryTimer) clearTimeout(retryTimer)
+    }
   }, [playlist])
 
   const genDate = generatedAt ? new Date(generatedAt) : null
@@ -234,13 +250,27 @@ export function PlaylistCard({
   useEffect(() => {
     if (!s.enabled) return
     let cancelled = false
-    fetchPlaylistTracks(value)
-      .then(({ tracks }) => {
-        if (cancelled) return
-        setBgCovers(tracks.map(t => t.coverUrl).filter(Boolean))
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
+    let retry = 0
+    let retryTimer = null
+    const load = () => {
+      fetchPlaylistTracks(value, { force: retry > 0 })
+        .then(({ tracks }) => {
+          if (cancelled) return
+          const covers = tracks.map(t => t.coverUrl).filter(Boolean)
+          if (covers.length === 0 && retry < 8) {
+            retry += 1
+            retryTimer = setTimeout(load, 1500)
+            return
+          }
+          setBgCovers(covers)
+        })
+        .catch(() => {})
+    }
+    load()
+    return () => {
+      cancelled = true
+      if (retryTimer) clearTimeout(retryTimer)
+    }
   }, [value, s.enabled])
 
   useEffect(() => {

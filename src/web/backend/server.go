@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"explo/src/web"
-	
 )
 
 // Option is a value/label pair for select-type fields.
@@ -69,36 +68,36 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	configPath string
-	exploPath  string
-	mux        *http.ServeMux
-	server	   *http.Server
-	authStore  *AuthStore
+	configPath     string
+	exploPath      string
+	mux            *http.ServeMux
+	server         *http.Server
+	authStore      *AuthStore
 	sessionManager *SessionManager
-	manualRun  manualRunState
+	manualRun      manualRunState
 }
 
 func NewServer(addr, configPath, exploPath string) *Server {
 	sessionManager := NewSessionManager(
 		NewInMemorySessionStore(),
-		1 * time.Hour,
-		7 * (24 * time.Hour),
+		1*time.Hour,
+		7*(24*time.Hour),
 		"session",
 	)
 
 	authStore := NewAuthStore(os.Getenv("UI_USERNAME"), os.Getenv("UI_PASSWORD"))
-	
+
 	mux := http.NewServeMux()
 	s := &Server{
 		configPath: configPath,
 		exploPath:  exploPath,
 		mux:        mux,
-		server: 		&http.Server{
-			Addr: 		addr,
+		server: &http.Server{
+			Addr:    addr,
 			Handler: sessionManager.Handle(mux),
 		},
 		authStore: authStore,
-		manualRun:  newManualRunState(),
+		manualRun: newManualRunState(),
 	}
 
 	s.registerRoutes()
@@ -143,26 +142,31 @@ func (s *Server) registerRoutes() {
 			slog.Error("failed writing to http", "msg", err.Error())
 		}
 	})
-	s.mux.HandleFunc("GET /api/ui/config", s.handleGetConfig)
+	s.mux.Handle("GET /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)))
 	s.mux.Handle("GET /api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
 	s.mux.Handle("POST /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)))
-	s.mux.HandleFunc("POST /api/ui/config/reset", s.handleResetConfig)
-	s.mux.HandleFunc("POST /api/ui/config/schedules", s.handleSaveSchedule)
+	s.mux.Handle("POST /api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
+	s.mux.Handle("POST /api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
 	s.mux.Handle("POST /api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
 	s.mux.Handle("POST /api/ui/wizard/step2", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep2)))
 	s.mux.Handle("POST /api/ui/wizard/step3", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep3)))
-	s.mux.HandleFunc("GET /api/ui/browse", s.handleBrowse)
+	s.mux.Handle("GET /api/ui/browse", s.authStore.RequireAuth(http.HandlerFunc(s.handleBrowse)))
 	s.mux.Handle("POST /api/ui/run", s.authStore.RequireAuth(http.HandlerFunc(s.handleRun)))
-	s.mux.HandleFunc("GET /api/ui/run/events", s.handleRunEvents)
-	s.mux.HandleFunc("POST /api/ui/run/stop", s.handleStopRun)
-	s.mux.HandleFunc("GET /api/ui/run/status", s.handleRunStatus)
-	s.mux.HandleFunc("GET /api/ui/logs", s.handleGetLog)
-	s.mux.HandleFunc("GET /api/ui/playlists", s.handleGetPlaylist)
+	s.mux.Handle("GET /api/ui/run/events", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunEvents)))
+	s.mux.Handle("POST /api/ui/run/stop", s.authStore.RequireAuth(http.HandlerFunc(s.handleStopRun)))
+	s.mux.Handle("GET /api/ui/run/status", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunStatus)))
+	s.mux.Handle("GET /api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
+	s.mux.Handle("GET /api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
+	s.mux.Handle("POST /api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
+	s.mux.Handle("POST /api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
 	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
 	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
+	s.mux.HandleFunc("GET /api/ui/auth/status", s.handleAuthStatus)
+	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
+	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
 
 	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
-	s.mux.Handle("/api/ui/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
+	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
 // ── Logging ────────────────────────────────────────────────────────────────
@@ -192,6 +196,28 @@ func (s *Server) openRunLog() (*os.File, error) {
 	return os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 }
 
+// handleSetupStatus returns {"wizard_complete": bool} for first time setups. Public — no auth required.
+func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
+	wizardComplete := false
+	if data, err := os.ReadFile(s.configPath); err == nil {
+		wizardComplete = parseEnvText(string(data))["WIZARD_COMPLETE"] == "true"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]bool{"wizard_complete": wizardComplete}); err != nil {
+		slog.Error("failed encoding setup status", "err", err.Error())
+	}
+}
+
+func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
+	auth, _ := sess.Get("authenticated").(bool)
+	if !auth {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		err := http.StatusMethodNotAllowed
@@ -200,13 +226,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-    	http.Error(w, "bad request", http.StatusBadRequest)
-    	return
-}
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
 
 	username := r.FormValue("username")
 	password := r.FormValue("password")
-
 
 	if !s.authStore.CompareCreds(username, password) {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
@@ -217,6 +242,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	sess.Put("username", username)
 	//s.sessionManager.Migrate(sess)
 	slog.Info("successful login", "user", username)
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
+	sess.Delete("authenticated")
+	sess.Delete("username")
+	w.WriteHeader(http.StatusOK)
 }
 
 // handleGetLog returns the contents of the rolling log file.
@@ -360,11 +392,14 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 
 	updates := map[string]string{}
 	if body.Enabled {
+		dom := "*"
 		dow := "*"
-		if body.Day >= 0 {
+		if body.Day == 100 {
+			dom = "1"
+		} else if body.Day >= 0 {
 			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
+		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
 		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 	} else {
 		updates[def.EnvPrefix+"_SCHEDULE"] = ""
@@ -614,7 +649,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 
 var errRunAlreadyStarted = errors.New("run already in progress")
 
-// handleRun starts an explo run in the background. Clients follow output via /api/run/events.
+// handleRun starts an explo run in the background. Clients follow output via /api/ui/run/events.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		http.Error(w, "bad form data", http.StatusBadRequest)
@@ -710,8 +745,8 @@ func (s *Server) startRun(args []string) error {
 
 	// Close write end in parent so reader gets EOF when child exits.
 	if err := pw.Close(); err != nil {
-			slog.Warn("failed to close file writer", "err", err.Error())
-		}
+		slog.Warn("failed to close file writer", "err", err.Error())
+	}
 
 	go s.collectRunOutput(cmd, pr, lf)
 	return nil
@@ -719,11 +754,10 @@ func (s *Server) startRun(args []string) error {
 
 func (s *Server) collectRunOutput(cmd *exec.Cmd, pr *os.File, lf *os.File) {
 	defer func() {
-			if cerr := pr.Close(); cerr != nil {
-				slog.Error("failed to close source file", "err", cerr.Error())
-			}
-		}()
-		
+		if cerr := pr.Close(); cerr != nil {
+			slog.Error("failed to close source file", "err", cerr.Error())
+		}
+	}()
 
 	if lf != nil {
 		defer func() {

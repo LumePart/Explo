@@ -26,6 +26,11 @@ async function apiFetch(url, options = {}) {
   })
 }
 
+export async function checkAuth() {
+  const res = await fetch('/api/ui/auth/status', { credentials: 'include' })
+  return res.ok
+}
+
 export async function login(username, password) {
   const form = new URLSearchParams()
   form.append('username', username)
@@ -134,4 +139,37 @@ export async function fetchRunStatus() {
 export async function fetchLogs() {
   const res = await apiFetch('/api/ui/logs')
   return res.text()
+}
+
+export async function prefetchPlaylists(user, playlists, options = {}) {
+  await apiFetch('/api/ui/playlists/prefetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user, playlists, ...options }),
+  })
+}
+
+export async function logout() {
+  await apiFetch('/api/ui/logout', { method: 'POST' })
+}
+
+export async function fetchSetupStatus() {
+  try {
+    const res = await fetch('/api/ui/setup-status')
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function fetchBackgroundArt() {
+  try {
+    const res = await fetch('/api/ui/background-art')
+    if (!res.ok) return null
+    const { url } = await res.json()
+    return url || null
+  } catch {
+    return null
+  }
 }
