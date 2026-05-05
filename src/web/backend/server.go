@@ -85,7 +85,11 @@ func NewServer(addr, configPath, exploPath string) *Server {
 		"session",
 	)
 
-	authStore := NewAuthStore(os.Getenv("UI_USERNAME"), os.Getenv("UI_PASSWORD"))
+	authStore := NewAuthStore(
+	os.Getenv("UI_USERNAME"),
+	os.Getenv("UI_PASSWORD"),
+	sessionManager,
+)
 
 	mux := http.NewServeMux()
 	s := &Server{
@@ -97,6 +101,7 @@ func NewServer(addr, configPath, exploPath string) *Server {
 			Handler: sessionManager.Handle(mux),
 		},
 		authStore: authStore,
+		sessionManager: sessionManager,
 		manualRun: newManualRunState(),
 	}
 
@@ -209,7 +214,7 @@ func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
-	sess := GetSession(r)
+	sess := s.sessionManager.GetSession(r)
 	auth, _ := sess.Get("authenticated").(bool)
 	if !auth {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -237,7 +242,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
-	sess := GetSession(r)
+	sess := s.sessionManager.GetSession(r)
 	sess.Put("authenticated", true)
 	sess.Put("username", username)
 	//s.sessionManager.Migrate(sess)
@@ -245,7 +250,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	sess := GetSession(r)
+	sess := s.sessionManager.GetSession(r)
 	sess.Delete("authenticated")
 	sess.Delete("username")
 	w.WriteHeader(http.StatusOK)
@@ -265,7 +270,7 @@ func (s *Server) handleGetLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) csrfHandler(w http.ResponseWriter, r *http.Request) {
-	session := GetSession(r)
+	session := s.sessionManager.GetSession(r)
 
 	token, _ := session.Get("csrf_token").(string)
 

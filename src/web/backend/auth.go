@@ -13,9 +13,10 @@ import (
 type AuthStore struct {
 	Username string
 	Hash string
+	sessionManager *SessionManager
 }
 
-func NewAuthStore(user, password string) *AuthStore{
+func NewAuthStore(user, password string, sessionManager *SessionManager) *AuthStore{
 	hashPass, err := hashPassword(password)
 	if err != nil {
 		panic("failed to hash password")
@@ -24,6 +25,7 @@ func NewAuthStore(user, password string) *AuthStore{
 	return &AuthStore{
 		Username: user,
 		Hash: hashPass,
+		sessionManager: sessionManager,
 	}
 }
 
@@ -37,7 +39,7 @@ func (a *AuthStore) CompareCreds(formUser, formPass string) bool {
 
 func (a *AuthStore) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sess := GetSession(r)
+		sess := a.sessionManager.GetSession(r)
 
 		auth, _ := sess.Get("authenticated").(bool)
 		if !auth {

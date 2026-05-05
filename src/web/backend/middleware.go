@@ -146,12 +146,3 @@ func writeCookieIfNecessary(w *sessionResponseWriter) {
 
 	w.done = true
 }
-
-func GetSession(r *http.Request) *Session {
-	session, ok := r.Context().Value(sessionContextKey{}).(*Session)
-	if !ok {
-		panic("session not found in request context")
-	}
-
-	return session
-}

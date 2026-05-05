@@ -150,6 +150,15 @@ func (s *Session) Delete(key string) {
 	delete(s.data, key)
 }
 
+func (m *SessionManager) GetSession(r *http.Request) *Session {
+	session, ok := r.Context().Value(sessionContextKey{}).(*Session)
+	if !ok {
+		panic("session not found in request context")
+	}
+
+	return session
+}
+
 func (m *SessionManager) verifyCSRFToken(r *http.Request, session *Session) bool {
 	sToken, ok := session.Get("csrf_token").(string)
 	if !ok {
