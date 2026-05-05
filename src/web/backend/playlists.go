@@ -396,12 +396,12 @@ func randomLocalCoverHiRes(coversDir string) string {
 		resp, err := http.Get("https://coverartarchive.org/release/" + mbid + "/front-1200") //nolint:noctx
 		if err != nil || resp.StatusCode != http.StatusOK {
 			if resp != nil {
-				resp.Body.Close()
+				resp.Body.Close() // nolint:errcheck
 			}
 			continue
 		}
 		data, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		resp.Body.Close() // nolint:errcheck
 		if err != nil {
 			continue
 		}
@@ -440,12 +440,12 @@ func fetchSitewideCovers(coversDir string) string {
 		dlResp, err := http.Get(url) //nolint:noctx
 		if err != nil || dlResp.StatusCode != http.StatusOK {
 			if dlResp != nil {
-				dlResp.Body.Close()
+				dlResp.Body.Close() // nolint:errcheck
 			}
 			continue
 		}
 		data, err := io.ReadAll(dlResp.Body)
-		dlResp.Body.Close()
+		dlResp.Body.Close() //nolint:errcheck
 		if err != nil {
 			continue
 		}
