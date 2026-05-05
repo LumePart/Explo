@@ -6,7 +6,7 @@ package backend
 // currently owns. VisibleWhen / RequiredWhen drive the settings UI; the wizard
 // uses bespoke HTML but references the same logical rules.
 
-var configFields = []FieldDef{
+/* var configFields = []FieldDef{
 	// ── Discovery ──────────────────────────────────────────────────
 	{
 		Key: "LISTENBRAINZ_USER", Label: "ListenBrainz Username",
@@ -111,7 +111,7 @@ var configFields = []FieldDef{
 		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 	},
-}
+} */
 
 // FieldDef describes a single configurable env var.
 // Injected into the page as window.__FIELDS__ for the settings UI to consume.
@@ -128,8 +128,8 @@ type FieldDef struct {
 	RequiredWhen *Condition `json:"requiredWhen,omitempty"` // conditionally required
 }
 
-var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
-var apiKeySystems = []string{"jellyfin", "emby", "plex"}
+/* var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
+var apiKeySystems = []string{"jellyfin", "emby", "plex"} */
 
 // playlistDef is the single source of truth for a supported playlist type.
 // To add a new playlist: append one entry here and add the matching entry in
