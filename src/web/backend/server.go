@@ -1,9 +1,8 @@
-package web
+package backend
 
 import (
 	"bufio"
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,13 +17,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"explo/src/web"
 )
-
-//go:embed dist
-var distFiles embed.FS
-
-//go:embed sample.env
-var sampleEnv []byte
 
 // Option is a value/label pair for select-type fields.
 type Option struct {
@@ -41,169 +36,10 @@ type Condition struct {
 	Contains string   `json:"contains,omitempty"` // value appears in field's comma-separated list
 }
 
-// FieldDef describes a single configurable env var.
-// Injected into the page as window.__FIELDS__ for the settings UI to consume.
-type FieldDef struct {
-	Key          string     `json:"key"`
-	Label        string     `json:"label"`
-	Type         string     `json:"type"`    // text | password | url | select
-	Section      string     `json:"section"` // discovery | system | downloader
-	Placeholder  string     `json:"placeholder,omitempty"`
-	Hint         string     `json:"hint,omitempty"`
-	Required     bool       `json:"required,omitempty"`
-	Options      []Option   `json:"options,omitempty"`      // for type=select
-	VisibleWhen  *Condition `json:"visibleWhen,omitempty"`  // hide field when condition is false
-	RequiredWhen *Condition `json:"requiredWhen,omitempty"` // conditionally required
-}
-
-var netSystems = []string{"jellyfin", "emby", "plex", "subsonic"}
-var apiKeySystems = []string{"jellyfin", "emby", "plex"}
-
-// playlistDef is the single source of truth for a supported playlist type.
-// To add a new playlist: append one entry here and add the matching entry in
-// PLAYLISTS in the frontend Settings.jsx.
-type playlistDef struct {
-	EnvPrefix       string // e.g. "WEEKLY_EXPLORATION"
-	DefaultSchedule string // cron expression
-	DefaultFlags    string // CLI flags for the run
-}
-
-var playlistDefs = map[string]playlistDef{
-	"weekly-exploration": {"WEEKLY_EXPLORATION", "15 00 * * 2", "--playlist weekly-exploration"},
-	"weekly-jams":        {"WEEKLY_JAMS",        "30 00 * * 1", "--playlist weekly-jams"},
-	"daily-jams":         {"DAILY_JAMS",         "15 01 * * *", "--playlist daily-jams"},
-	"on-repeat":          {"ON_REPEAT",          "0 12 1 * *",  "--playlist on-repeat"},
-}
-
-// allConfigKeys is the complete set of env keys the web UI reads and writes.
-var allConfigKeys = []string{
-	"LISTENBRAINZ_USER", "LISTENBRAINZ_DISCOVERY",
-	"WEEKLY_EXPLORATION_SCHEDULE", "WEEKLY_EXPLORATION_FLAGS",
-	"WEEKLY_JAMS_SCHEDULE", "WEEKLY_JAMS_FLAGS",
-	"DAILY_JAMS_SCHEDULE", "DAILY_JAMS_FLAGS",
-	"ON_REPEAT_SCHEDULE", "ON_REPEAT_FLAGS",
-	"EXPLO_SYSTEM", "SYSTEM_URL", "API_KEY", "LIBRARY_NAME",
-	"SYSTEM_USERNAME", "SYSTEM_PASSWORD", "PLAYLIST_DIR", "SLEEP", "PUBLIC_PLAYLIST",
-	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
-	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
-	"SLSKD_URL", "SLSKD_API_KEY",
-	"WIZARD_COMPLETE",
-}
-
 // ConfigResponse is returned by GET /api/config.
 type ConfigResponse struct {
 	Values  map[string]string `json:"values"`
 	Sources map[string]string `json:"sources"` // "env" | "file"
-}
-
-// configFields is the single source of truth for the settings this web UI
-// currently owns. VisibleWhen / RequiredWhen drive the settings UI; the wizard
-// uses bespoke HTML but references the same logical rules.
-var configFields = []FieldDef{
-	// ── Discovery ──────────────────────────────────────────────────
-	{
-		Key: "LISTENBRAINZ_USER", Label: "ListenBrainz Username",
-		Type: "text", Section: "discovery",
-		Placeholder: "e.g. musiclover42", Required: true,
-	},
-
-	// ── Media System ───────────────────────────────────────────────
-	{
-		Key: "EXPLO_SYSTEM", Label: "Media System",
-		Type: "select", Section: "system", Required: true,
-		Options: []Option{
-			{Value: "jellyfin", Label: "Jellyfin"},
-			{Value: "emby", Label: "Emby"},
-			{Value: "plex", Label: "Plex"},
-			{Value: "subsonic", Label: "Subsonic"},
-			{Value: "mpd", Label: "MPD"},
-		},
-	},
-	{
-		Key: "SYSTEM_URL", Label: "Server URL",
-		Type: "url", Section: "system",
-		Placeholder:  "e.g. http://192.168.1.100:8096",
-		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", In: netSystems},
-		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", In: netSystems},
-	},
-	{
-		Key: "API_KEY", Label: "API Key",
-		Type: "text", Section: "system",
-		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", In: apiKeySystems},
-		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", In: apiKeySystems},
-	},
-	{
-		Key: "LIBRARY_NAME", Label: "Library Name",
-		Type: "text", Section: "system",
-		Placeholder: "e.g. Music",
-		VisibleWhen: &Condition{Field: "EXPLO_SYSTEM", In: apiKeySystems},
-	},
-	{
-		Key: "SYSTEM_USERNAME", Label: "Username",
-		Type: "text", Section: "system",
-		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
-		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
-	},
-	{
-		Key: "SYSTEM_PASSWORD", Label: "Password",
-		Type: "password", Section: "system",
-		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
-		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
-	},
-	{
-		Key: "PLAYLIST_DIR", Label: "Playlist Directory",
-		Type: "text", Section: "system",
-		Hint:         "Explo writes .m3u files here — MPD reads them as playlists.",
-		VisibleWhen:  &Condition{Field: "EXPLO_SYSTEM", Eq: "mpd"},
-		RequiredWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "mpd"},
-	},
-	{
-		Key: "SLEEP", Label: "Library Scan Wait (minutes)",
-		Type: "text", Section: "system",
-		Placeholder: "2",
-		Hint:        "How long to wait after triggering a library scan before creating playlists.",
-		VisibleWhen: &Condition{Field: "EXPLO_SYSTEM", In: netSystems},
-	},
-	{
-		Key: "PUBLIC_PLAYLIST", Label: "Public Playlists",
-		Type: "text", Section: "system",
-		Hint:        "Set to true to make playlists visible to all users (Subsonic).",
-		VisibleWhen: &Condition{Field: "EXPLO_SYSTEM", Eq: "subsonic"},
-	},
-
-	// ── Downloader ─────────────────────────────────────────────────
-	{
-		Key: "DOWNLOAD_DIR", Label: "Download directory",
-		Type: "text", Section: "downloader",
-		Placeholder: "e.g. /data/ or ./downloads/",
-		Required:    true,
-	},
-	{
-		Key: "USE_SUBDIRECTORY", Label: "Use playlist subfolders",
-		Type: "text", Section: "downloader",
-		Hint: "When enabled, Explo creates a subfolder per playlist inside the download directory.",
-	},
-	{
-		Key: "YOUTUBE_API_KEY", Label: "YouTube API Key",
-		Type: "text", Section: "downloader",
-		Placeholder:  "AIza…",
-		Hint:         "Required when using YouTube. Enable the YouTube Data API v3.",
-		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "youtube"},
-		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "youtube"},
-	},
-	{
-		Key: "SLSKD_URL", Label: "Slskd URL",
-		Type: "url", Section: "downloader",
-		Placeholder:  "e.g. http://192.168.1.100:5030",
-		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
-		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
-	},
-	{
-		Key: "SLSKD_API_KEY", Label: "Slskd API Key",
-		Type: "text", Section: "downloader",
-		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
-		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
-	},
 }
 
 // runEvent is an SSE event sent to connected browser clients.
@@ -232,21 +68,51 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	configPath string
-	exploPath  string
-	mux        *http.ServeMux
-	manualRun  manualRunState
+	configPath     string
+	exploPath      string
+	mux            *http.ServeMux
+	server         *http.Server
+	authStore      *AuthStore
+	sessionManager *SessionManager
+	manualRun      manualRunState
 }
 
-func NewServer(configPath, exploPath string) *Server {
+func NewServer(addr, configPath, exploPath string) *Server {
+	sessionManager := NewSessionManager(
+		NewInMemorySessionStore(),
+		1*time.Hour,
+		7*(24*time.Hour),
+		"session",
+	)
+
+	authStore := NewAuthStore(
+	os.Getenv("UI_USERNAME"),
+	os.Getenv("UI_PASSWORD"),
+	sessionManager,
+)
+
+	mux := http.NewServeMux()
 	s := &Server{
 		configPath: configPath,
 		exploPath:  exploPath,
-		mux:        http.NewServeMux(),
-		manualRun:  newManualRunState(),
+		mux:        mux,
+		server: &http.Server{
+			Addr:    addr,
+			Handler: sessionManager.Handle(mux),
+		},
+		authStore: authStore,
+		sessionManager: sessionManager,
+		manualRun: newManualRunState(),
 	}
+
 	s.registerRoutes()
 	return s
+}
+
+func (s *Server) Start() error {
+	s.initServerLog()
+	slog.Info("Explo web UI started", "addr", s.server.Addr)
+	return s.server.ListenAndServe()
 }
 
 // spaFS returns the filesystem to serve the frontend from.
@@ -258,7 +124,7 @@ func spaFS() (fs.FS, []byte) {
 		index, _ := fs.ReadFile(diskFS, "index.html")
 		return diskFS, index
 	}
-	embedded, _ := fs.Sub(distFiles, "dist")
+	embedded, _ := fs.Sub(web.DistFiles, "dist")
 	index, _ := fs.ReadFile(embedded, "index.html")
 	return embedded, index
 }
@@ -277,32 +143,35 @@ func (s *Server) registerRoutes() {
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(indexHTML)
+		if _, err := w.Write(indexHTML); err != nil {
+			slog.Error("failed writing to http", "msg", err.Error())
+		}
 	})
-	s.mux.HandleFunc("GET /api/config", s.handleGetConfig)
-	s.mux.HandleFunc("GET /api/config/raw", s.handleGetConfigRaw)
-	s.mux.HandleFunc("POST /api/config", s.handleSaveConfig)
-	s.mux.HandleFunc("POST /api/config/reset", s.handleResetConfig)
-	s.mux.HandleFunc("POST /api/config/schedules", s.handleSaveSchedule)
-	s.mux.HandleFunc("POST /api/wizard/step1", s.handleWizardStep1)
-	s.mux.HandleFunc("POST /api/wizard/step2", s.handleWizardStep2)
-	s.mux.HandleFunc("POST /api/wizard/step3", s.handleWizardStep3)
-	s.mux.HandleFunc("GET /api/browse", s.handleBrowse)
-	s.mux.HandleFunc("POST /api/run", s.handleRun)
-	s.mux.HandleFunc("GET /api/run/events", s.handleRunEvents)
-	s.mux.HandleFunc("POST /api/run/stop", s.handleStopRun)
-	s.mux.HandleFunc("GET /api/run/status", s.handleRunStatus)
-	s.mux.HandleFunc("GET /api/logs", s.handleGetLog)
-	s.mux.HandleFunc("GET /api/playlists", s.handleGetPlaylist)
+	s.mux.Handle("GET /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)))
+	s.mux.Handle("GET /api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
+	s.mux.Handle("POST /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)))
+	s.mux.Handle("POST /api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
+	s.mux.Handle("POST /api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
+	s.mux.Handle("POST /api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
+	s.mux.Handle("POST /api/ui/wizard/step2", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep2)))
+	s.mux.Handle("POST /api/ui/wizard/step3", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep3)))
+	s.mux.Handle("GET /api/ui/browse", s.authStore.RequireAuth(http.HandlerFunc(s.handleBrowse)))
+	s.mux.Handle("POST /api/ui/run", s.authStore.RequireAuth(http.HandlerFunc(s.handleRun)))
+	s.mux.Handle("GET /api/ui/run/events", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunEvents)))
+	s.mux.Handle("POST /api/ui/run/stop", s.authStore.RequireAuth(http.HandlerFunc(s.handleStopRun)))
+	s.mux.Handle("GET /api/ui/run/status", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunStatus)))
+	s.mux.Handle("GET /api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
+	s.mux.Handle("GET /api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
+	s.mux.Handle("POST /api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
+	s.mux.Handle("POST /api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
+	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
+	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
+	s.mux.HandleFunc("GET /api/ui/auth/status", s.handleAuthStatus)
+	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
+	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
 
 	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
 	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
-}
-
-func (s *Server) Start(addr string) error {
-	s.initServerLog()
-	slog.Info("Explo web UI started", "addr", addr)
-	return http.ListenAndServe(addr, s.mux)
 }
 
 // ── Logging ────────────────────────────────────────────────────────────────
@@ -332,6 +201,61 @@ func (s *Server) openRunLog() (*os.File, error) {
 	return os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 }
 
+// handleSetupStatus returns {"wizard_complete": bool} for first time setups. Public — no auth required.
+func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
+	wizardComplete := false
+	if data, err := os.ReadFile(s.configPath); err == nil {
+		wizardComplete = parseEnvText(string(data))["WIZARD_COMPLETE"] == "true"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]bool{"wizard_complete": wizardComplete}); err != nil {
+		slog.Error("failed encoding setup status", "err", err.Error())
+	}
+}
+
+func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	sess := s.sessionManager.GetSession(r)
+	auth, _ := sess.Get("authenticated").(bool)
+	if !auth {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		err := http.StatusMethodNotAllowed
+		http.Error(w, "Invalid request method", err)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
+	if !s.authStore.CompareCreds(username, password) {
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	sess := s.sessionManager.GetSession(r)
+	sess.Put("authenticated", true)
+	sess.Put("username", username)
+	//s.sessionManager.Migrate(sess)
+	slog.Info("successful login", "user", username)
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	sess := s.sessionManager.GetSession(r)
+	sess.Delete("authenticated")
+	sess.Delete("username")
+	w.WriteHeader(http.StatusOK)
+}
+
 // handleGetLog returns the contents of the rolling log file.
 func (s *Server) handleGetLog(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.logPath())
@@ -340,7 +264,23 @@ func (s *Server) handleGetLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("failed writing http response", "msg", err.Error())
+	}
+}
+
+func (s *Server) csrfHandler(w http.ResponseWriter, r *http.Request) {
+	session := s.sessionManager.GetSession(r)
+
+	token, _ := session.Get("csrf_token").(string)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"csrf_token": token,
+	}); err != nil {
+		slog.Error("failed encoding token to http", "msg", err.Error())
+	}
 }
 
 // ── Config ─────────────────────────────────────────────────────────────────
@@ -372,7 +312,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		fileValues = parseEnvText(string(data))
 	} else {
-		fileValues = parseEnvText(string(sampleEnv))
+		fileValues = parseEnvText(string(web.SampleEnv))
 	}
 
 	values := make(map[string]string, len(allConfigKeys))
@@ -388,17 +328,21 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ConfigResponse{Values: values, Sources: sources})
+	if err := json.NewEncoder(w).Encode(ConfigResponse{Values: values, Sources: sources}); err != nil {
+		slog.Error("failed encoding config to http", "msg", err.Error())
+	}
 }
 
 // handleGetConfigRaw returns the raw .env file contents as plain text.
 func (s *Server) handleGetConfigRaw(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.configPath)
 	if err != nil {
-		data = sampleEnv
+		data = web.SampleEnv
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		slog.Error("failed writing http response", "msg", err.Error())
+	}
 }
 
 // handleSaveConfig writes the posted plain-text body directly to the .env file.
@@ -417,14 +361,17 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleResetConfig resets all settings and restarts the container.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.WriteFile(s.configPath, sampleEnv, 0600); err != nil {
+	if err := os.WriteFile(s.configPath, web.SampleEnv, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		syscall.Kill(1, syscall.SIGTERM)
+		if err := syscall.Kill(1, syscall.SIGTERM); err != nil {
+			slog.Warn("failed to kill process", "msg", err.Error())
+		}
+
 	}()
 }
 
@@ -450,24 +397,21 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 
 	updates := map[string]string{}
 	if body.Enabled {
-		var cron string
-		if body.Day == 100 { // monthly: 1st of each month
-			cron = fmt.Sprintf("%d %d 1 * *", body.Minute, body.Hour)
-		} else {
-			dow := "*"
-			if body.Day >= 0 {
-				dow = fmt.Sprintf("%d", body.Day)
-			}
-			cron = fmt.Sprintf("%d %d * * %s", body.Minute, body.Hour, dow)
+		dom := "*"
+		dow := "*"
+		if body.Day == 100 {
+			dom = "1"
+		} else if body.Day >= 0 {
+			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = cron
+		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
 		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
 	} else {
 		updates[def.EnvPrefix+"_SCHEDULE"] = ""
 		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -566,7 +510,7 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -611,7 +555,7 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST": publicPlaylist,
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -665,10 +609,9 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
-		"WIZARD_COMPLETE":   "true",
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, sampleEnv); err != nil {
+	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -689,7 +632,9 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]string{})
+		if err := json.NewEncoder(w).Encode([]string{}); err != nil {
+			slog.Error("failed to encode empty slice", "msg", err.Error())
+		}
 		return
 	}
 
@@ -700,14 +645,16 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(dirs)
+	if err := json.NewEncoder(w).Encode(dirs); err != nil {
+		slog.Warn("failed to encode directories to response", "err", err.Error())
+	}
 }
 
 // ── Manual run ─────────────────────────────────────────────────────────────
 
 var errRunAlreadyStarted = errors.New("run already in progress")
 
-// handleRun starts an explo run in the background. Clients follow output via /api/run/events.
+// handleRun starts an explo run in the background. Clients follow output via /api/ui/run/events.
 func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(1 << 20); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		http.Error(w, "bad form data", http.StatusBadRequest)
@@ -729,7 +676,9 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(s.currentRunStatus())
+	if err := json.NewEncoder(w).Encode(s.currentRunStatus()); err != nil {
+		slog.Warn("failed to encode current run status", "msg", err.Error())
+	}
 }
 
 func (s *Server) startRun(args []string) error {
@@ -754,17 +703,24 @@ func (s *Server) startRun(args []string) error {
 
 	lf, err := s.openRunLog()
 	if err != nil {
-		slog.Warn("failed to open run log", "err", err)
+		slog.Warn("failed to open run log", "err", err.Error())
 	}
 
 	s.manualRun.mu.Lock()
 	if s.manualRun.running {
 		s.manualRun.mu.Unlock()
 		cancel()
-		pr.Close()
-		pw.Close()
+		if err := pr.Close(); err != nil {
+			slog.Warn("failed to close file reader", "err", err.Error())
+		}
+
+		if err := pw.Close(); err != nil {
+			slog.Warn("failed to close file writer", "err", err.Error())
+		}
 		if lf != nil {
-			lf.Close()
+			if err := pw.Close(); err != nil {
+				slog.Warn("failed to close file writer", "err", err.Error())
+			}
 		}
 		return errRunAlreadyStarted
 	}
@@ -777,32 +733,52 @@ func (s *Server) startRun(args []string) error {
 	if err := cmd.Start(); err != nil {
 		s.finishRun(1)
 		cancel()
-		pr.Close()
-		pw.Close()
+		if err := pr.Close(); err != nil {
+			slog.Warn("failed to close file reader", "err", err.Error())
+		}
+
+		if err := pw.Close(); err != nil {
+			slog.Warn("failed to close file writer", "err", err.Error())
+		}
 		if lf != nil {
-			lf.Close()
+			if err := lf.Close(); err != nil {
+				slog.Warn("failed to close run log", "err", err.Error())
+			}
 		}
 		return fmt.Errorf("failed to start explo: %w", err)
 	}
 
 	// Close write end in parent so reader gets EOF when child exits.
-	pw.Close()
+	if err := pw.Close(); err != nil {
+		slog.Warn("failed to close file writer", "err", err.Error())
+	}
 
 	go s.collectRunOutput(cmd, pr, lf)
 	return nil
 }
 
 func (s *Server) collectRunOutput(cmd *exec.Cmd, pr *os.File, lf *os.File) {
-	defer pr.Close()
+	defer func() {
+		if cerr := pr.Close(); cerr != nil {
+			slog.Error("failed to close source file", "err", cerr.Error())
+		}
+	}()
+
 	if lf != nil {
-		defer lf.Close()
+		defer func() {
+			if cerr := lf.Close(); cerr != nil {
+				slog.Error("failed to close source file", "err", cerr.Error())
+			}
+		}()
 	}
 
 	scanner := bufio.NewScanner(pr)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if lf != nil {
-			fmt.Fprintln(lf, line)
+			if _, err := fmt.Fprintln(lf, line); err != nil {
+				s.appendRunLog("failed to write run output: " + err.Error())
+			}
 		}
 		s.appendRunLog(line)
 	}
@@ -849,7 +825,9 @@ func (s *Server) currentRunStatus() RunStatus {
 
 func (s *Server) handleRunStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.currentRunStatus())
+	if err := json.NewEncoder(w).Encode(s.currentRunStatus()); err != nil {
+		slog.Warn("failed encoding current run status to response")
+	}
 }
 
 // ── SSE event stream ───────────────────────────────────────────────────────
@@ -912,9 +890,13 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 
 	sendEvent := func(typ, data string) {
 		if typ != "" {
-			fmt.Fprintf(w, "event: %s\n", typ)
+			if _, err := fmt.Fprintf(w, "event: %s\n", typ); err != nil {
+				slog.Warn("failed handling run event", "err", err.Error())
+			}
 		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			slog.Warn("failed handling run event", "err", err.Error())
+		}
 		flusher.Flush()
 	}
 

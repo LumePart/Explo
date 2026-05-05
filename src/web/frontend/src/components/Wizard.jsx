@@ -8,9 +8,8 @@
  * Receives existing config/envSources from App to pre-populate fields.
  */
 
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
-import { wizardStep1, wizardStep2, wizardStep3 } from '../lib/api'
+import { wizardStep1, wizardStep2, wizardStep3, prefetchPlaylists } from '../lib/api'
 import { ToggleRow } from './ui/Toggle'
 import { DirInput } from './ui/DirInput'
 import { TextField } from './ui/common'
@@ -237,6 +236,20 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
   )
 }
 
+function Collapse({ open, children }) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateRows: open ? '1fr' : '0fr',
+      transition: 'grid-template-rows 220ms ease-out',
+    }}>
+      <div className={`overflow-hidden min-h-0 transition-opacity duration-200 ${open ? 'opacity-100 delay-75' : 'opacity-0'}`}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
 // ── Step 3: Downloader ────────────────────────────────────────────────────────
 // Collects download service selection (YouTube, Slskd) and their respective
 // credentials, download directory, and file format preferences.
@@ -245,11 +258,10 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
           youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey } = fields
   const isLocked = key => envSources[key] === 'env'
-  const showDownloadDir = dlServices.youtube || (dlServices.slskd && migrateDownloads)
 
   const valid = () => {
     if (!Object.values(dlServices).some(Boolean)) return false
-    if (showDownloadDir && !downloadDir.trim()) return false
+    if ((dlServices.youtube || (dlServices.slskd && migrateDownloads)) && !downloadDir.trim()) return false
     if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim())) return false
     return true
   }
@@ -261,16 +273,18 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         Explo downloads tracks using one or both services. Enable what you have access to — if both are enabled, YouTube is tried first.
       </p>
 
-      <div className="flex flex-col gap-4">
-        <div>
+      <div className="flex flex-col gap-6">
+
+        {/* YouTube section */}
+        <div className="flex flex-col gap-4">
           <ToggleRow
             checked={dlServices.youtube}
             onChange={v => setField('dlServices', { ...dlServices, youtube: v })}
             name="YouTube"
             desc="Downloads via yt-dlp · falls back to ytmusicapi if no API key is set"
           />
-          {dlServices.youtube && (
-            <div className="mt-3 pl-4 border-l-2 border-ui-border flex flex-col gap-4">
+          <Collapse open={dlServices.youtube}>
+            <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
               <TextField label={<>YouTube API Key <span className="font-normal opacity-50">(optional)</span></>}
                 hint={<>If set, uses the official YouTube Data API. Otherwise falls back to <strong>ytmusicapi</strong>.{' '}
                   <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" className="text-accent">Get an API key.</a></>}>
@@ -299,18 +313,19 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 desc="Create a subfolder per playlist inside the download directory"
               />
             </div>
-          )}
+          </Collapse>
         </div>
 
-        <div>
+        {/* Slskd section */}
+        <div className="flex flex-col gap-4">
           <ToggleRow
             checked={dlServices.slskd}
             onChange={v => setField('dlServices', { ...dlServices, slskd: v })}
             name="Slskd"
             desc="Downloads from the Soulseek P2P network · requires a running Slskd instance"
           />
-          {dlServices.slskd && (
-            <div className="mt-3 pl-4 border-l-2 border-ui-border flex flex-col gap-4">
+          <Collapse open={dlServices.slskd}>
+            <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
               <TextField label="Slskd URL">
                 <input type="text" className={inputCls} value={slskdUrl} onChange={e => setField('slskdUrl', e.target.value)}
                   placeholder="e.g. http://192.168.1.100:5030" disabled={isLocked('SLSKD_URL')} />
@@ -319,18 +334,20 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
                   autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
               </TextField>
-              <p className="text-[12px] text-muted leading-relaxed">
-                By default, tracks are saved to wherever Slskd is configured to download files.
-              </p>
-              <ToggleRow
-                checked={migrateDownloads}
-                onChange={v => setField('migrateDownloads', v)}
-                disabled={isLocked('MIGRATE_DOWNLOADS')}
-                name="Migrate downloads"
-                desc="Move completed downloads to a separate directory instead"
-              />
-              {migrateDownloads && !dlServices.youtube && (
-                <>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] text-muted leading-relaxed">
+                  By default, slskd saves tracks to whichever download path is configured in your slskd instance.
+                </p>
+                <ToggleRow
+                  checked={migrateDownloads}
+                  onChange={v => setField('migrateDownloads', v)}
+                  disabled={isLocked('MIGRATE_DOWNLOADS')}
+                  desc="Move completed downloads to a separate directory after transfer"
+                />
+              </div>
+              {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
+              <Collapse open={migrateDownloads && !dlServices.youtube}>
+                <div className="flex flex-col gap-4 pt-4 pb-1">
                   <TextField label="Download directory">
                     <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
                       placeholder="e.g. /data/music/" />
@@ -342,10 +359,10 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                     name="Use playlist subfolders"
                     desc="Create a subfolder per playlist inside the download directory"
                   />
-                </>
-              )}
+                </div>
+              </Collapse>
             </div>
-          )}
+          </Collapse>
         </div>
       </div>
 
@@ -361,25 +378,9 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 // Owns all wizard state and calls wizardStep1/2/3 APIs to save each step.
 // Receives existing config/envSources from App to pre-populate fields.
 
-const SPRING = { type: 'spring', stiffness: 280, damping: 28, mass: 0.9, opacity: { duration: 0.2, ease: 'easeInOut' } }
-const SLIDE_VARIANTS = {
-  enter: dir => ({ opacity: 0, x: dir * 180, scale: 0.96 }),
-  center: { opacity: 1, x: 0 },
-  exit: dir => ({ opacity: 0, x: dir * -180, scale: 0.96 }),
-}
-const FADE_VARIANTS = {
-  enter: { opacity: 0 },
-  center: { opacity: 1 },
-  exit: { opacity: 0 },
-}
-
-export default function Wizard({ config, envSources, onComplete }) {
+export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, onComplete }) {
   const [step, setStep] = useState(1)
-  const [stepDirection, setStepDirection] = useState(1)
   const [saving, setSaving] = useState(false)
-  const reduceMotion = useReducedMotion()
-  const variants = reduceMotion ? FADE_VARIANTS : SLIDE_VARIANTS
-  const transition = reduceMotion ? { duration: 0.18 } : SPRING
 
   const [fields, setFields] = useState(() => {
     const s = (config.DOWNLOAD_SERVICES || '').split(',')
@@ -416,10 +417,6 @@ export default function Wizard({ config, envSources, onComplete }) {
   })
 
   const setField = (key, val) => setFields(prev => ({ ...prev, [key]: val }))
-  const goToStep = nextStep => {
-    setStepDirection(nextStep > step ? 1 : -1)
-    setStep(nextStep)
-  }
 
   const lockedKeys = Object.entries(envSources)
     .filter(([k, s]) => s === 'env' && !k.endsWith('_SCHEDULE') && !k.endsWith('_FLAGS'))
@@ -430,7 +427,10 @@ export default function Wizard({ config, envSources, onComplete }) {
     try {
       const playlists = Object.entries(fields.checked).filter(([, v]) => v).map(([k]) => k)
       await wizardStep1(fields.user.trim(), playlists, fields.discoveryMode)
-      goToStep(2)
+      if (playlists.length > 0) {
+        prefetchPlaylists(fields.user.trim(), playlists, { source: 'wizard' }).catch(() => {})
+      }
+      setStep(2)
     } catch (e) {
       alert('Error saving: ' + e.message)
     } finally {
@@ -447,7 +447,7 @@ export default function Wizard({ config, envSources, onComplete }) {
         password: fields.systemPassword, playlist_dir: fields.playlistDir,
         sleep: fields.sleepMinutes, public_playlist: fields.publicPlaylist,
       })
-      goToStep(3)
+      setStep(3)
     } catch (e) {
       alert('Error saving: ' + e.message)
     } finally {
@@ -474,10 +474,31 @@ export default function Wizard({ config, envSources, onComplete }) {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-start pt-[15vh] overflow-y-auto">
-      <div className="fixed top-6 left-7 text-[20px] font-bold tracking-tight text-accent">Explo</div>
+    <div className="min-h-screen relative overflow-hidden flex items-center" style={{ background: '#121212' }}>
 
-      <div className="max-w-[520px] w-full mx-auto px-6 py-12 overflow-hidden">
+      {/* Artwork backdrop — blurred ambient glow, matches the Settings page treatment */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+        {bgUrl && (
+          <img
+            src={bgUrl}
+            onLoad={onBgLoad}
+            className={`transition-opacity duration-[1500ms] ${bgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              filter: 'blur(90px) saturate(1.8) brightness(0.14)',
+              transform: 'scale(1.15) translateZ(0)',
+              willChange: 'opacity',
+            }}
+            alt=""
+          />
+        )}
+      </div>
+
+      <div className="relative z-10 max-w-[520px] w-full mx-auto px-6 py-12">
+        <div className="text-[20px] font-bold tracking-tight text-accent mb-10">Explo</div>
+
         {lockedKeys.length > 0 && (
           <div className="text-[12px] text-muted bg-surface border border-ui-border rounded-[6px] px-3.5 py-2.5 mb-6 leading-relaxed">
             You've set the following in your Docker environment, so they can't be changed here:{' '}
@@ -485,39 +506,29 @@ export default function Wizard({ config, envSources, onComplete }) {
           </div>
         )}
 
-        <AnimatePresence initial={false} mode="popLayout" custom={stepDirection}>
-          <motion.div
-            key={step}
-            custom={stepDirection}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={transition}
-          >
-              {step === 1 && (
-                <Step1
-                  fields={fields} setField={setField}
-                  envSources={envSources}
-                  onNext={handleStep1} saving={saving}
-                />
-              )}
-              {step === 2 && (
-                <Step2
-                  fields={fields} setField={setField}
-                  envSources={envSources}
-                  onBack={() => goToStep(1)} onNext={handleStep2} saving={saving}
-                />
-              )}
-              {step === 3 && (
-                <Step3
-                  fields={fields} setField={setField}
-                  envSources={envSources}
-                  onBack={() => goToStep(2)} onFinish={handleStep3} saving={saving}
-                />
-              )}
-            </motion.div>
-        </AnimatePresence>
+        <div key={step} className="animate-fade-up">
+          {step === 1 && (
+            <Step1
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onNext={handleStep1} saving={saving}
+            />
+          )}
+          {step === 2 && (
+            <Step2
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onBack={() => setStep(1)} onNext={handleStep2} saving={saving}
+            />
+          )}
+          {step === 3 && (
+            <Step3
+              fields={fields} setField={setField}
+              envSources={envSources}
+              onBack={() => setStep(2)} onFinish={handleStep3} saving={saving}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
