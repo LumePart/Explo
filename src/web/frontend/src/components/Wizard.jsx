@@ -208,7 +208,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
           </TextField>
         )}
 
-        {system && system !== 'mpd' && (
+        {API_KEY_SYSTEMS.includes(system) && (
           <TextField label="Library scan wait"
             hint="Minutes Explo waits after triggering a library scan before creating playlists. Default: 2.">
             <input type="text" inputMode="numeric" className={inputCls} style={{ width: 80 }}
