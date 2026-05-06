@@ -21,6 +21,7 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg    ClientConfig
 	NotifyCfg    NotifyConfig
+	ServerCfg	 ServerConfig
 	Flags        Flags
 	PersistENV   bool `env:"PERSIST" env-default:"true"`
 	Persist      bool
@@ -31,11 +32,20 @@ type Config struct {
 
 type Flags struct {
 	CfgPath      string
+	CfgPathSet	 bool
 	Playlist     string
 	DownloadMode string
 	ExcludeLocal bool
 	Persist      bool
 	PersistSet   bool
+}
+
+type ServerConfig struct {
+	Enabled bool `env:"WEB_UI" env-default:"true"`
+	Port string `env:"WEB_ADDR" env-default:":7288"`
+	Username string `env:"UI_USERNAME"`
+	Password string `env:"UI_PASSWORD"`
+	WebConfPath string `env:"WEB_CFG_PATH" env-default:".env"`
 }
 
 type ClientConfig struct {

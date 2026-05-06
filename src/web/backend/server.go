@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"explo/src/config"
 	"explo/src/web"
 )
 
@@ -77,7 +78,7 @@ type Server struct {
 	manualRun      manualRunState
 }
 
-func NewServer(addr, configPath, exploPath string) *Server {
+func NewServer(cfg config.ServerConfig, exploPath string) *Server {
 	sessionManager := NewSessionManager(
 		NewInMemorySessionStore(),
 		1*time.Hour,
@@ -86,18 +87,18 @@ func NewServer(addr, configPath, exploPath string) *Server {
 	)
 
 	authStore := NewAuthStore(
-	os.Getenv("UI_USERNAME"),
-	os.Getenv("UI_PASSWORD"),
+	cfg.Username,
+	cfg.Password,
 	sessionManager,
 )
 
 	mux := http.NewServeMux()
 	s := &Server{
-		configPath: configPath,
+		configPath: cfg.WebConfPath,
 		exploPath:  exploPath,
 		mux:        mux,
 		server: &http.Server{
-			Addr:    addr,
+			Addr:    cfg.Port,
 			Handler: sessionManager.Handle(mux),
 		},
 		authStore: authStore,
