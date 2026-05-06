@@ -158,8 +158,8 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
               <button
                 key={s.value}
                 onClick={() => setField('system', s.value)}
-                className={`text-[14px] font-medium px-3 py-[18px] text-center bg-surface border rounded-[6px] cursor-pointer transition-colors
-                  ${system === s.value ? 'border-accent text-accent' : 'border-ui-border text-white hover:border-[#404040]'}`}
+                className={`text-[14px] font-medium px-3 py-[18px] text-center bg-surface border rounded-[6px] ${isLocked('EXPLO_SYSTEM') ? 'cursor-not-allowed' : 'cursor-pointer'} transition-colors
+                  ${system === s.value ? 'border-accent text-accent' : 'border-ui-border text-white hover:border-[#404040]'}`} disabled={isLocked('EXPLO_SYSTEM')}
               >
                 {s.name}
               </button>
