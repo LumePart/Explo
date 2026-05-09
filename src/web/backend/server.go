@@ -604,6 +604,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
+		"WIZARD_COMPLETE":	 "true",
 	}
 
 	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
