@@ -261,7 +261,6 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 
   const valid = () => {
     if (!Object.values(dlServices).some(Boolean)) return false
-    if ((dlServices.youtube || (dlServices.slskd && migrateDownloads)) && !downloadDir.trim()) return false
     if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim())) return false
     return true
   }
@@ -301,7 +300,8 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
                   placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
               </TextField>
-              <TextField label="Download directory">
+              <TextField label="Download directory"
+                hint="Custom download directory. Leave blank to use default">
                 <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
                   placeholder="e.g. /data/music/" />
               </TextField>
@@ -348,7 +348,8 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
               <Collapse open={migrateDownloads && !dlServices.youtube}>
                 <div className="flex flex-col gap-4 pt-4 pb-1">
-                  <TextField label="Download directory">
+                  <TextField label="Download directory"
+                    hint="Custom download directory. Leave blank to use default">
                     <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
                       placeholder="e.g. /data/music/" />
                   </TextField>

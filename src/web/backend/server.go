@@ -585,12 +585,6 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	joined := strings.Join(body.DownloadServices, ",")
-	hasYoutube := strings.Contains(joined, "youtube")
-	hasSlskd := strings.Contains(joined, "slskd")
-	if (hasYoutube || (hasSlskd && body.MigrateDownloads)) && body.DownloadDir == "" {
-		http.Error(w, "download_dir is required", http.StatusBadRequest)
-		return
-	}
 
 	useSubdir := "false"
 	if body.UseSubdirectory {
