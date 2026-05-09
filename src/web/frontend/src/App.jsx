@@ -17,15 +17,16 @@ export default function App() {
     Promise.all([
       checkAuth(),
       fetchSetupStatus(),
-      fetchBackgroundArt(),
-    ]).then(([authed, status, artUrl]) => {
-      if (artUrl) setBgUrl(artUrl)
+    ]).then(([authed, status]) => {
       setIsFirstTime(status ? !status.wizard_complete : false)
       if (authed) {
         handleLoginSuccess({ fromLogin: false })
       } else {
         setView('login')
       }
+    })
+    fetchBackgroundArt().then((artUrl) => {
+      if (artUrl) setBgUrl(artUrl)
     })
   }, [])
 
