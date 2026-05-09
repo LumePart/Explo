@@ -89,16 +89,20 @@ type SubsonicConfig struct {
 }
 
 type DownloadConfig struct {
-	DownloadDir     string `env:"DOWNLOAD_DIR" env-default:"/data/"`
-	Youtube         Youtube
-	YoutubeMusic    YoutubeMusic
-	Slskd           Slskd
-	ExcludeLocal    bool
-	KeepPermissions bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
-	RenameTrack     bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
-	UseSubDir       bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
-	Discovery       string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	Services        []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
+	DownloadDir                string `env:"DOWNLOAD_DIR" env-default:"/data/"`
+	Youtube                    Youtube
+	YoutubeMusic               YoutubeMusic
+	Slskd                      Slskd
+	ExcludeLocal               bool
+	KeepPermissions            bool   `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
+	RenameTrack                bool   `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
+	UseSubDir                  bool   `env:"USE_SUBDIRECTORY" env-default:"true"`
+	DownloadSubdirectoryFormat string `env:"DOWNLOAD_SUBDIRECTORY_FORMAT" env-default:"{playlist}"`
+	PlaylistName               string
+	PlaylistType               string
+	PlaylistManifestDir        string
+	Discovery                  string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	Services                   []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
 
 type Filters struct {
@@ -246,6 +250,14 @@ func (cfg *Config) HandleDeprecation() { //
 		slog.Warn("'PERSIST' variable is deprecated, use --persist flag instead")
 	}
 
+	if !cfg.DownloadCfg.UseSubDir && downloadSubdirectoryFormatConfigured(cfg.DownloadCfg.DownloadSubdirectoryFormat) {
+		slog.Warn("'DOWNLOAD_SUBDIRECTORY_FORMAT' is ignored because 'USE_SUBDIRECTORY' is false")
+	}
+
+	if tokens := unsupportedSubdirectoryFormatTokens(cfg.DownloadCfg.DownloadSubdirectoryFormat); len(tokens) > 0 {
+		slog.Warn("'DOWNLOAD_SUBDIRECTORY_FORMAT' contains unsupported token(s)", "tokens", strings.Join(tokens, ","), "supported", "{playlist},{artist},{album}")
+	}
+
 	if !cfg.Persist && !cfg.DownloadCfg.UseSubDir {
 		slog.Warn("Deleting tracks requires 'USE_SUBDIRECTORY' to be true")
 	}
@@ -258,11 +270,47 @@ func (cfg *Config) GenPlaylistName() { // Generate playlist name and description
 		"Created for %s by Explo, using ListenBrainz recommendations.",
 		cfg.DiscoveryCfg.Listenbrainz.User)
 
-	if cfg.DownloadCfg.UseSubDir {
-		// add playlist name to downloadDir so all songs get downloaded to a single sub directory.
-		cfg.DownloadCfg.DownloadDir = filepath.Join(
-			cfg.DownloadCfg.DownloadDir,
-			cfg.ClientCfg.PlaylistName)
+	cfg.DownloadCfg.PlaylistName = cfg.ClientCfg.PlaylistName
+	cfg.DownloadCfg.PlaylistType = cfg.Flags.Playlist
+	cfg.DownloadCfg.PlaylistManifestDir = filepath.Join(filepath.Dir(cfg.Flags.CfgPath), "playlist-manifests")
+}
+
+func downloadSubdirectoryFormatConfigured(format string) bool {
+	format = strings.TrimSpace(format)
+	return format != "" && format != "{playlist}"
+}
+
+func unsupportedSubdirectoryFormatTokens(format string) []string {
+	supported := map[string]bool{
+		"{playlist}": true,
+		"{artist}":   true,
+		"{album}":    true,
+	}
+
+	var tokens []string
+	seen := make(map[string]bool)
+	for {
+		start := strings.Index(format, "{")
+		if start == -1 {
+			return tokens
+		}
+
+		end := strings.Index(format[start:], "}")
+		if end == -1 {
+			token := format[start:]
+			if !seen[token] {
+				tokens = append(tokens, token)
+				seen[token] = true
+			}
+			return tokens
+		}
+
+		token := format[start : start+end+1]
+		if !supported[token] && !seen[token] {
+			tokens = append(tokens, token)
+			seen[token] = true
+		}
+		format = format[start+end+1:]
 	}
 }
 

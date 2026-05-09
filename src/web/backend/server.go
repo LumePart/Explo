@@ -593,16 +593,17 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 // handleWizardStep3 saves downloader configuration.
 func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		DownloadDir      string   `json:"download_dir"`
-		UseSubdirectory  bool     `json:"use_subdirectory"`
-		MigrateDownloads bool     `json:"migrate_downloads"`
-		DownloadServices []string `json:"download_services"`
-		YoutubeAPIKey    string   `json:"youtube_api_key"`
-		TrackExtension   string   `json:"track_extension"` // yt-dlp
-		FilterList       string   `json:"filter_list"`
-		SlskdURL         string   `json:"slskd_url"`
-		SlskdAPIKey      string   `json:"slskd_api_key"`
-		Extensions       string   `json:"extensions"`      // slskd
+		DownloadDir                string   `json:"download_dir"`
+		UseSubdirectory            bool     `json:"use_subdirectory"`
+		DownloadSubdirectoryFormat string   `json:"download_subdirectory_format"`
+		MigrateDownloads           bool     `json:"migrate_downloads"`
+		DownloadServices           []string `json:"download_services"`
+		YoutubeAPIKey              string   `json:"youtube_api_key"`
+		TrackExtension             string   `json:"track_extension"` // yt-dlp
+		FilterList                 string   `json:"filter_list"`
+		SlskdURL                   string   `json:"slskd_url"`
+		SlskdAPIKey                string   `json:"slskd_api_key"`
+		Extensions                 string   `json:"extensions"`       // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -623,17 +624,18 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		migrateDL = "true"
 	}
 	updates := map[string]string{
-		"DOWNLOAD_DIR":      body.DownloadDir,
-		"USE_SUBDIRECTORY":  useSubdir,
-		"MIGRATE_DOWNLOADS": migrateDL,
-		"DOWNLOAD_SERVICES": joined,
-		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
-		"TRACK_EXTENSION":   body.TrackExtension, // yt-dlp
-		"FILTER_LIST":       body.FilterList,
-		"SLSKD_URL":         body.SlskdURL,
-		"SLSKD_API_KEY":     body.SlskdAPIKey,
-		"EXTENSIONS":        body.Extensions,        // slskd
-		"WIZARD_COMPLETE":	 "true",
+		"DOWNLOAD_DIR":                 body.DownloadDir,
+		"USE_SUBDIRECTORY":             useSubdir,
+		"DOWNLOAD_SUBDIRECTORY_FORMAT": body.DownloadSubdirectoryFormat,
+		"MIGRATE_DOWNLOADS":            migrateDL,
+		"DOWNLOAD_SERVICES":            joined,
+		"YOUTUBE_API_KEY":              body.YoutubeAPIKey,
+		"TRACK_EXTENSION":              body.TrackExtension, // yt-dlp
+		"FILTER_LIST":                  body.FilterList,
+		"SLSKD_URL":                    body.SlskdURL,
+		"SLSKD_API_KEY":                body.SlskdAPIKey,
+		"EXTENSIONS":                   body.Extensions,     // slskd
+		"WIZARD_COMPLETE":              "true",
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {

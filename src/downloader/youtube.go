@@ -45,13 +45,13 @@ type YTMusicSearchResult struct {
 }
 
 type Youtube struct {
-	DownloadDir string
+	DownloadCfg *cfg.DownloadConfig
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Youtube
 	gouTubeOpts goutubedl.Options
 }
 
-func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util.HttpClient) *Youtube { // init downloader cfg for youtube
+func NewYoutube(cfg cfg.Youtube, downloadCfg *cfg.DownloadConfig, httpClient *util.HttpClient) *Youtube { // init downloader cfg for youtube
 	// check for custom ytdlp options
 	if cfg.YtdlpPath != "" {
 		goutubedl.Path = cfg.YtdlpPath
@@ -63,7 +63,7 @@ func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util
 	}
 
 	return &Youtube{
-		DownloadDir: downloadDir,
+		DownloadCfg: downloadCfg,
 		Cfg:         cfg,
 		HttpClient:  httpClient,
 		gouTubeOpts: opts}
@@ -131,7 +131,7 @@ func queryYTMusic(track *models.Track, query string) error {
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 
-	track.File = fmt.Sprintf("%s.%s",getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
+	track.File = fmt.Sprintf("%s.%s", getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
@@ -182,7 +182,13 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		}
 	}()
 
-	input := filepath.Join(c.DownloadDir, track.File+".tmp")
+	downloadDir := trackDownloadDir(c.DownloadCfg, &track)
+	if err := os.MkdirAll(downloadDir, 0755); err != nil {
+		slog.Error("failed to create track directory", "context", err.Error())
+		return false
+	}
+
+	input := filepath.Join(downloadDir, track.File+".tmp")
 	file, err := os.Create(input)
 	if err != nil {
 		slog.Error("failed to create song file", "context", err.Error())
@@ -203,9 +209,9 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
-	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+	cmd := ffmpeg.Input(input).Output(filepath.Join(downloadDir, track.File), ffmpeg.KwArgs{
 		"map":      "0:a",
-		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
+		"metadata": []string{"artist=" + track.Artist, "album_artist=" + track.MainArtist, "title=" + track.Title, "album=" + track.Album},
 		"loglevel": "error",
 	}).OverWriteOutput().ErrorToStdOut()
 
@@ -247,7 +253,7 @@ func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track
 func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
-		slog.Error("failed getting stream for video", "trackID",track.ID, "context", err.Error())
+		slog.Error("failed getting stream for video", "trackID", track.ID, "context", err.Error())
 		return false
 	}
 
