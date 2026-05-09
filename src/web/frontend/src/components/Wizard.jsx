@@ -303,7 +303,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               <TextField label="Download directory"
                 hint="Custom download directory. Leave blank to use default">
                 <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
-                  placeholder="e.g. /data/music/" />
+                  placeholder="/data/" />
               </TextField>
               <ToggleRow
                 checked={useSubdirectory}
@@ -351,7 +351,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                   <TextField label="Download directory"
                     hint="Custom download directory. Leave blank to use default">
                     <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
-                      placeholder="e.g. /data/music/" />
+                      placeholder="/data/" />
                   </TextField>
                   <ToggleRow
                     checked={useSubdirectory}
