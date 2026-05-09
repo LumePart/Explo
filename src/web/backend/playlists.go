@@ -415,7 +415,6 @@ func randomLocalCoverHiRes(coversDir string) string {
 // returns a "/api/covers/<mbid>.jpg" URL for the first one that meets the
 // minimum resolution requirement (1000px).
 func fetchSitewideCovers(coversDir string) string {
-	fmt.Println(coversDir)
 	if err := os.MkdirAll(coversDir, 0755); err != nil {
 		return ""
 	}
@@ -458,7 +457,6 @@ func fetchSitewideCovers(coversDir string) string {
 			slog.Error("background-art: failed to write sitewide cover", "err", err.Error())
 			continue
 		}
-		fmt.Println("wrote cover to " + destPath)
 		return "/api/covers/" + rel.ReleaseMbid + ".jpg"
 	}
 	return ""
