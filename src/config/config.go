@@ -32,7 +32,7 @@ type Config struct {
 
 type Flags struct {
 	CfgPath      string
-	CfgPathSet	 bool
+	CfgSet		 bool
 	Playlist     string
 	DownloadMode string
 	ExcludeLocal bool
@@ -45,7 +45,8 @@ type ServerConfig struct {
 	Port string `env:"WEB_ADDR" env-default:":7288"`
 	Username string `env:"UI_USERNAME"`
 	Password string `env:"UI_PASSWORD"`
-	WebConfPath string `env:"WEB_CFG_PATH" env-default:".env"`
+	WebDataDir string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
+	WebConfPath string `env:"WEB_CFG_PATH" env-default:"/opt/explo/.env"`
 }
 
 type ClientConfig struct {

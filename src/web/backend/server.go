@@ -69,7 +69,8 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	configPath     string
+	envPath		   string
+	dataDir     string
 	exploPath      string
 	mux            *http.ServeMux
 	server         *http.Server
@@ -94,7 +95,8 @@ func NewServer(cfg config.ServerConfig, exploPath string) *Server {
 
 	mux := http.NewServeMux()
 	s := &Server{
-		configPath: cfg.WebConfPath,
+		envPath: cfg.WebConfPath,
+		dataDir: cfg.WebDataDir,
 		exploPath:  exploPath,
 		mux:        mux,
 		server: &http.Server{
@@ -112,14 +114,14 @@ func NewServer(cfg config.ServerConfig, exploPath string) *Server {
 
 func (s *Server) Start() error {
 	s.initServerLog()
-	s.prefetchBackgroundArt()
+	s.PrefetchCovers()
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
 	return s.server.ListenAndServe()
 }
 
 func(s *Server) PrefetchCovers() {
 
-	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+	coversDir := filepath.Join(s.dataDir, "cache", "covers")
 
 	url := randomLocalCoverHiRes(coversDir)
 	if url == "" {
@@ -182,7 +184,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
 	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
 
-	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+	coversDir := filepath.Join(s.dataDir, "cache", "covers")
 	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
@@ -190,7 +192,7 @@ func (s *Server) registerRoutes() {
 
 // logPath returns the path to the single rolling log file.
 func (s *Server) logPath() string {
-	return filepath.Join(filepath.Dir(s.configPath), "logs", "explo.log")
+	return filepath.Join(s.dataDir, "logs", "explo.log")
 }
 
 // initServerLog redirects the default slog handler so all server log output
@@ -216,7 +218,7 @@ func (s *Server) openRunLog() (*os.File, error) {
 // handleSetupStatus returns {"wizard_complete": bool} for first time setups. Public — no auth required.
 func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	wizardComplete := false
-	if data, err := os.ReadFile(s.configPath); err == nil {
+	if data, err := os.ReadFile(s.envPath); err == nil {
 		wizardComplete = parseEnvText(string(data))["WIZARD_COMPLETE"] == "true"
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -319,7 +321,7 @@ func parseEnvText(text string) map[string]string {
 // handleGetConfig returns resolved config as JSON: { values, sources }.
 // Sources are "env" when set via os.Environ (takes precedence), "file" otherwise.
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile(s.configPath)
+	data, err := os.ReadFile(s.envPath)
 	var fileValues map[string]string
 	if err == nil {
 		fileValues = parseEnvText(string(data))
@@ -347,7 +349,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleGetConfigRaw returns the raw .env file contents as plain text.
 func (s *Server) handleGetConfigRaw(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile(s.configPath)
+	data, err := os.ReadFile(s.envPath)
 	if err != nil {
 		data = web.SampleEnv
 	}
@@ -364,7 +366,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := os.WriteFile(s.configPath, data, 0600); err != nil {
+	if err := os.WriteFile(s.envPath, data, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -373,7 +375,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleResetConfig resets all settings and restarts the container.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.WriteFile(s.configPath, web.SampleEnv, 0600); err != nil {
+	if err := os.WriteFile(s.envPath, web.SampleEnv, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -423,7 +425,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -522,7 +524,7 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -567,7 +569,7 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST": publicPlaylist,
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -618,7 +620,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"WIZARD_COMPLETE":	 "true",
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -670,7 +672,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	args := buildArgs(r.FormValue("playlist"), r.FormValue("download_mode"),
 		r.FormValue("persist") == "false", r.FormValue("exclude_local") == "true",
-		s.configPath)
+		s.envPath)
 
 	if err := s.startRun(args); err != nil {
 		if errors.Is(err, errRunAlreadyStarted) {
@@ -956,8 +958,8 @@ func (s *Server) unsubscribeRun(ch chan runEvent) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, cfgPath string) []string {
-	args := []string{"--config", cfgPath}
+func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, envPath string) []string {
+	args := []string{"--config", envPath}
 	if playlist != "" {
 		args = append(args, "--playlist", playlist)
 	}
