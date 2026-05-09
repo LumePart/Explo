@@ -41,7 +41,7 @@ type Flags struct {
 }
 
 type ServerConfig struct {
-	Enabled bool `env:"WEB_UI" env-default:"true"`
+	Enabled bool `env:"WEB_UI" env-default:"false"`
 	Port string `env:"WEB_ADDR" env-default:":7288"`
 	Username string `env:"UI_USERNAME"`
 	Password string `env:"UI_PASSWORD"`
