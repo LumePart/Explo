@@ -1,6 +1,6 @@
 services:
   explo:
-    image: ghcr.io/lumepart/explo:latest
+    image: ghcr.io/lumepart/explo:dev
     restart: unless-stopped
     container_name: explo
     ports:
