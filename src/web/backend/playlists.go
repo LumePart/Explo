@@ -364,17 +364,6 @@ func (s *Server) handleBackgroundArt(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Called on server startup to check if cover art exists locally; otherwise fetch it early from web
-func (s *Server) prefetchBackgroundArt() {
-
-	coversDir := filepath.Join(s.dataDir, "cache", "covers")
-
-	url := randomLocalCoverHiRes(coversDir)
-	if url == "" {
-		url = fetchSitewideCovers(coversDir)
-	}
-}
-
 // randomLocalCoverHiRes picks a random cover from the existing library, ensures a
 // 1200px background version is cached (as {mbid}-bg.jpg), and returns its API URL.
 // Playlist thumbnails are stored at 250px; this fetches full-res on demand from CAA.
