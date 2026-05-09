@@ -112,8 +112,19 @@ func NewServer(cfg config.ServerConfig, exploPath string) *Server {
 
 func (s *Server) Start() error {
 	s.initServerLog()
+	s.prefetchBackgroundArt()
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
 	return s.server.ListenAndServe()
+}
+
+func(s *Server) PrefetchCovers() {
+
+	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+
+	url := randomLocalCoverHiRes(coversDir)
+	if url == "" {
+		fetchSitewideCovers(coversDir)
+	}
 }
 
 // spaFS returns the filesystem to serve the frontend from.
