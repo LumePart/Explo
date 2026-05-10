@@ -339,11 +339,14 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 <input type="text" className={inputCls} value={extensions} onChange={e => setField('extensions', e.target.value)}
                   placeholder="flac,mp3" autoComplete="off" spellCheck={false} disabled={isLocked('EXTENSIONS')} />
               </TextField>
-              <TextField label="Exclude keywords"
-                hint="Leave blank to use the defaults shown.">
-                <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
-                  placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
-              </TextField>
+              {/* Show keyword exclusion when YouTube isn't enabled — otherwise it lives in the YouTube section */}
+              <Collapse open={!dlServices.youtube}>
+                <TextField label="Exclude keywords"
+                  hint="Leave blank to use the defaults shown.">
+                  <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                    placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
+                </TextField>
+              </Collapse>
               <div className="flex flex-col gap-1.5">
                 <p className="text-[12px] text-muted leading-relaxed">
                   By default, slskd saves tracks to whichever download path is configured in your slskd instance.
