@@ -584,10 +584,11 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		MigrateDownloads bool     `json:"migrate_downloads"`
 		DownloadServices []string `json:"download_services"`
 		YoutubeAPIKey    string   `json:"youtube_api_key"`
-		TrackExtension   string   `json:"track_extension"`
+		TrackExtension   string   `json:"track_extension"` // yt-dlp
 		FilterList       string   `json:"filter_list"`
 		SlskdURL         string   `json:"slskd_url"`
 		SlskdAPIKey      string   `json:"slskd_api_key"`
+		Extensions       string   `json:"extensions"`      // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -613,10 +614,11 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"MIGRATE_DOWNLOADS": migrateDL,
 		"DOWNLOAD_SERVICES": joined,
 		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
-		"TRACK_EXTENSION":   body.TrackExtension,
+		"TRACK_EXTENSION":   body.TrackExtension, // yt-dlp
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
+		"EXTENSIONS":        body.Extensions,        // slskd
 		"WIZARD_COMPLETE":	 "true",
 	}
 

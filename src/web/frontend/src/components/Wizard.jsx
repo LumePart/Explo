@@ -256,7 +256,7 @@ function Collapse({ open, children }) {
 
 function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
-          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey } = fields
+          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, extensions } = fields
   const isLocked = key => envSources[key] === 'env'
 
   const valid = () => {
@@ -333,6 +333,16 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               <TextField label="Slskd API Key">
                 <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
                   autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
+              </TextField>
+              <TextField label="File extensions"
+                hint="Comma-separated list of extensions to prefer, in priority order. No spaces.">
+                <input type="text" className={inputCls} value={extensions} onChange={e => setField('extensions', e.target.value)}
+                  placeholder="flac,mp3" autoComplete="off" spellCheck={false} disabled={isLocked('EXTENSIONS')} />
+              </TextField>
+              <TextField label="Exclude keywords"
+                hint="Leave blank to use the defaults shown.">
+                <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                  placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
               </TextField>
               <div className="flex flex-col gap-1.5">
                 <p className="text-[12px] text-muted leading-relaxed">
@@ -414,6 +424,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
       filterList:       config.FILTER_LIST || '',
       slskdUrl:         config.SLSKD_URL || '',
       slskdApiKey:      config.SLSKD_API_KEY || '',
+      extensions:       config.EXTENSIONS || '',
     }
   })
 
@@ -465,6 +476,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
         migrate_downloads: fields.migrateDownloads, download_services: services,
         youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
         filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,
+        extensions: fields.extensions,
       })
       onComplete()
     } catch (e) {
