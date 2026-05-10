@@ -100,7 +100,7 @@ type DownloadConfig struct {
 }
 
 type Filters struct {
-	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"`
+	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"` // slskd
 	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
 	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
 	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended,clean,acapella"`
@@ -110,7 +110,7 @@ type Youtube struct {
 	APIKey        string `env:"YOUTUBE_API_KEY"`
 	FfmpegPath    string `env:"FFMPEG_PATH"`
 	YtdlpPath     string `env:"YTDLP_PATH"`
-	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"`
+	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"` // yt-dlp
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
 }
