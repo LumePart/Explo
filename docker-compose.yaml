@@ -17,6 +17,7 @@ services:
       # - /path/to/cookies.txt:/opt/explo/cookies.txt # Path to optional cookies file (for yt-dlp)
     environment:
       - TZ=UTC # Change this to the timezone set in ListenBrainz (default is UTC)
+      - WEB_UI=true
       # Web UI credentials (required for login)
       - UI_USERNAME=
       - UI_PASSWORD=

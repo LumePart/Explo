@@ -158,8 +158,8 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
               <button
                 key={s.value}
                 onClick={() => setField('system', s.value)}
-                className={`text-[14px] font-medium px-3 py-[18px] text-center bg-surface border rounded-[6px] cursor-pointer transition-colors
-                  ${system === s.value ? 'border-accent text-accent' : 'border-ui-border text-white hover:border-[#404040]'}`}
+                className={`text-[14px] font-medium px-3 py-[18px] text-center bg-surface border rounded-[6px] ${isLocked('EXPLO_SYSTEM') ? 'cursor-not-allowed' : 'cursor-pointer'} transition-colors
+                  ${system === s.value ? 'border-accent text-accent' : 'border-ui-border text-white hover:border-[#404040]'}`} disabled={isLocked('EXPLO_SYSTEM')}
               >
                 {s.name}
               </button>
@@ -208,7 +208,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
           </TextField>
         )}
 
-        {system && system !== 'mpd' && (
+        {API_KEY_SYSTEMS.includes(system) && (
           <TextField label="Library scan wait"
             hint="Minutes Explo waits after triggering a library scan before creating playlists. Default: 2.">
             <input type="text" inputMode="numeric" className={inputCls} style={{ width: 80 }}
@@ -256,12 +256,11 @@ function Collapse({ open, children }) {
 
 function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
-          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey } = fields
+          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, extensions } = fields
   const isLocked = key => envSources[key] === 'env'
 
   const valid = () => {
     if (!Object.values(dlServices).some(Boolean)) return false
-    if ((dlServices.youtube || (dlServices.slskd && migrateDownloads)) && !downloadDir.trim()) return false
     if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim())) return false
     return true
   }
@@ -301,9 +300,10 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
                   placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
               </TextField>
-              <TextField label="Download directory">
+              <TextField label="Download directory"
+                hint="Custom download directory. Leave blank to use default">
                 <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
-                  placeholder="e.g. /data/music/" />
+                  placeholder="/data/" />
               </TextField>
               <ToggleRow
                 checked={useSubdirectory}
@@ -334,6 +334,19 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
                   autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
               </TextField>
+              <TextField label="File extensions"
+                hint="Comma-separated list of extensions to prefer, in priority order. No spaces.">
+                <input type="text" className={inputCls} value={extensions} onChange={e => setField('extensions', e.target.value)}
+                  placeholder="flac,mp3" autoComplete="off" spellCheck={false} disabled={isLocked('EXTENSIONS')} />
+              </TextField>
+              {/* Show keyword exclusion when YouTube isn't enabled — otherwise it lives in the YouTube section */}
+              <Collapse open={!dlServices.youtube}>
+                <TextField label="Exclude keywords"
+                  hint="Leave blank to use the defaults shown.">
+                  <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                    placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
+                </TextField>
+              </Collapse>
               <div className="flex flex-col gap-1.5">
                 <p className="text-[12px] text-muted leading-relaxed">
                   By default, slskd saves tracks to whichever download path is configured in your slskd instance.
@@ -348,9 +361,10 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
               <Collapse open={migrateDownloads && !dlServices.youtube}>
                 <div className="flex flex-col gap-4 pt-4 pb-1">
-                  <TextField label="Download directory">
+                  <TextField label="Download directory"
+                    hint="Custom download directory. Leave blank to use default">
                     <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
-                      placeholder="e.g. /data/music/" />
+                      placeholder="/data/" />
                   </TextField>
                   <ToggleRow
                     checked={useSubdirectory}
@@ -413,6 +427,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
       filterList:       config.FILTER_LIST || '',
       slskdUrl:         config.SLSKD_URL || '',
       slskdApiKey:      config.SLSKD_API_KEY || '',
+      extensions:       config.EXTENSIONS || '',
     }
   })
 
@@ -464,6 +479,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
         migrate_downloads: fields.migrateDownloads, download_services: services,
         youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
         filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,
+        extensions: fields.extensions,
       })
       onComplete()
     } catch (e) {

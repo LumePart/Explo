@@ -36,23 +36,6 @@ func setup(cfg *config.Config) {
 }
 
 func main() {
-	if os.Getenv("WEB_UI") == "true" {
-		cfgPath := os.Getenv("WEB_CFG_PATH")
-		if cfgPath == "" {
-			cfgPath = ".env"
-		}
-		exploPath, err := os.Executable()
-		if err != nil {
-			log.Fatal("could not determine executable path: ", err)
-		}
-		addr := os.Getenv("WEB_ADDR")
-		if addr == "" {
-			addr = ":7288"
-		}
-		srv := backend.NewServer(addr, cfgPath, exploPath)
-		log.Fatal(srv.Start())
-	}
-
 	var cfg config.Config
 	if err := cfg.GetFlags(); err != nil {
 		log.Fatal(err)
@@ -62,6 +45,17 @@ func main() {
 	setup(&cfg)
 	slog.Info("Starting Explo...")
 
+	if cfg.ServerCfg.Enabled {
+		
+		exploPath, err := os.Executable()
+		if err != nil {
+			log.Fatal("could not determine executable path: ", err)
+		}
+
+		cfg.ServerCfg.ExploPath = exploPath
+		srv := backend.NewServer(cfg.ServerCfg)
+		log.Fatal(srv.Start())
+	}
 	httpClient := initHttpClient()
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	tracks, err := discovery.Discover()
@@ -104,11 +98,13 @@ func main() {
 		}
 	}
 
-	added := make(map[string]bool)
-	for _, t := range tracks {
-		added[t.CleanTitle+"|"+t.Artist] = true
+	if cfg.ServerCfg.Enabled {
+		added := make(map[string]bool)
+		for _, t := range tracks {
+			added[t.CleanTitle+"|"+t.Artist] = true
+		}
+		backend.WritePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
 	}
-	backend.WritePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
 
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())

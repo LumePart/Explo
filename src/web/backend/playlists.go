@@ -37,7 +37,7 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachePath := filepath.Join(filepath.Dir(s.configPath), "cache", playlistType+".json")
+	cachePath := filepath.Join(s.cfg.WebDataDir, "cache", playlistType+".json")
 	if raw, err := os.ReadFile(cachePath); err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(raw); err != nil {
@@ -169,8 +169,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 		Tracks []cachedTrack `json:"tracks"`
 	}
 
-	cfgDir := filepath.Dir(cfgPath)
-	coversDir := filepath.Join(cfgDir, "cache", "covers")
+	coversDir := filepath.Join(cfgPath, "cache", "covers")
 	if err := os.MkdirAll(coversDir, 0755); err != nil {
 		slog.Error("failed making directory", "msg", err.Error())
 	}
@@ -197,7 +196,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 	if err != nil {
 		return
 	}
-	cacheDir := filepath.Join(cfgDir, "cache")
+	cacheDir := filepath.Join(cfgPath, "cache")
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		slog.Error("failed creating cache dir", "msg", err.Error())
 	}
@@ -271,8 +270,6 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "user and playlists are required", http.StatusBadRequest)
 		return
 	}
-
-	cfgDir := filepath.Dir(s.configPath)
 	forceRefresh := body.Source == "wizard"
 	w.WriteHeader(http.StatusAccepted)
 
@@ -285,7 +282,7 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 			}
 			// Normal prefetch keeps an existing cache intact; wizard prefetch refreshes it
 			// after the user updates discovery settings.
-			cachePath := filepath.Join(cfgDir, "cache", pt+".json")
+			cachePath := filepath.Join(s.cfg.WebDataDir, "cache", pt+".json")
 			if _, err := os.Stat(cachePath); err == nil && !forceRefresh {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
@@ -296,7 +293,7 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			slog.Info("prefetch: fetched tracks", "playlist", pt, "count", len(tracks))
-			writePrefetchCache(cfgDir, pt, tracks)
+			writePrefetchCache(s.cfg.WebDataDir, pt, tracks)
 		}
 	}()
 }
@@ -354,7 +351,7 @@ type sitewideReleasesResp struct {
 // It picks a random local cover if any exist; otherwise it fetches the top global
 // albums from ListenBrainz and downloads cover art for the first available one.
 func (s *Server) handleBackgroundArt(w http.ResponseWriter, r *http.Request) {
-	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 
 	url := randomLocalCoverHiRes(coversDir)
 	if url == "" {

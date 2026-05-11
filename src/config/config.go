@@ -21,6 +21,7 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg    ClientConfig
 	NotifyCfg    NotifyConfig
+	ServerCfg	 ServerConfig
 	Flags        Flags
 	PersistENV   bool `env:"PERSIST" env-default:"true"`
 	Persist      bool
@@ -31,11 +32,23 @@ type Config struct {
 
 type Flags struct {
 	CfgPath      string
+	CfgSet		 bool
 	Playlist     string
 	DownloadMode string
 	ExcludeLocal bool
 	Persist      bool
 	PersistSet   bool
+}
+
+type ServerConfig struct {
+	Enabled bool `env:"WEB_UI" env-default:"false"`
+	Port string `env:"WEB_ADDR" env-default:":7288"`
+	Username string `env:"UI_USERNAME"`
+	Password string `env:"UI_PASSWORD"`
+	WebDataDir string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
+	WebEnvPath string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
+	CacheSizeMB int64  `env:"WEB_CACHE_MB" env-default:"500"`
+	ExploPath string
 }
 
 type ClientConfig struct {
@@ -89,7 +102,7 @@ type DownloadConfig struct {
 }
 
 type Filters struct {
-	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"`
+	Extensions  []string `env:"EXTENSIONS" env-default:"flac,mp3"` // slskd
 	MinBitDepth int      `env:"MIN_BIT_DEPTH" env-default:"8"`
 	MinBitRate  int      `env:"MIN_BITRATE" env-default:"256"`
 	FilterList  []string `env:"FILTER_LIST" env-default:"live,remix,instrumental,extended,clean,acapella"`
@@ -99,7 +112,7 @@ type Youtube struct {
 	APIKey        string `env:"YOUTUBE_API_KEY"`
 	FfmpegPath    string `env:"FFMPEG_PATH"`
 	YtdlpPath     string `env:"YTDLP_PATH"`
-	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"`
+	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"` // yt-dlp
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
 }

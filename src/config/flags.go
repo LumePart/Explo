@@ -36,6 +36,7 @@ func (cfg *Config) GetFlags() error {
 		os.Exit(0)
 	}
 	persistSet := flag.Lookup("persist").Changed
+	cfgSet := flag.Lookup("config").Changed
 
 	// Validation for playlist
 	if !contains(validPlaylists, playlist) {
@@ -50,6 +51,7 @@ func (cfg *Config) GetFlags() error {
 	}
 
 	cfg.Flags.CfgPath = configPath
+	cfg.Flags.CfgSet = cfgSet
 	cfg.Flags.Playlist = playlist
 	cfg.Flags.DownloadMode = downloadMode
 	cfg.Flags.ExcludeLocal = excludeLocal
@@ -64,6 +66,11 @@ func (cfg *Config) GetFlags() error {
 func (cfg *Config) MergeFlags() {
 	cfg.DiscoveryCfg.Listenbrainz.ImportPlaylist = cfg.Flags.Playlist
 	cfg.DownloadCfg.ExcludeLocal = cfg.Flags.ExcludeLocal
+
+	if cfg.Flags.CfgSet {
+	cfg.ServerCfg.WebEnvPath = cfg.Flags.CfgPath
+	}
+
 	if cfg.Flags.PersistSet {
 		cfg.Persist = cfg.Flags.Persist
 	} else {

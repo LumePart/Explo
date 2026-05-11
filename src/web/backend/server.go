@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"explo/src/config"
 	"explo/src/web"
 )
 
@@ -68,16 +69,16 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	configPath     string
-	exploPath      string
+	cfg			   config.ServerConfig
 	mux            *http.ServeMux
 	server         *http.Server
 	authStore      *AuthStore
+	cronJobs	   *Jobs
 	sessionManager *SessionManager
 	manualRun      manualRunState
 }
 
-func NewServer(addr, configPath, exploPath string) *Server {
+func NewServer(cfg config.ServerConfig) *Server {
 	sessionManager := NewSessionManager(
 		NewInMemorySessionStore(),
 		1*time.Hour,
@@ -86,21 +87,23 @@ func NewServer(addr, configPath, exploPath string) *Server {
 	)
 
 	authStore := NewAuthStore(
-	os.Getenv("UI_USERNAME"),
-	os.Getenv("UI_PASSWORD"),
+	cfg.Username,
+	cfg.Password,
 	sessionManager,
 )
 
+	cronJobs := NewJobs()
+
 	mux := http.NewServeMux()
 	s := &Server{
-		configPath: configPath,
-		exploPath:  exploPath,
+		cfg: cfg,
 		mux:        mux,
 		server: &http.Server{
-			Addr:    addr,
+			Addr:    cfg.Port,
 			Handler: sessionManager.Handle(mux),
 		},
 		authStore: authStore,
+		cronJobs: cronJobs,
 		sessionManager: sessionManager,
 		manualRun: newManualRunState(),
 	}
@@ -111,8 +114,33 @@ func NewServer(addr, configPath, exploPath string) *Server {
 
 func (s *Server) Start() error {
 	s.initServerLog()
+	s.startJobs()
+	s.PrefetchCovers()
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
 	return s.server.ListenAndServe()
+}
+
+// Jobs to register on startup
+func (s *Server) startJobs() {
+
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
+	if err := s.cronJobs.RegisterCoverCleanup(
+		"0 3 * * *", coversDir, s.cfg.CacheSizeMB<<20); err != nil {
+			slog.Warn("failed to register cover cleanup job", "err", err.Error())
+		}
+
+
+	s.cronJobs.Start()
+}
+
+func(s *Server) PrefetchCovers() {
+
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
+
+	url := randomLocalCoverHiRes(coversDir)
+	if url == "" {
+		fetchSitewideCovers(coversDir)
+	}
 }
 
 // spaFS returns the filesystem to serve the frontend from.
@@ -170,7 +198,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
 	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
 
-	coversDir := filepath.Join(filepath.Dir(s.configPath), "cache", "covers")
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
@@ -178,7 +206,7 @@ func (s *Server) registerRoutes() {
 
 // logPath returns the path to the single rolling log file.
 func (s *Server) logPath() string {
-	return filepath.Join(filepath.Dir(s.configPath), "logs", "explo.log")
+	return filepath.Join(s.cfg.WebDataDir, "logs", "explo.log")
 }
 
 // initServerLog redirects the default slog handler so all server log output
@@ -204,7 +232,7 @@ func (s *Server) openRunLog() (*os.File, error) {
 // handleSetupStatus returns {"wizard_complete": bool} for first time setups. Public — no auth required.
 func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	wizardComplete := false
-	if data, err := os.ReadFile(s.configPath); err == nil {
+	if data, err := os.ReadFile(s.cfg.WebEnvPath); err == nil {
 		wizardComplete = parseEnvText(string(data))["WIZARD_COMPLETE"] == "true"
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -307,7 +335,7 @@ func parseEnvText(text string) map[string]string {
 // handleGetConfig returns resolved config as JSON: { values, sources }.
 // Sources are "env" when set via os.Environ (takes precedence), "file" otherwise.
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile(s.configPath)
+	data, err := os.ReadFile(s.cfg.WebEnvPath)
 	var fileValues map[string]string
 	if err == nil {
 		fileValues = parseEnvText(string(data))
@@ -318,10 +346,10 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	values := make(map[string]string, len(allConfigKeys))
 	sources := make(map[string]string, len(allConfigKeys))
 	for _, key := range allConfigKeys {
-		if v, ok := os.LookupEnv(key); ok {
+		if v, ok := os.LookupEnv(key); ok && v != "" {
 			values[key] = v
 			sources[key] = "env"
-		} else if v := fileValues[key]; v != "" {
+		} else if v, ok := fileValues[key]; ok {
 			values[key] = v
 			sources[key] = "file"
 		}
@@ -335,7 +363,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleGetConfigRaw returns the raw .env file contents as plain text.
 func (s *Server) handleGetConfigRaw(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile(s.configPath)
+	data, err := os.ReadFile(s.cfg.WebEnvPath)
 	if err != nil {
 		data = web.SampleEnv
 	}
@@ -352,7 +380,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := os.WriteFile(s.configPath, data, 0600); err != nil {
+	if err := os.WriteFile(s.cfg.WebEnvPath, data, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -361,7 +389,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleResetConfig resets all settings and restarts the container.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.WriteFile(s.configPath, web.SampleEnv, 0600); err != nil {
+	if err := os.WriteFile(s.cfg.WebEnvPath, web.SampleEnv, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -411,7 +439,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -510,7 +538,7 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -555,7 +583,7 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST": publicPlaylist,
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -570,10 +598,11 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		MigrateDownloads bool     `json:"migrate_downloads"`
 		DownloadServices []string `json:"download_services"`
 		YoutubeAPIKey    string   `json:"youtube_api_key"`
-		TrackExtension   string   `json:"track_extension"`
+		TrackExtension   string   `json:"track_extension"` // yt-dlp
 		FilterList       string   `json:"filter_list"`
 		SlskdURL         string   `json:"slskd_url"`
 		SlskdAPIKey      string   `json:"slskd_api_key"`
+		Extensions       string   `json:"extensions"`      // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -584,12 +613,6 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	joined := strings.Join(body.DownloadServices, ",")
-	hasYoutube := strings.Contains(joined, "youtube")
-	hasSlskd := strings.Contains(joined, "slskd")
-	if (hasYoutube || (hasSlskd && body.MigrateDownloads)) && body.DownloadDir == "" {
-		http.Error(w, "download_dir is required", http.StatusBadRequest)
-		return
-	}
 
 	useSubdir := "false"
 	if body.UseSubdirectory {
@@ -605,13 +628,15 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"MIGRATE_DOWNLOADS": migrateDL,
 		"DOWNLOAD_SERVICES": joined,
 		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
-		"TRACK_EXTENSION":   body.TrackExtension,
+		"TRACK_EXTENSION":   body.TrackExtension, // yt-dlp
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
+		"EXTENSIONS":        body.Extensions,        // slskd
+		"WIZARD_COMPLETE":	 "true",
 	}
 
-	if err := updateEnvKeys(s.configPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -663,7 +688,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	args := buildArgs(r.FormValue("playlist"), r.FormValue("download_mode"),
 		r.FormValue("persist") == "false", r.FormValue("exclude_local") == "true",
-		s.configPath)
+		s.cfg.WebEnvPath)
 
 	if err := s.startRun(args); err != nil {
 		if errors.Is(err, errRunAlreadyStarted) {
@@ -683,7 +708,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) startRun(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, s.exploPath, args...)
+	cmd := exec.CommandContext(ctx, s.cfg.ExploPath, args...)
 	// Strip WEB_UI from env so the child process runs normally, not as web server.
 	env := make([]string, 0, len(os.Environ()))
 	for _, e := range os.Environ() {
@@ -949,8 +974,8 @@ func (s *Server) unsubscribeRun(ch chan runEvent) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, cfgPath string) []string {
-	args := []string{"--config", cfgPath}
+func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, WebEnvPath string) []string {
+	args := []string{"--config", WebEnvPath}
 	if playlist != "" {
 		args = append(args, "--playlist", playlist)
 	}
