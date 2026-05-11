@@ -47,6 +47,7 @@ type ServerConfig struct {
 	Password string `env:"UI_PASSWORD"`
 	WebDataDir string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
 	WebEnvPath string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
+	CacheSizeMB int64  `env:"WEB_CACHE_MB" env-default:"500"`
 	ExploPath string
 }
 

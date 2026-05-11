@@ -73,6 +73,7 @@ type Server struct {
 	mux            *http.ServeMux
 	server         *http.Server
 	authStore      *AuthStore
+	cronJobs	   *Jobs
 	sessionManager *SessionManager
 	manualRun      manualRunState
 }
@@ -91,6 +92,8 @@ func NewServer(cfg config.ServerConfig) *Server {
 	sessionManager,
 )
 
+	cronJobs := NewJobs()
+
 	mux := http.NewServeMux()
 	s := &Server{
 		cfg: cfg,
@@ -100,6 +103,7 @@ func NewServer(cfg config.ServerConfig) *Server {
 			Handler: sessionManager.Handle(mux),
 		},
 		authStore: authStore,
+		cronJobs: cronJobs,
 		sessionManager: sessionManager,
 		manualRun: newManualRunState(),
 	}
@@ -110,9 +114,21 @@ func NewServer(cfg config.ServerConfig) *Server {
 
 func (s *Server) Start() error {
 	s.initServerLog()
+	s.startJobs()
 	s.PrefetchCovers()
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
 	return s.server.ListenAndServe()
+}
+
+// Jobs to register on startup
+func (s *Server) startJobs() {
+
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
+	s.cronJobs.RegisterCoverCleanup(
+		"0 3 * * *", coversDir, s.cfg.CacheSizeMB)
+
+
+	s.cronJobs.Start()
 }
 
 func(s *Server) PrefetchCovers() {
