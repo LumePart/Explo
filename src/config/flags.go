@@ -68,7 +68,7 @@ func (cfg *Config) MergeFlags() {
 	cfg.DownloadCfg.ExcludeLocal = cfg.Flags.ExcludeLocal
 
 	if cfg.Flags.CfgSet {
-	cfg.ServerCfg.WebConfPath = cfg.Flags.CfgPath
+	cfg.ServerCfg.WebEnvPath = cfg.Flags.CfgPath
 	}
 
 	if cfg.Flags.PersistSet {
