@@ -125,7 +125,7 @@ func (s *Server) startJobs() {
 
 	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 	if err := s.cronJobs.RegisterCoverCleanup(
-		"0 3 * * *", coversDir, s.cfg.CacheSizeMB); err != nil {
+		"0 3 * * *", coversDir, s.cfg.CacheSizeMB<<20); err != nil {
 			slog.Warn("failed to register cover cleanup job", "err", err.Error())
 		}
 
