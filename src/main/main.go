@@ -52,7 +52,8 @@ func main() {
 			log.Fatal("could not determine executable path: ", err)
 		}
 
-		srv := backend.NewServer(cfg.ServerCfg, exploPath)
+		cfg.ServerCfg.ExploPath = exploPath
+		srv := backend.NewServer(cfg.ServerCfg)
 		log.Fatal(srv.Start())
 	}
 	httpClient := initHttpClient()

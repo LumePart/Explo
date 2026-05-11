@@ -69,9 +69,7 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	envPath		   string
-	dataDir     string
-	exploPath      string
+	cfg			   config.ServerConfig
 	mux            *http.ServeMux
 	server         *http.Server
 	authStore      *AuthStore
@@ -79,7 +77,7 @@ type Server struct {
 	manualRun      manualRunState
 }
 
-func NewServer(cfg config.ServerConfig, exploPath string) *Server {
+func NewServer(cfg config.ServerConfig) *Server {
 	sessionManager := NewSessionManager(
 		NewInMemorySessionStore(),
 		1*time.Hour,
@@ -95,9 +93,7 @@ func NewServer(cfg config.ServerConfig, exploPath string) *Server {
 
 	mux := http.NewServeMux()
 	s := &Server{
-		envPath: cfg.WebConfPath,
-		dataDir: cfg.WebDataDir,
-		exploPath:  exploPath,
+		cfg: cfg,
 		mux:        mux,
 		server: &http.Server{
 			Addr:    cfg.Port,
@@ -121,7 +117,7 @@ func (s *Server) Start() error {
 
 func(s *Server) PrefetchCovers() {
 
-	coversDir := filepath.Join(s.dataDir, "cache", "covers")
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 
 	url := randomLocalCoverHiRes(coversDir)
 	if url == "" {
@@ -184,7 +180,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
 	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
 
-	coversDir := filepath.Join(s.dataDir, "cache", "covers")
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
 }
 
@@ -192,7 +188,7 @@ func (s *Server) registerRoutes() {
 
 // logPath returns the path to the single rolling log file.
 func (s *Server) logPath() string {
-	return filepath.Join(s.dataDir, "logs", "explo.log")
+	return filepath.Join(s.cfg.WebDataDir, "logs", "explo.log")
 }
 
 // initServerLog redirects the default slog handler so all server log output
@@ -218,7 +214,7 @@ func (s *Server) openRunLog() (*os.File, error) {
 // handleSetupStatus returns {"wizard_complete": bool} for first time setups. Public — no auth required.
 func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	wizardComplete := false
-	if data, err := os.ReadFile(s.envPath); err == nil {
+	if data, err := os.ReadFile(s.cfg.WebConfPath); err == nil {
 		wizardComplete = parseEnvText(string(data))["WIZARD_COMPLETE"] == "true"
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -321,7 +317,7 @@ func parseEnvText(text string) map[string]string {
 // handleGetConfig returns resolved config as JSON: { values, sources }.
 // Sources are "env" when set via os.Environ (takes precedence), "file" otherwise.
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile(s.envPath)
+	data, err := os.ReadFile(s.cfg.WebConfPath)
 	var fileValues map[string]string
 	if err == nil {
 		fileValues = parseEnvText(string(data))
@@ -349,7 +345,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleGetConfigRaw returns the raw .env file contents as plain text.
 func (s *Server) handleGetConfigRaw(w http.ResponseWriter, r *http.Request) {
-	data, err := os.ReadFile(s.envPath)
+	data, err := os.ReadFile(s.cfg.WebConfPath)
 	if err != nil {
 		data = web.SampleEnv
 	}
@@ -366,7 +362,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := os.WriteFile(s.envPath, data, 0600); err != nil {
+	if err := os.WriteFile(s.cfg.WebConfPath, data, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -375,7 +371,7 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleResetConfig resets all settings and restarts the container.
 func (s *Server) handleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.WriteFile(s.envPath, web.SampleEnv, 0600); err != nil {
+	if err := os.WriteFile(s.cfg.WebConfPath, web.SampleEnv, 0600); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -425,7 +421,7 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		updates[def.EnvPrefix+"_FLAGS"] = ""
 	}
 
-	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebConfPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -524,7 +520,7 @@ func (s *Server) handleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebConfPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -569,7 +565,7 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST": publicPlaylist,
 	}
 
-	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebConfPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -622,7 +618,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"WIZARD_COMPLETE":	 "true",
 	}
 
-	if err := updateEnvKeys(s.envPath, updates, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebConfPath, updates, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -674,7 +670,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	args := buildArgs(r.FormValue("playlist"), r.FormValue("download_mode"),
 		r.FormValue("persist") == "false", r.FormValue("exclude_local") == "true",
-		s.envPath)
+		s.cfg.WebConfPath)
 
 	if err := s.startRun(args); err != nil {
 		if errors.Is(err, errRunAlreadyStarted) {
@@ -694,7 +690,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) startRun(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, s.exploPath, args...)
+	cmd := exec.CommandContext(ctx, s.cfg.ExploPath, args...)
 	// Strip WEB_UI from env so the child process runs normally, not as web server.
 	env := make([]string, 0, len(os.Environ()))
 	for _, e := range os.Environ() {
@@ -960,8 +956,8 @@ func (s *Server) unsubscribeRun(ch chan runEvent) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, envPath string) []string {
-	args := []string{"--config", envPath}
+func buildArgs(playlist, downloadMode string, noPersist, excludeLocal bool, WebConfPath string) []string {
+	args := []string{"--config", WebConfPath}
 	if playlist != "" {
 		args = append(args, "--playlist", playlist)
 	}

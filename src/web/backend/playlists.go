@@ -37,7 +37,7 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachePath := filepath.Join(s.dataDir, "cache", playlistType+".json")
+	cachePath := filepath.Join(s.cfg.WebDataDir, "cache", playlistType+".json")
 	if raw, err := os.ReadFile(cachePath); err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(raw); err != nil {
@@ -282,7 +282,7 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 			}
 			// Normal prefetch keeps an existing cache intact; wizard prefetch refreshes it
 			// after the user updates discovery settings.
-			cachePath := filepath.Join(s.dataDir, "cache", pt+".json")
+			cachePath := filepath.Join(s.cfg.WebDataDir, "cache", pt+".json")
 			if _, err := os.Stat(cachePath); err == nil && !forceRefresh {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
@@ -293,7 +293,7 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			slog.Info("prefetch: fetched tracks", "playlist", pt, "count", len(tracks))
-			writePrefetchCache(s.dataDir, pt, tracks)
+			writePrefetchCache(s.cfg.WebDataDir, pt, tracks)
 		}
 	}()
 }
@@ -351,7 +351,7 @@ type sitewideReleasesResp struct {
 // It picks a random local cover if any exist; otherwise it fetches the top global
 // albums from ListenBrainz and downloads cover art for the first available one.
 func (s *Server) handleBackgroundArt(w http.ResponseWriter, r *http.Request) {
-	coversDir := filepath.Join(s.dataDir, "cache", "covers")
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 
 	url := randomLocalCoverHiRes(coversDir)
 	if url == "" {
