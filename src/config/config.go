@@ -191,8 +191,8 @@ func (cfg *Config) ReadEnv() {
 			} else {
 				f.Close()
 			}
-			if err := cleanenv.ReadEnv(&cfg); err != nil {
-				slog.Error("failed to load config from env vars", "context", err.Error())
+			if err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg); err != nil {
+				slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
 				os.Exit(1)
 			}
 		} else {
