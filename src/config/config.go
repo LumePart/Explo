@@ -174,14 +174,25 @@ type HttpNotif struct {
 }
 
 func (cfg *Config) ReadEnv() {
+	// fallback in case the user adds path/.env as a directory
+	if info, err := os.Stat(cfg.Flags.CfgPath); err == nil && info.IsDir() {
+		cfg.Flags.CfgPath = filepath.Join(cfg.Flags.CfgPath, ".env")
+		slog.Warn("config path is a directory, using .env inside it", "path", cfg.Flags.CfgPath)
+	}
 
 	// Try to read from .env file first
 	err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg)
 	if err != nil {
 		// If the error is because the file doesn't exist, fallback to env vars
 		if errors.Is(err, os.ErrNotExist) {
-			if err := cleanenv.ReadEnv(&cfg); err != nil {
-				slog.Error("failed to load config from env vars", "context", err.Error())
+			slog.Warn("no config file found, creating empty one", "path", cfg.Flags.CfgPath)
+			if f, err := os.Create(cfg.Flags.CfgPath); err != nil {
+				slog.Warn("could not create config file", "path", cfg.Flags.CfgPath, "context", err.Error())
+			} else if err := f.Close(); err != nil {
+				slog.Warn("could not close config file", "path", cfg.Flags.CfgPath, "context", err.Error())
+			}
+			if err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg); err != nil {
+				slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
 				os.Exit(1)
 			}
 		} else {
