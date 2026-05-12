@@ -4,8 +4,7 @@
 [![Discord](https://img.shields.io/discord/1497141529696014409?style=flat&logo=Discord&labelColor=white&color=black&link=https%3A%2F%2Fdiscord.gg%2FuFWWPaN2zk)](https://discord.gg/uFWWPaN2zk)
 
 <p align="center">
-  <img src="visual/login.png" width="40%" />
-  <img src="visual/dashboard.png" width="56%" />
+  <img src="visual/dashboard.png" width="850" />
 </p>
 
 **Explo** bridges the gap between music discovery and self-hosted music systems. Its main function is to act as a self-hosted alternative to Spotify’s *Discover Weekly*, automating music discovery based on your listening history.
