@@ -55,6 +55,10 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: '1.24'
+
+      - name: Create dummy dist directory
+        run: mkdir -p src/web/dist && touch src/web/dist/index.html
+
       - name: Get OS and arch info
         run: |
           GOOSARCH=${{matrix.goosarch}}
