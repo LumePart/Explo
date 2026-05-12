@@ -3,16 +3,19 @@
 
 [![Discord](https://img.shields.io/discord/1497141529696014409?style=flat&logo=Discord&labelColor=white&color=black&link=https%3A%2F%2Fdiscord.gg%2FuFWWPaN2zk)](https://discord.gg/uFWWPaN2zk)
 
+<img src="visual/img.png" width="600"  />
 
 **Explo** bridges the gap between music discovery and self-hosted music systems. Its main function is to act as a self-hosted alternative to Spotify’s *Discover Weekly*, automating music discovery based on your listening history.
 
-Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine to retrieve personalized tracks and requests them directly into your music library.
+Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine to retrieve personalized tracks and automatically imports them into your music library.
 
 ---
 
 ## Features
 
-- Fetch personalized playlists from ListenBrainz (controlled by flags):
+- Automatic music discovery powered by ListenBrainz
+- Web UI for setup, scheduling, and playlist import management
+- Fetch personalized playlists from ListenBrainz:
   - Weekly Exploration
   - Weekly Jams
   - Daily Jams
@@ -27,11 +30,11 @@ Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine t
 See the [Wiki Home](https://github.com/LumePart/Explo/wiki) for an overview of supported systems and next steps.
 
 Or jump directly to:
-
-- [Getting Started](https://github.com/LumePart/Explo/wiki/2.-Getting-Started) – Installation and setup guide  
-- [Configuration Parameters](https://github.com/LumePart/Explo/wiki/3.-Configuration-Parameters) – Environment variable and flag reference  
-- [System Notes](https://github.com/LumePart/Explo/wiki/4.-System-Notes) – Known issues and system-specific tips  
-- [FAQ](https://github.com/LumePart/Explo/wiki/6.-FAQ) – Common questions
+- [Quick Start](https://github.com/LumePart/Explo/wiki/2.-Quick-Start) – Get Explo running with docker
+- [Getting Started](https://github.com/LumePart/Explo/wiki/3.-Getting-Started) – Installation and setup guide  
+- [Configuration Parameters](https://github.com/LumePart/Explo/wiki/5.-Configuration-Parameters) – Environment variable and flag reference  
+- [System Notes](https://github.com/LumePart/Explo/wiki/6.-System-Notes) – Known issues and system-specific tips  
+- [FAQ](https://github.com/LumePart/Explo/wiki/8.-FAQ) – Common questions
 
 
 ## Acknowledgements
@@ -47,6 +50,8 @@ Explo uses the following 3rd-party libraries:
 - [ytmusicapi](https://github.com/sigma67/ytmusicapi): Unofficial Youtube Music API
 
 - [notify](https://github.com/nikoksr/notify): Module for sending notifications to different services
+
+- [gocron](https://github.com/go-co-op/gocron): Internal cron scheduling
 
 ## Contributing
 
