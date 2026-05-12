@@ -149,7 +149,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		}
 
 		for _, item := range results.Items {
-			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && (strings.EqualFold(item.Name, track.CleanTitle) || strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File))) {
+			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && (strings.EqualFold(item.Name, track.CleanTitle) || (track.File != "" && strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)))) {
 				track.ID = item.ID
 				track.Present = true
 				break

@@ -2,6 +2,8 @@ package main
 
 import (
 	"explo/src/logging"
+	"explo/src/models"
+	"explo/src/web/backend"
 	"log"
 	"log/slog"
 	"os"
@@ -43,20 +45,32 @@ func main() {
 	setup(&cfg)
 	slog.Info("Starting Explo...")
 
+	if cfg.ServerCfg.Enabled {
+		
+		exploPath, err := os.Executable()
+		if err != nil {
+			log.Fatal("could not determine executable path: ", err)
+		}
+
+		cfg.ServerCfg.ExploPath = exploPath
+		srv := backend.NewServer(cfg.ServerCfg)
+		log.Fatal(srv.Start())
+	}
 	httpClient := initHttpClient()
+	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
+	tracks, err := discovery.Discover()
+	if err != nil {
+		slog.Error(err.Error(), "notify", true)
+		os.Exit(1)
+	}
+	allTracks := append([]*models.Track(nil), tracks...)
+
 	client, err := client.NewClient(&cfg)
 	if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
-	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	downloader, err := downloader.NewDownloader(&cfg.DownloadCfg, httpClient, cfg.Flags.ExcludeLocal)
-	if err != nil {
-		slog.Error(err.Error(), "notify", true)
-		os.Exit(1)
-	}
-
-	tracks, err := discovery.Discover()
 	if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
@@ -82,6 +96,14 @@ func main() {
 			slog.Error("couldn't download any tracks", "notify", true)
 			os.Exit(1)
 		}
+	}
+
+	if cfg.ServerCfg.Enabled {
+		added := make(map[string]bool)
+		for _, t := range tracks {
+			added[t.CleanTitle+"|"+t.Artist] = true
+		}
+		backend.WritePlaylistCache(cfg.Flags.CfgPath, cfg.Flags.Playlist, allTracks, added)
 	}
 
 	if err := client.CreatePlaylist(tracks); err != nil {

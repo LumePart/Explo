@@ -1,0 +1,8 @@
+.env
+.git
+.DS_Store
+tmp/
+logs/
+explo
+src/web/frontend/node_modules/
+src/web/dist/

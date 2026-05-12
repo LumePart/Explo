@@ -1,5 +1,32 @@
 #!/bin/sh
+echo "[setup] Starting web UI..."
+# If user incorectly mounts the config path as a directory, we'll try to automatically append it to .env inside it instead of failing.
+WEB_ENV_PATH="${WEB_ENV_PATH:-/opt/explo/.env}"
+if [ -d "$WEB_ENV_PATH" ]; then
+    WEB_ENV_PATH="$WEB_ENV_PATH/.env"
+    echo "[setup] Config path is a directory, using $WEB_ENV_PATH"
+fi
+WEB_UI=true WEB_ENV_PATH="$WEB_ENV_PATH" WEB_ADDR="${WEB_ADDR:-:7288}" /opt/explo/explo &
+echo "[setup] Web UI available at http://localhost:${WEB_ADDR##*:}"
+
 echo "[setup] Initializing cron jobs..."
+
+# Load *_SCHEDULE and *_FLAGS from .env if not already set in the environment.
+# This allows the web UI to configure schedules by writing to the .env file.
+_cfg="${WEB_ENV_PATH:-/opt/explo/.env}"
+if [ -f "$_cfg" ]; then
+  while IFS= read -r _line; do
+    case "$_line" in \#*|'') continue ;; esac
+    _key="${_line%%=*}"
+    case "$_key" in
+      *_SCHEDULE|*_FLAGS)
+        if [ -z "$(printenv "$_key" 2>/dev/null)" ]; then
+          export "$_key=${_line#*=}"
+        fi
+        ;;
+    esac
+  done < "$_cfg"
+fi
 
 
 # $CRON_SHCEDULE was deprecated in v0.11.0, keeping this block for backwards compatibility

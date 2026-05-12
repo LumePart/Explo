@@ -1,4 +1,11 @@
-FROM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:20-alpine AS ui-builder
+WORKDIR /app/src/web/frontend
+COPY src/web/frontend/package*.json ./
+RUN npm ci
+COPY src/web/frontend/ ./
+RUN npm run build
+
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -6,9 +13,13 @@ WORKDIR /app
 # Copy the Go source code into the container
 COPY ./ .
 
+# Copy the built React frontend into the embed path
+COPY --from=ui-builder /app/src/web/dist ./src/web/dist
+
 # Build the Go binary based on the target architecture
 ARG TARGETARCH
-RUN GOOS=linux GOARCH=$TARGETARCH go build -o explo ./src/main/
+ARG VERSION=dev
+RUN GOOS=linux GOARCH=$TARGETARCH go build -ldflags "-X explo/src/config.Version=${VERSION}" -o explo ./src/main/
 
 FROM python:3.12-alpine
 
@@ -35,7 +46,9 @@ COPY src/downloader/youtube_music/search_ytmusic.py .
 
 RUN chmod +x /start.sh ./explo
 
-# Can be defined from compose as well
-ENV WEEKLY_EXPLORATION_SCHEDULE="15 0 * * 2"
+
+ENV WEB_ADDR=":7288"
+
+EXPOSE 7288
 
 CMD ["/start.sh"]

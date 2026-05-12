@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #121212;
+  --color-surface: #1a1a1a;
+  --color-ui-border: #282828;
+  --color-muted: #b3b3b3;
+  --color-accent: #1ed760;
+  --color-well: #0d0d0d;
+  --color-danger: #e05555;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: white;
+  }
+}
+
+/* Hide scrollbar in WebKit (Chrome/Safari) while keeping scroll */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Playlist card aspect ratio: landscape in 3-col grid, resized to be smaller on mobile devices*/
+.playlist-card { aspect-ratio: 1 / 1; }
+@media (max-width: 419px) {
+  .playlist-card { aspect-ratio: 4 / 1; }
+}
+
+/* Wizard step fade-up entrance */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.4s ease both; }
+
+/* Syntax highlight classes used in the config editor */
+.env-comment, .env-unset, .env-eq { color: var(--color-muted); }
+.env-key, .env-val { color: white; }

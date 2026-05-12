@@ -176,6 +176,7 @@ func (c *Plex) GetAuth() error { // Get user token from plex
 	url := fmt.Sprintf("https://plex.tv/api/v2/users/signin.json?login=%s&password=%s", url.QueryEscape(c.Cfg.Creds.User), url.QueryEscape(c.Cfg.Creds.Password))
 
 	body, err := c.HttpClient.MakeRequest("POST", url, nil, c.Cfg.Creds.Headers)
+
 	if err != nil {
 		return fmt.Errorf("%s", err.Error())
 	}
