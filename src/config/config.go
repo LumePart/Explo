@@ -188,8 +188,8 @@ func (cfg *Config) ReadEnv() {
 			slog.Warn("no config file found, creating empty one", "path", cfg.Flags.CfgPath)
 			if f, err := os.Create(cfg.Flags.CfgPath); err != nil {
 				slog.Warn("could not create config file", "path", cfg.Flags.CfgPath, "context", err.Error())
-			} else {
-				f.Close()
+			} else if err := f.Close(); err != nil {
+				slog.Warn("could not close config file", "path", cfg.Flags.CfgPath, "context", err.Error())
 			}
 			if err := cleanenv.ReadConfig(cfg.Flags.CfgPath, cfg); err != nil {
 				slog.Error("failed to load config file", "path", cfg.Flags.CfgPath, "context", err.Error())
