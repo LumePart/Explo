@@ -1,8 +1,6 @@
 package client
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -14,18 +12,50 @@ import (
 )
 
 type LoginPayload struct {
-	User LoginUser `json:"user"`
-}
-
-type LoginUser struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login                string `json:"login"`
+	Password             string `json:"password"`
+	PlexClientIdentifier string `json:"X-Plex-Client-Identifier"`
 }
 
 type LoginResponse struct {
-	User struct {
-		AuthToken string `json:"authToken"`
-	} `json:"user"`
+	AuthToken string `json:"authToken"`
+}
+
+type PlexHubSearch struct {
+	MediaContainer struct {
+		Size int `json:"size"`
+		Hub  []struct {
+			Type     string `json:"type"`
+			Metadata []struct {
+				LibrarySectionTitle string `json:"librarySectionTitle"`
+				RatingKey           string `json:"ratingKey"`
+				Key                 string `json:"key"`
+				Type                string `json:"type"`
+				Title               string `json:"title"`            // Track
+				GrandparentTitle    string `json:"grandparentTitle"` // Artist
+				ParentTitle         string `json:"parentTitle"`      // Album
+				OriginalTitle       string `json:"originalTitle"`
+				Summary             string `json:"summary"`
+				Duration            int    `json:"duration"`
+				AddedAt             int    `json:"addedAt"`
+				UpdatedAt           int    `json:"updatedAt"`
+				Media               []struct {
+					ID       int `json:"id"`
+					Duration int `json:"duration"`
+					Part     []struct {
+						ID       int    `json:"id"`
+						Key      string `json:"key"`
+						Duration int    `json:"duration"`
+						File     string `json:"file"`
+						Size     int    `json:"size"`
+					} `json:"Part"`
+					AudioChannels int    `json:"audioChannels"`
+					AudioCodec    string `json:"audioCodec"`
+					Container     string `json:"container"`
+				} `json:"Media"`
+			} `json:"Metadata"`
+		} `json:"Hub"`
+	} `json:"MediaContainer"`
 }
 
 type Libraries struct {
@@ -33,10 +63,10 @@ type Libraries struct {
 		Size      int    `json:"size"`
 		AllowSync bool   `json:"allowSync"`
 		Title1    string `json:"title1"`
-		Library []struct {
-			Title 			 string `json:"title"`
-			Key              string `json:"key"`
-			Location         []struct {
+		Library   []struct {
+			Title    string `json:"title"`
+			Key      string `json:"key"`
+			Location []struct {
 				ID   int    `json:"id"`
 				Path string `json:"path"`
 			} `json:"Location"`
@@ -50,27 +80,27 @@ type PlexSearch struct {
 		SearchResult []struct {
 			Score    float64 `json:"score"`
 			Metadata struct {
-				LibrarySectionTitle  string `json:"librarySectionTitle"`
-				RatingKey			 string `json:"ratingKey"`
-				Key                  string `json:"key"`
-				Type                 string `json:"type"`
-				Title                string `json:"title"` // Track
-				GrandparentTitle     string `json:"grandparentTitle"` // Artist
-				ParentTitle          string `json:"parentTitle"` // Album
-				OriginalTitle        string `json:"originalTitle"`
-				Summary              string `json:"summary"`
-				Duration             int    `json:"duration"`
-				AddedAt              int    `json:"addedAt"`
-				UpdatedAt            int    `json:"updatedAt"`
-				Media                []struct {
-					ID            int    `json:"id"`
-					Duration      int    `json:"duration"`
-					Part          []struct {
-						ID        int    `json:"id"`
-						Key       string `json:"key"`
-						Duration  int    `json:"duration"`
-						File      string `json:"file"`
-						Size      int    `json:"size"`
+				LibrarySectionTitle string `json:"librarySectionTitle"`
+				RatingKey           string `json:"ratingKey"`
+				Key                 string `json:"key"`
+				Type                string `json:"type"`
+				Title               string `json:"title"`            // Track
+				GrandparentTitle    string `json:"grandparentTitle"` // Artist
+				ParentTitle         string `json:"parentTitle"`      // Album
+				OriginalTitle       string `json:"originalTitle"`
+				Summary             string `json:"summary"`
+				Duration            int    `json:"duration"`
+				AddedAt             int    `json:"addedAt"`
+				UpdatedAt           int    `json:"updatedAt"`
+				Media               []struct {
+					ID       int `json:"id"`
+					Duration int `json:"duration"`
+					Part     []struct {
+						ID       int    `json:"id"`
+						Key      string `json:"key"`
+						Duration int    `json:"duration"`
+						File     string `json:"file"`
+						Size     int    `json:"size"`
 					} `json:"Part"`
 					AudioChannels int    `json:"audioChannels"`
 					AudioCodec    string `json:"audioCodec"`
@@ -81,7 +111,6 @@ type PlexSearch struct {
 	} `json:"MediaContainer"`
 }
 
-	
 type PlexServer struct {
 	MediaContainer struct {
 		Size              int    `json:"size"`
@@ -112,15 +141,16 @@ type PlexPlaylist struct {
 }
 
 type Plex struct {
-	machineID string
-	LibraryID string
-	HttpClient *util.HttpClient
-	Cfg config.ClientConfig
+	machineID   string
+	LibraryID   string
+	HttpClient  *util.HttpClient
+	AdminClient *Plex
+	Cfg         config.ClientConfig
 }
 
 func NewPlex(cfg config.ClientConfig, httpClient *util.HttpClient) *Plex {
 	return &Plex{
-		Cfg: cfg,
+		Cfg:        cfg,
 		HttpClient: httpClient}
 }
 
@@ -128,34 +158,24 @@ func (c *Plex) AddHeader() error {
 	if c.Cfg.Creds.Headers == nil {
 		c.Cfg.Creds.Headers = make(map[string]string)
 		c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = c.Cfg.ClientID
+
 		return nil
 	}
-
 	if c.Cfg.Creds.APIKey != "" {
 		c.Cfg.Creds.Headers["X-Plex-Token"] = c.Cfg.Creds.APIKey
 		if err := c.getServer(); err != nil {
+			println(err)
 			return err
-	}
+		}
 		return nil
 	}
 	return fmt.Errorf("couldn't get API key")
 }
 
 func (c *Plex) GetAuth() error { // Get user token from plex
-	payload := LoginPayload{
-		User: LoginUser{
-			Login:    c.Cfg.Creds.User,
-			Password: c.Cfg.Creds.Password,
-		},
-	}
+	url := fmt.Sprintf("https://plex.tv/api/v2/users/signin.json?login=%s&password=%s", url.QueryEscape(c.Cfg.Creds.User), url.QueryEscape(c.Cfg.Creds.Password))
 
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %s", err.Error())
-	}
-
-
-	body, err := c.HttpClient.MakeRequest("POST", "https://plex.tv/users/sign_in.json", bytes.NewBuffer(payloadBytes), c.Cfg.Creds.Headers)
+	body, err := c.HttpClient.MakeRequest("POST", url, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return fmt.Errorf("%s", err.Error())
 	}
@@ -165,15 +185,39 @@ func (c *Plex) GetAuth() error { // Get user token from plex
 	if err != nil {
 		return fmt.Errorf("%s", err.Error())
 	}
-
-	c.Cfg.Creds.APIKey = auth.User.AuthToken
-
+	c.Cfg.Creds.APIKey = auth.AuthToken
+	c.Cfg.Creds.Headers["X-Plex-Token"] = auth.AuthToken
 	return nil
 }
-
 func (c *Plex) GetLibrary() error {
-	params := "/library/sections/"
+	if c.Cfg.AdminCreds.User != "" && c.Cfg.AdminCreds.Password != "" {
+		adminCfg := c.Cfg
+		adminCfg.Creds = config.Credentials{
+			User:     c.Cfg.AdminCreds.User,
+			Password: c.Cfg.AdminCreds.Password,
+		}
 
+		c.AdminClient = NewPlex(adminCfg, c.HttpClient)
+		if err := c.AdminClient.AddHeader(); err != nil {
+			return err
+		}
+		if err := c.AdminClient.GetAuth(); err != nil {
+			return err
+		}
+
+		err := c.AdminClient.getLibraryRequest()
+		if err != nil {
+			return err
+		}
+		c.LibraryID = c.AdminClient.LibraryID
+
+		return err
+	}
+	return c.getLibraryRequest()
+}
+
+func (c *Plex) getLibraryRequest() error {
+	params := "/library/sections/all"
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return fmt.Errorf("failed to make request to plex: %s", err.Error())
@@ -213,8 +257,15 @@ func (c *Plex) AddLibrary() error {
 	c.LibraryID = libraries.MediaContainer.Library[0].Key
 	return nil
 }
-
 func (c *Plex) RefreshLibrary() error {
+	if c.AdminClient != nil {
+		return c.AdminClient.refreshLibraryRequest()
+	}
+
+	return c.refreshLibraryRequest()
+}
+
+func (c *Plex) refreshLibraryRequest() error {
 	params := fmt.Sprintf("/library/sections/%s/refresh", c.LibraryID)
 
 	if _, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
@@ -228,20 +279,100 @@ func (c *Plex) CheckRefreshState() bool {
 }
 
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
-	for _, track := range tracks {
-		params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.CleanTitle))
 
-		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	for _, track := range tracks {
+		params := fmt.Sprintf("/hubs/search?query=%s&sectionId=%s", url.QueryEscape(track.CleanTitle), c.LibraryID)
+		var body []byte
+		var err error
+		if c.AdminClient != nil {
+			body, err = c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.AdminClient.Cfg.Creds.Headers)
+		} else {
+			params += fmt.Sprintf("&X-Plex-Token=%s", c.Cfg.Creds.APIKey)
+			body, err = c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+		}
 		if err != nil {
 			slog.Warn("search request failed for '%s': %s", track.Title, err.Error())
 			continue
 		}
-		
-		var searchResults PlexSearch
-		if err = util.ParseResp(body, &searchResults); err != nil {
+
+		var hubResults PlexHubSearch
+		if err = util.ParseResp(body, &hubResults); err != nil {
 			slog.Warn("failed to parse response for '%s': %s", track.Title, err.Error())
 			continue
 		}
+
+		var searchResults PlexSearch
+		for _, hub := range hubResults.MediaContainer.Hub {
+			if hub.Type == "music" {
+				searchResults.MediaContainer.Size = len(hub.Metadata)
+				searchResults.MediaContainer.SearchResult = make([]struct {
+					Score    float64 `json:"score"`
+					Metadata struct {
+						LibrarySectionTitle string `json:"librarySectionTitle"`
+						RatingKey           string `json:"ratingKey"`
+						Key                 string `json:"key"`
+						Type                string `json:"type"`
+						Title               string `json:"title"`
+						GrandparentTitle    string `json:"grandparentTitle"`
+						ParentTitle         string `json:"parentTitle"`
+						OriginalTitle       string `json:"originalTitle"`
+						Summary             string `json:"summary"`
+						Duration            int    `json:"duration"`
+						AddedAt             int    `json:"addedAt"`
+						UpdatedAt           int    `json:"updatedAt"`
+						Media               []struct {
+							ID       int `json:"id"`
+							Duration int `json:"duration"`
+							Part     []struct {
+								ID       int    `json:"id"`
+								Key      string `json:"key"`
+								Duration int    `json:"duration"`
+								File     string `json:"file"`
+								Size     int    `json:"size"`
+							} `json:"Part"`
+							AudioChannels int    `json:"audioChannels"`
+							AudioCodec    string `json:"audioCodec"`
+							Container     string `json:"container"`
+						} `json:"Media"`
+					} `json:"Metadata"`
+				}, len(hub.Metadata))
+				for i, md := range hub.Metadata {
+					searchResults.MediaContainer.SearchResult[i] = struct {
+						Score    float64 `json:"score"`
+						Metadata struct {
+							LibrarySectionTitle string `json:"librarySectionTitle"`
+							RatingKey           string `json:"ratingKey"`
+							Key                 string `json:"key"`
+							Type                string `json:"type"`
+							Title               string `json:"title"`
+							GrandparentTitle    string `json:"grandparentTitle"`
+							ParentTitle         string `json:"parentTitle"`
+							OriginalTitle       string `json:"originalTitle"`
+							Summary             string `json:"summary"`
+							Duration            int    `json:"duration"`
+							AddedAt             int    `json:"addedAt"`
+							UpdatedAt           int    `json:"updatedAt"`
+							Media               []struct {
+								ID       int `json:"id"`
+								Duration int `json:"duration"`
+								Part     []struct {
+									ID       int    `json:"id"`
+									Key      string `json:"key"`
+									Duration int    `json:"duration"`
+									File     string `json:"file"`
+									Size     int    `json:"size"`
+								} `json:"Part"`
+								AudioChannels int    `json:"audioChannels"`
+								AudioCodec    string `json:"audioCodec"`
+								Container     string `json:"container"`
+							} `json:"Media"`
+						} `json:"Metadata"`
+					}{Score: 0, Metadata: md}
+				}
+				break
+			}
+		}
+
 		key, err := getPlexSong(track, searchResults)
 		if err != nil {
 			slog.Debug(err.Error())
@@ -277,7 +408,6 @@ func (c *Plex) SearchPlaylist() error {
 	return nil
 }
 
-
 func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", c.Cfg.PlaylistName, c.machineID, c.LibraryID)
 
@@ -302,7 +432,7 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 func (c *Plex) UpdatePlaylist() error {
 	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
 
-	if _, err := c.HttpClient.MakeRequest("PUT",c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+	if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 		return err
 	}
 	return nil
@@ -358,7 +488,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 
 		media := md.Media[0]
 		pathMatch := strings.Contains(strings.ToLower(media.Part[0].File), strings.ToLower(track.File))
-		durationMatch := util.Abs(media.Duration - track.Duration) < 10000 // duration within 10s
+		durationMatch := util.Abs(media.Duration-track.Duration) < 10000 // duration within 10s
 
 		if durationMatch && pathMatch {
 			slog.Debug(fmt.Sprintf("matched track via path: %s by %s", track.Title, track.Artist))
