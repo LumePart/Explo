@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './Toggle'
 import { Button } from './common'
 import { fetchPlaylistTracks } from '../../lib/listenbrainz'
+import { prefetchPlaylists } from '../../lib/api'
 
 // ── TrackRow ──────────────────────────────────────────────────────────────────
 
@@ -88,24 +89,24 @@ function nextUpdateLabel(playlistType) {
   return `Next update ${nextMonday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
 }
 
-export function TracklistDropdown({ playlist }) {
+export function TracklistDropdown({ playlist, lbUser }) {
   const [tracks, setTracks] = useState([])
   const [generatedAt, setGeneratedAt] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [fetching, setFetching] = useState(false)
 
-  useEffect(() => {
-    if (!playlist) return
+  const loadTracks = (withRetry = false) => {
     let cancelled = false
     let retry = 0
     let retryTimer = null
     setLoading(true)
     setError(null)
     const load = () => {
-      fetchPlaylistTracks(playlist, { force: retry > 0 })
+      fetchPlaylistTracks(playlist, { force: retry > 0 || withRetry })
         .then(({ tracks: t, generatedAt: g }) => {
           if (cancelled) return
-          if (t.length === 0 && retry < 8) {
+          if (t.length === 0 && withRetry && retry < 8) {
             retry += 1
             retryTimer = setTimeout(load, 1500)
             return
@@ -117,11 +118,22 @@ export function TracklistDropdown({ playlist }) {
         .catch(e => { if (!cancelled) { setError(e.message); setLoading(false) } })
     }
     load()
-    return () => {
-      cancelled = true
-      if (retryTimer) clearTimeout(retryTimer)
-    }
+    return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer) }
+  }
+
+  useEffect(() => {
+    if (!playlist) return
+    return loadTracks(false)
   }, [playlist])
+
+  const handleFetch = () => {
+    if (!lbUser) return
+    setFetching(true)
+    prefetchPlaylists(lbUser, [playlist])
+      .then(() => loadTracks(true))
+      .catch(e => setError(e.message))
+      .finally(() => setFetching(false))
+  }
 
   const genDate = generatedAt ? new Date(generatedAt) : null
 
@@ -142,12 +154,24 @@ export function TracklistDropdown({ playlist }) {
       {/* Track list */}
       <div className="no-scrollbar" style={{ maxHeight: 560, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {loading ? (
-          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a' }}>Loading…</div>
+          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a' }}>{fetching ? 'Fetching…' : 'Loading…'}</div>
         ) : error ? (
           <div style={{ padding: '16px 2px', fontSize: 12, color: '#c0392b' }}>{error}</div>
         ) : tracks.length === 0 ? (
-          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a' }}>
-            No playlist found yet. {nextUpdateLabel(playlist)}.
+          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>No playlist found yet. {nextUpdateLabel(playlist)}.</span>
+            {lbUser && (
+              <button
+                onClick={handleFetch}
+                disabled={fetching}
+                style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #333',
+                  background: '#1f1f1f', color: '#aaa', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                Pull tracks
+              </button>
+            )}
           </div>
         ) : (
           tracks.map(t => (
