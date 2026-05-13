@@ -304,7 +304,7 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 
 		var searchResults PlexSearch
 		for _, hub := range hubResults.MediaContainer.Hub {
-			if hub.Type == "music" {
+			if hub.Type == "track" {
 				searchResults.MediaContainer.Size = len(hub.Metadata)
 				searchResults.MediaContainer.SearchResult = make([]struct {
 					Score    float64 `json:"score"`
@@ -379,6 +379,8 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 			slog.Debug(err.Error())
 			continue
 		}
+		println(key)
+
 		if key != "" {
 			track.ID = key
 			track.Present = true
