@@ -351,7 +351,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	values := make(map[string]string, len(allConfigKeys))
 	sources := make(map[string]string, len(allConfigKeys))
 	for _, key := range allConfigKeys {
-		if v, ok := fileValues[key]; ok {
+		if v, ok := fileValues[key]; ok && v != "" {
 			values[key] = v
 			sources[key] = "file"
 		} else if v, ok := os.LookupEnv(key); ok && v != "" {
