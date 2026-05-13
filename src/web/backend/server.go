@@ -115,7 +115,10 @@ func NewServer(cfg config.ServerConfig) *Server {
 func (s *Server) Start() error {
 	s.initServerLog()
 	s.startJobs()
-	s.PrefetchCovers()
+	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
+	if _, err := os.Stat(coversDir); os.IsNotExist(err) {
+		s.PrefetchCovers()
+	}
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
 	return s.server.ListenAndServe()
 }
