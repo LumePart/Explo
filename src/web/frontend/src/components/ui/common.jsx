@@ -48,8 +48,50 @@ export const Panel = forwardRef(({ children, className = '', ...props }, ref) =>
 Panel.displayName = 'Panel'
 
 // A single structured log entry row (structured view, not raw).
+// Keys that get special color treatment regardless of label
+const VALUE_COLOR = {
+  'track title':    'text-accent',
+  'track':          'text-accent',
+  'track artist':   'text-accent',
+  'file':           'text-accent',
+  'err':            'text-danger',
+  'error':          'text-danger',
+}
+
+// Human-readable labels for known keys
+const KEY_LABELS = {
+  'track title':    'Track',
+  'track':          'Track',
+  'track artist':   'Artist',
+  'file':           'File',
+  'err':            'Error',
+  'error':          'Error',
+  'playlist':       'Playlist',
+  'playlists':      'Playlists',
+  'type':           'Type',
+  'user':           'User',
+  'addr':           'Address',
+  'count':          'Count',
+  'covers':         'Covers',
+  'source':         'Source',
+  'service':        'Service',
+  'system':         'System',
+  'path':           'Path',
+  'duration':       'Duration',
+  'notify':         'Notify',
+  'slskd':          'Slskd',
+  'youtube':        'YouTube',
+  'context':        'Context',
+  'force_refresh':  'Force refresh',
+}
+
+function formatValue(k, v) {
+  if (k === 'file') return v.replace(/.*[/\\]/, '')
+  if (k === 'addr' && v.startsWith(':')) return v.slice(1)
+  return v
+}
+
 export function LogRow({ entry }) {
-  const displayTrack = entry.track || (entry.file ? entry.file.replace(/.*[/\\]/, '') : '')
   return (
     <div className="flex gap-2.5 items-baseline py-0.5 flex-wrap">
       <span className="text-[11px] text-muted flex-shrink-0 tabular-nums">{entry.time}</span>
@@ -61,12 +103,16 @@ export function LogRow({ entry }) {
         </span>
       )}
       <span className="text-[12px] text-white break-words">{entry.msg}</span>
-      {displayTrack && (
-        <span className="text-[12px] text-accent flex-shrink-0">
-          {displayTrack}{entry.artist && <span className="text-muted"> — {entry.artist}</span>}
-        </span>
-      )}
-      {entry.system && <span className="text-[11px] text-muted flex-shrink-0">{entry.system}</span>}
+      {Object.entries(entry.extras ?? {}).map(([k, v]) => {
+        const label = KEY_LABELS[k] ?? k.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
+        const color = VALUE_COLOR[k] ?? 'text-white'
+        return (
+          <span key={k} className="text-[11px] flex-shrink-0">
+            <span className="text-muted">{label}: </span>
+            <span className={color}>{formatValue(k, v)}</span>
+          </span>
+        )
+      })}
     </div>
   )
 }

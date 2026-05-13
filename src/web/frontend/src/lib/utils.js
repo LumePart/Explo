@@ -34,14 +34,14 @@ export function parseSlogLine(line) {
     try { time = new Date(kv.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) }
     catch { time = kv.time }
   }
+  const structural = new Set(['time', 'level', 'msg'])
+  const extras = Object.fromEntries(Object.entries(kv).filter(([k]) => !structural.has(k)))
+
   return {
     time,
     level: (kv.level || 'INFO').toUpperCase(),
     msg: kv.msg || line,
-    track: kv['track title'] || kv.track || '',
-    artist: kv['track artist'] || '',
-    file: kv.file || '',
-    system: kv.system || kv.service || '',
+    extras,
   }
 }
 
