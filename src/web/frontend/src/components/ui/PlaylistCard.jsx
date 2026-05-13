@@ -7,15 +7,19 @@ import { prefetchPlaylists } from '../../lib/api'
 
 // ── TrackRow ──────────────────────────────────────────────────────────────────
 
-function TrackRow({ track }) {
+function TrackRow({ track, index = 0 }) {
   const [imgFailed, setImgFailed] = useState(false)
+  const [imgLoaded, setImgLoaded] = useState(false)
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '0 2px', minHeight: 52,
-      borderBottom: '1px solid rgba(255,255,255,0.04)',
-    }}>
+    <div
+      className="track-row"
+      style={{
+        '--delay': `${index * 30}ms`,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '0 2px', minHeight: 52,
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+      }}>
       <span style={{
         width: 24, fontSize: 11, color: '#3a3a3a', textAlign: 'right',
         flexShrink: 0, fontVariantNumeric: 'tabular-nums',
@@ -24,18 +28,32 @@ function TrackRow({ track }) {
       </span>
 
       <div style={{
-        width: 42, height: 42, borderRadius: 3, flexShrink: 0,
+        position: 'relative', width: 42, height: 42, borderRadius: 3, flexShrink: 0,
         background: '#1e1e1e', overflow: 'hidden',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {track.coverUrl && !imgFailed ? (
-          <img
-            src={track.coverUrl}
-            alt=""
-            loading="lazy"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            onError={() => setImgFailed(true)}
-          />
+          <>
+            <img
+              src={track.coverUrl}
+              alt=""
+              loading="lazy"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgFailed(true)}
+            />
+            {!imgLoaded && (
+              <motion.div
+                animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
+                transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(90deg, #1e1e1e 25%, #2e2e2e 50%, #1e1e1e 75%)',
+                  backgroundSize: '200% 100%',
+                }}
+              />
+            )}
+          </>
         ) : (
           <span style={{ fontSize: 14, color: '#2e2e2e' }}>♪</span>
         )}
@@ -174,8 +192,8 @@ export function TracklistDropdown({ playlist, lbUser }) {
             )}
           </div>
         ) : (
-          tracks.map(t => (
-            <TrackRow key={`${t.rank}-${t.title}-${t.artist}`} track={t} />
+          tracks.map((t, i) => (
+            <TrackRow key={`${t.rank}-${t.title}-${t.artist}`} track={t} index={i} />
           ))
         )}
       </div>
