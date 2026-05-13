@@ -333,7 +333,9 @@ func parseEnvText(text string) map[string]string {
 }
 
 // handleGetConfig returns resolved config as JSON: { values, sources }.
-// Sources are "env" when set via os.Environ (takes precedence), "file" otherwise.
+// File keys are checked first because cleanenv sets them as OS env vars on startup,
+// so checking os.LookupEnv first would misclassify all file keys as "env".
+// Only keys present in the OS environment but absent from the file are marked "env".
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(s.cfg.WebEnvPath)
 	var fileValues map[string]string
@@ -346,12 +348,12 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	values := make(map[string]string, len(allConfigKeys))
 	sources := make(map[string]string, len(allConfigKeys))
 	for _, key := range allConfigKeys {
-		if v, ok := os.LookupEnv(key); ok && v != "" {
-			values[key] = v
-			sources[key] = "env"
-		} else if v, ok := fileValues[key]; ok {
+		if v, ok := fileValues[key]; ok {
 			values[key] = v
 			sources[key] = "file"
+		} else if v, ok := os.LookupEnv(key); ok && v != "" {
+			values[key] = v
+			sources[key] = "env"
 		}
 	}
 
