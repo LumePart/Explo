@@ -38,21 +38,22 @@ function TrackRow({ track, index = 0 }) {
               src={track.coverUrl}
               alt=""
               loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              style={{
+                width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.35s ease',
+              }}
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgFailed(true)}
             />
-            {!imgLoaded && (
-              <motion.div
-                animate={{ backgroundPosition: ['200% 0', '-200% 0'] }}
-                transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-                style={{
-                  position: 'absolute', inset: 0,
-                  background: 'linear-gradient(90deg, #1e1e1e 25%, #2e2e2e 50%, #1e1e1e 75%)',
-                  backgroundSize: '200% 100%',
-                }}
-              />
-            )}
+            <motion.div
+              animate={{ backgroundPosition: ['200% 0', '-200% 0'], opacity: imgLoaded ? 0 : 1 }}
+              transition={{ backgroundPosition: { duration: 1.2, repeat: Infinity, ease: 'linear' }, opacity: { duration: 0.35 } }}
+              style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(90deg, #1e1e1e 25%, #2e2e2e 50%, #1e1e1e 75%)',
+                backgroundSize: '200% 100%',
+              }}
+            />
           </>
         ) : (
           <span style={{ fontSize: 14, color: '#2e2e2e' }}>♪</span>
@@ -183,8 +184,8 @@ export function TracklistDropdown({ playlist, lbUser }) {
                 onClick={handleFetch}
                 disabled={fetching}
                 style={{
-                  fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #333',
-                  background: '#1f1f1f', color: '#aaa', cursor: 'pointer', flexShrink: 0,
+                  fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #444',
+                  background: '#1f1f1f', color: 'white', cursor: 'pointer', flexShrink: 0,
                 }}
               >
                 Pull tracks
