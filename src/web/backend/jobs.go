@@ -49,6 +49,41 @@ func (j *Jobs) RegisterCoverCleanup(schedule, coversDir string, maxBytes int64) 
 	return err
 }
 
+// RegisterCustomPlaylistRefresh registers a daily job that re-fetches custom playlists
+// whose refresh interval has elapsed.
+func (j *Jobs) RegisterCustomPlaylistRefresh(cfgDir string) error {
+	_, err := j.scheduler.NewJob(
+		gocron.CronJob("0 4 * * *", false),
+		gocron.NewTask(func() {
+			playlists := loadCustomPlaylists(cfgDir)
+			updated := false
+			for i, p := range playlists {
+				if p.RefreshDays <= 0 {
+					continue
+				}
+				if time.Since(p.LastFetched) < time.Duration(p.RefreshDays)*24*time.Hour {
+					continue
+				}
+				slog.Info("custom-playlists: refreshing", "id", p.ID, "name", p.Name)
+				_, tracks, err := fetchLBPlaylistByMBID(p.LBMBID)
+				if err != nil {
+					slog.Warn("custom-playlists: refresh fetch failed", "id", p.ID, "err", err)
+					continue
+				}
+				writePrefetchCache(cfgDir, p.ID, tracks)
+				playlists[i].LastFetched = time.Now().UTC()
+				updated = true
+			}
+			if updated {
+				if err := saveCustomPlaylists(cfgDir, playlists); err != nil {
+					slog.Error("custom-playlists: failed to save after refresh", "err", err)
+				}
+			}
+		}),
+	)
+	return err
+}
+
 func trimCacheDir(dataDir string, maxBytes int64) {
 
 	var files []fileInfo

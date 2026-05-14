@@ -163,6 +163,34 @@ export async function fetchSetupStatus() {
   }
 }
 
+export async function fetchCustomPlaylists() {
+  const res = await apiFetch('/api/ui/custom-playlists')
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function importCustomPlaylist(lb_url, refresh_days) {
+  const res = await apiFetch('/api/ui/custom-playlists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lb_url, refresh_days }),
+  })
+  if (res.status === 409) throw Object.assign(new Error('already imported'), { duplicate: true })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deleteCustomPlaylist(id) {
+  const res = await apiFetch(`/api/ui/custom-playlists/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function refreshCustomPlaylist(id) {
+  const res = await apiFetch(`/api/ui/custom-playlists/${encodeURIComponent(id)}/refresh`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function fetchBackgroundArt() {
   try {
     const res = await fetch('/api/ui/background-art')

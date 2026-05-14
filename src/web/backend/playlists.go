@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -29,11 +30,18 @@ var validPlaylistTypes = func() map[string]bool {
 	return m
 }()
 
+var customIDRe = regexp.MustCompile(`^custom-[a-z0-9]+$`)
+
+// isValidPlaylistID accepts built-in playlist types and custom-* IDs (blocks path traversal).
+func isValidPlaylistID(t string) bool {
+	return validPlaylistTypes[t] || customIDRe.MatchString(t)
+}
+
 // handleGetPlaylist serves the tracklist cache written by explo during its last run.
 // Returns an empty track list if no cache exists yet.
 func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	playlistType := r.URL.Query().Get("type")
-	if !validPlaylistTypes[playlistType] {
+	if !isValidPlaylistID(playlistType) {
 		http.Error(w, "unknown playlist type", http.StatusBadRequest)
 		return
 	}
@@ -80,6 +88,7 @@ type lbCreatedForResp struct {
 
 type lbPlaylistResp struct {
 	Playlist struct {
+		Title string `json:"title"`
 		Track []struct {
 			Title     string `json:"title"`
 			Creator   string `json:"creator"`
@@ -94,6 +103,30 @@ type lbPlaylistResp struct {
 			} `json:"extension"`
 		} `json:"track"`
 	} `json:"playlist"`
+}
+
+// fetchLBPlaylistByMBID fetches a specific ListenBrainz playlist by its MBID and returns
+// the playlist title along with its tracks as [title, artist, album, coverURL] tuples.
+func fetchLBPlaylistByMBID(mbid string) (string, [][4]string, error) {
+	body, err := lbGet(fmt.Sprintf("%s/playlist/%s", lbAPIBase, mbid))
+	if err != nil {
+		return "", nil, fmt.Errorf("playlist fetch: %w", err)
+	}
+	var resp lbPlaylistResp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", nil, fmt.Errorf("playlist parse: %w", err)
+	}
+	out := make([][4]string, 0, len(resp.Playlist.Track))
+	for _, t := range resp.Playlist.Track {
+		meta := t.Extension.JspfTrack.AdditionalMetadata
+		var cover string
+		if meta.CaaReleaseMbid != "" && meta.CaaID != 0 {
+			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/%d-250.jpg",
+				meta.CaaReleaseMbid, meta.CaaID)
+		}
+		out = append(out, [4]string{t.Title, t.Creator, t.Album, cover})
+	}
+	return resp.Playlist.Title, out, nil
 }
 
 func fetchOnRepeatTracks(username string) ([][4]string, error) {
@@ -153,24 +186,9 @@ func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time
 		return nil, time.Time{}, nil
 	}
 
-	body, err := lbGet(fmt.Sprintf("%s/playlist/%s", lbAPIBase, bestID))
+	_, out, err := fetchLBPlaylistByMBID(bestID)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("playlist fetch: %w", err)
-	}
-	var resp lbPlaylistResp
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, time.Time{}, fmt.Errorf("playlist parse: %w", err)
-	}
-
-	out := make([][4]string, 0, len(resp.Playlist.Track))
-	for _, t := range resp.Playlist.Track {
-		meta := t.Extension.JspfTrack.AdditionalMetadata
-		var cover string
-		if meta.CaaReleaseMbid != "" && meta.CaaID != 0 {
-			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/%d-250.jpg",
-				meta.CaaReleaseMbid, meta.CaaID)
-		}
-		out = append(out, [4]string{t.Title, t.Creator, t.Album, cover})
+		return nil, time.Time{}, err
 	}
 	return out, bestDate, nil
 }
@@ -333,35 +351,42 @@ type cachedPrefetchTrack struct {
 	CoverURL string `json:"coverUrl,omitempty"`
 }
 
-func writePrefetchCache(cfgDir, playlistType string, tracks [][4]string) {
+// writePreliminaryCache writes the track cache with remote cover URLs immediately.
+// Returns false if the write fails.
+func writePreliminaryCache(cfgDir, playlistType string, tracks [][4]string) bool {
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{
-			Rank:     i + 1,
-			Title:    t[0],
-			Artist:   t[1],
-			Release:  t[2],
-			CoverURL: t[3],
-		}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: t[3]}
 	}
-
 	if !writeTrackCache(cfgDir, playlistType, ct) {
-		return
+		return false
 	}
 	slog.Info("prefetch: cache written", "playlist", playlistType, "covers", "remote")
+	return true
+}
 
+// downloadAndCacheCovers downloads cover art and rewrites the cache with local URLs.
+// Safe to call in a goroutine.
+func downloadAndCacheCovers(cfgDir, playlistType string, tracks [][4]string) {
 	coversDir := filepath.Join(cfgDir, "cache", "covers")
 	if err := os.MkdirAll(coversDir, 0755); err != nil {
 		slog.Error("prefetch: failed to create covers dir", "err", err.Error())
 		return
 	}
-
+	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i].CoverURL = downloadCover(t[3], coversDir)
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: downloadCover(t[3], coversDir)}
 	}
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
 	}
+}
+
+func writePrefetchCache(cfgDir, playlistType string, tracks [][4]string) {
+	if !writePreliminaryCache(cfgDir, playlistType, tracks) {
+		return
+	}
+	downloadAndCacheCovers(cfgDir, playlistType, tracks)
 }
 
 // ── Background art ───────────────────────────────────────────────────────────

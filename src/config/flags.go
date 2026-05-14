@@ -38,9 +38,9 @@ func (cfg *Config) GetFlags() error {
 	persistSet := flag.Lookup("persist").Changed
 	cfgSet := flag.Lookup("config").Changed
 
-	// Validation for playlist
-	if !contains(validPlaylists, playlist) {
-		return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s)",
+	// Validation for playlist — built-in types or user-imported custom-* IDs
+	if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
+		return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
 			playlist, strings.Join(validPlaylists, ", "))
 	}
 

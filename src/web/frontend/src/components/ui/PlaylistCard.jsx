@@ -108,12 +108,14 @@ function nextUpdateLabel(playlistType) {
   return `Next update ${nextMonday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
 }
 
-export function TracklistDropdown({ playlist, lbUser }) {
+export function TracklistDropdown({ playlist, lbUser, onRun, onDelete }) {
   const [tracks, setTracks] = useState([])
   const [generatedAt, setGeneratedAt] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [fetching, setFetching] = useState(false)
+  const [running, setRunning] = useState(false)
+  const [runStatus, setRunStatus] = useState('')
 
   const loadTracks = (withRetry = false) => {
     let cancelled = false
@@ -154,18 +156,69 @@ export function TracklistDropdown({ playlist, lbUser }) {
       .finally(() => setFetching(false))
   }
 
+  const handleRun = async () => {
+    if (!onRun || running) return
+    setRunning(true)
+    setRunStatus('')
+    try {
+      await onRun()
+      setRunStatus('Started')
+      setTimeout(() => setRunStatus(''), 3000)
+    } catch (e) {
+      setRunStatus(e.message || 'Error')
+    } finally {
+      setRunning(false)
+    }
+  }
+
   const genDate = generatedAt ? new Date(generatedAt) : null
 
   return (
     <div style={{ marginTop: 16 }}>
       {/* Header */}
-      <div style={{ paddingBottom: 12, borderBottom: '1px solid #232323', display: 'flex', alignItems: 'baseline', gap: 10 }}>
+      <div style={{ paddingBottom: 12, borderBottom: '1px solid #232323', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 11, color: '#ffffff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
           {!loading && tracks.length ? `${tracks.length} Tracks` : 'Tracks'}
         </span>
         {!loading && genDate && (
           <span style={{ fontSize: 10, color: '#565656' }}>
             Generated {genDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+          </span>
+        )}
+        {(onRun || onDelete) && (
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {runStatus && <span style={{ fontSize: 10, color: '#565656' }}>{runStatus}</span>}
+            {onRun && (
+              <button
+                onClick={handleRun}
+                disabled={running}
+                style={{
+                  background: 'none', border: 'none', padding: 0,
+                  fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: running ? '#3a3a3a' : '#565656',
+                  cursor: running ? 'default' : 'pointer',
+                }}
+                onMouseEnter={e => { if (!running) e.currentTarget.style.color = 'white' }}
+                onMouseLeave={e => { if (!running) e.currentTarget.style.color = '#565656' }}
+              >
+                {running ? 'Starting…' : '▶ Run'}
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                title="Remove playlist"
+                style={{
+                  background: 'none', border: 'none', padding: 0,
+                  fontSize: 14, lineHeight: 1,
+                  color: '#3a3a3a', cursor: 'pointer',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#c0392b' }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#3a3a3a' }}
+              >
+                ×
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -177,16 +230,13 @@ export function TracklistDropdown({ playlist, lbUser }) {
         ) : error ? (
           <div style={{ padding: '16px 2px', fontSize: 12, color: '#c0392b' }}>{error}</div>
         ) : tracks.length === 0 ? (
-          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span>No playlist found yet. {nextUpdateLabel(playlist)}.</span>
             {lbUser && (
               <button
                 onClick={handleFetch}
                 disabled={fetching}
-                style={{
-                  fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #444',
-                  background: '#1f1f1f', color: 'white', cursor: 'pointer', flexShrink: 0,
-                }}
+                className="bg-transparent border border-ui-border text-muted rounded-full px-3 py-1 text-[11px] cursor-pointer hover:text-white hover:border-[#444] transition-colors self-start disabled:opacity-50"
               >
                 Pull tracks
               </button>
@@ -239,6 +289,13 @@ const FALLBACK = {
   label: 'PLAYLIST',
 }
 
+// Color pool for user-imported custom playlists (cycled by colorIndex % 3)
+const CUSTOM_PRESETS = [
+  { background: cardGradient('#6366f1', '#8b5cf6', '#a78bfa'), accent: '#a78bfa', label: 'CUSTOM' },
+  { background: cardGradient('#0891b2', '#0e7490', '#67e8f9'), accent: '#67e8f9', label: 'CUSTOM' },
+  { background: cardGradient('#d97706', '#b45309', '#fcd34d'), accent: '#fcd34d', label: 'CUSTOM' },
+]
+
 const SCHEDULE_DAYS = [
   { value: -1,  label: 'Every day' },
   { value: 0,   label: 'Sunday' },
@@ -271,9 +328,20 @@ export function PlaylistCard({
   gradient: gradientOverride,
   tracklistOpen,
   onTracklistToggle,
+  onDelete,
+  trackId,
 }) {
   const { value, name } = playlist
-  const preset = PRESETS[value] ?? FALLBACK
+  // trackFetchId: use real playlist ID (custom playlists) if provided, else fall back to value
+  const trackFetchId = trackId ?? value
+  // Resolve preset: built-in types → PRESETS, custom-N → CUSTOM_PRESETS[N % 3], else FALLBACK
+  let preset
+  if (PRESETS[value]) {
+    preset = PRESETS[value]
+  } else {
+    const customMatch = value.match(/^custom-(\d+)$/)
+    preset = customMatch ? CUSTOM_PRESETS[Number(customMatch[1]) % CUSTOM_PRESETS.length] : FALLBACK
+  }
   const bg = gradientOverride ?? preset.background
   const { accent, label } = preset
 
@@ -296,7 +364,7 @@ export function PlaylistCard({
     let retry = 0
     let retryTimer = null
     const load = () => {
-      fetchPlaylistTracks(value, { force: retry > 0 })
+      fetchPlaylistTracks(trackFetchId, { force: retry > 0 })
         .then(({ tracks }) => {
           if (cancelled) return
           const covers = tracks.map(t => t.coverUrl).filter(Boolean)
@@ -314,7 +382,7 @@ export function PlaylistCard({
       cancelled = true
       if (retryTimer) clearTimeout(retryTimer)
     }
-  }, [value, s.enabled])
+  }, [trackFetchId, s.enabled])
 
   useEffect(() => {
     if (bgCovers.length < 2) return
@@ -436,30 +504,33 @@ export function PlaylistCard({
           </span>
         </div>
 
-        {/* Toggle — bottom right */}
-        <label
-          onClick={e => e.stopPropagation()}
-          style={{
-            position: 'absolute', bottom: 8, right: 8,
-            display: 'flex', alignItems: 'center',
-            cursor: locked ? 'not-allowed' : 'pointer',
-            opacity: locked ? 0.5 : 1,
-          }}
-        >
-          <Toggle checked={s.enabled} onChange={onToggle} disabled={locked} tiny />
-        </label>
-
-        {locked && (
-          <span style={{
-            position: 'absolute', bottom: 10, right: 30,
-            fontSize: 7, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)',
-          }}>ENV</span>
+        {/* Toggle — bottom right (hidden for custom playlists, which use onDelete in the tracklist) */}
+        {!onDelete && (
+          <>
+            <label
+              onClick={e => e.stopPropagation()}
+              style={{
+                position: 'absolute', bottom: 8, right: 8,
+                display: 'flex', alignItems: 'center',
+                cursor: locked ? 'not-allowed' : 'pointer',
+                opacity: locked ? 0.5 : 1,
+              }}
+            >
+              <Toggle checked={s.enabled} onChange={onToggle} disabled={locked} tiny />
+            </label>
+            {locked && (
+              <span style={{
+                position: 'absolute', bottom: 10, right: 30,
+                fontSize: 7, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)',
+              }}>ENV</span>
+            )}
+          </>
         )}
       </div>
 
-      {/* Inline schedule editor */}
+      {/* Inline schedule editor — not shown for custom playlists (onDelete present) */}
       <AnimatePresence>
-        {s.editing && s.enabled && !locked && !fixedSchedule && (
+        {!onDelete && s.editing && s.enabled && !locked && !fixedSchedule && (
           <motion.div
             key="editor"
             initial={{ opacity: 0, height: 0 }}

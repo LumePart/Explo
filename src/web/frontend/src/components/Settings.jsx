@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
+  fetchCustomPlaylists, deleteCustomPlaylist,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks } from '../lib/listenbrainz'
@@ -21,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
+import { ImportModal } from './ui/ImportModal'
 
 const tabBtnCls = active =>
   `bg-transparent border-none border-b-2 pb-2 px-3.5 text-[13px] leading-none cursor-pointer transition-colors
@@ -96,6 +98,25 @@ const SCHEDULE_DAYS = [
 
 const selectCls = 'bg-surface border border-ui-border text-white rounded-[6px] px-2.5 py-1.5 text-[13px] cursor-pointer outline-none focus:border-accent'
 
+function TracklistSlide({ show, slideKey, children }) {
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          key={slideKey}
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.28, ease: 'easeInOut' }}
+          style={{ overflow: 'hidden' }}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
 function initSchedules(config) {
   const out = {}
   for (const p of PLAYLISTS) {
@@ -113,6 +134,8 @@ function HomeSection() {
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState({})
   const [lbUser, setLbUser] = useState('')
   const [openTracklist, setOpenTracklist] = useState(null)
+  const [customPlaylists, setCustomPlaylists] = useState([])
+  const [showImportModal, setShowImportModal] = useState(false)
 
   const [playlist, setPlaylist] = useState('weekly-exploration')
   const [dlmode, setDlmode] = useState('normal')
@@ -131,6 +154,7 @@ function HomeSection() {
       setEnvSources(sources || {})
       setLbUser(values.LISTENBRAINZ_USER || '')
     })
+    fetchCustomPlaylists().then(setCustomPlaylists).catch(() => {})
   }, [])
 
   const onLine = useCallback(data => {
@@ -223,7 +247,7 @@ function HomeSection() {
     <div>
       {/* Scheduled Playlists */}
       <div className="mt-6">
-        <SectionLabel>Scheduled Playlists</SectionLabel>
+        <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Scheduled Playlists</div>
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
           {PLAYLISTS.map((p, i) => {
             const s = schedules[p.value]
@@ -261,25 +285,96 @@ function HomeSection() {
             )
           })}
         </div>
-        <AnimatePresence>
-          {openTracklist && (
-            <motion.div
-              key={openTracklist}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.28, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}
-            >
-              <TracklistDropdown
-                lbUser={lbUser}
-                playlist={openTracklist}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
+          <TracklistDropdown lbUser={lbUser} playlist={openTracklist} />
+        </TracklistSlide>
         <p className="text-[12px] text-muted mt-3">Schedule changes take effect after restarting the container.</p>
       </div>
+
+      {/* Custom Playlists */}
+      <div className="mt-6">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists</div>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-transparent border border-ui-border text-muted rounded-full px-3 py-1 text-[12px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
+          >
+            + Import
+          </button>
+        </div>
+
+        {customPlaylists.length === 0 ? (
+          <p className="text-[12px] text-muted mt-3">
+            No custom playlists yet. Import one from ListenBrainz.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
+            {customPlaylists.map((cp, i) => (
+              <PlaylistCard
+                key={cp.id}
+                playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
+                trackId={cp.id}
+                schedule={{ enabled: true, editing: false, day: -1, hour: 0, minute: 0 }}
+                fixedSchedule
+                index={i}
+                nextRunText={cp.refresh_days > 0 ? `Every ${cp.refresh_days} day${cp.refresh_days !== 1 ? 's' : ''}` : ''}
+                tracklistOpen={openTracklist === cp.id}
+                onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                onDelete={async () => {
+                  try {
+                    await deleteCustomPlaylist(cp.id)
+                    setCustomPlaylists(prev => prev.filter(p => p.id !== cp.id))
+                    if (openTracklist === cp.id) setOpenTracklist(null)
+                  } catch {
+                    // ignore
+                  }
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        <TracklistSlide show={openTracklist && openTracklist.startsWith('custom-')} slideKey={openTracklist}>
+          <TracklistDropdown
+            playlist={openTracklist}
+            lbUser={null}
+            onRun={async () => {
+              await startRun(openTracklist, 'normal', true, false)
+              setRunning(true)
+              setStatus('running…')
+              setLogEntries([])
+              connect()
+            }}
+            onDelete={async () => {
+              try {
+                await deleteCustomPlaylist(openTracklist)
+                setCustomPlaylists(prev => prev.filter(p => p.id !== openTracklist))
+                setOpenTracklist(null)
+              } catch { }
+            }}
+          />
+        </TracklistSlide>
+      </div>
+
+      {/* Import Modal */}
+      <AnimatePresence>
+        {showImportModal && (
+          <ImportModal
+            onClose={() => setShowImportModal(false)}
+            onImported={() => {
+              fetchCustomPlaylists().then(setCustomPlaylists).catch(() => {})
+              setShowImportModal(false)
+            }}
+            onSync={async (id) => {
+              await startRun(id, 'normal', true, false)
+              setRunning(true)
+              setStatus('running…')
+              setLogEntries([])
+              connect()
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Manual Run */}
       <div className="mt-6">
