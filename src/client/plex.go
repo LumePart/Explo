@@ -23,8 +23,8 @@ type LoginResponse struct {
 }
 
 type PlexSharedServers struct {
-	XMLName        xml.Name         `xml:"MediaContainer"`
-	SharedServers  []PlexSharedUser `xml:"SharedServer"`
+	XMLName       xml.Name         `xml:"MediaContainer"`
+	SharedServers []PlexSharedUser `xml:"SharedServer"`
 }
 type PlexSharedUser struct {
 	ID          string `xml:"id,attr"`
@@ -34,8 +34,6 @@ type PlexSharedUser struct {
 	Name        string `xml:"name,attr"`
 	AccessToken string `xml:"accessToken,attr"`
 }
-
-
 
 type Libraries struct {
 	MediaContainer struct {
@@ -55,28 +53,28 @@ type Libraries struct {
 
 type PlexHubSearch struct {
 	MediaContainer struct {
-		Size int `json:"size"`
+		Size int             `json:"size"`
 		Hub  []SongHubSearch `json:"Hub"`
 	} `json:"MediaContainer"`
 }
 
 type SongHubSearch struct {
-	Type     string `json:"type"`
+	Type     string         `json:"type"`
 	Metadata []SongMetadata `json:"Metadata"`
 }
 type SongMetadata struct {
-	LibrarySectionTitle string `json:"librarySectionTitle"`
-	RatingKey           string `json:"ratingKey"`
-	Key                 string `json:"key"`
-	Type                string `json:"type"`
-	Title               string `json:"title"`            // Track
-	GrandparentTitle    string `json:"grandparentTitle"` // Artist
-	ParentTitle         string `json:"parentTitle"`      // Album
-	OriginalTitle       string `json:"originalTitle"`
-	Summary             string `json:"summary"`
-	Duration            int    `json:"duration"`
-	AddedAt             int    `json:"addedAt"`
-	UpdatedAt           int    `json:"updatedAt"`
+	LibrarySectionTitle string  `json:"librarySectionTitle"`
+	RatingKey           string  `json:"ratingKey"`
+	Key                 string  `json:"key"`
+	Type                string  `json:"type"`
+	Title               string  `json:"title"`            // Track
+	GrandparentTitle    string  `json:"grandparentTitle"` // Artist
+	ParentTitle         string  `json:"parentTitle"`      // Album
+	OriginalTitle       string  `json:"originalTitle"`
+	Summary             string  `json:"summary"`
+	Duration            int     `json:"duration"`
+	AddedAt             int     `json:"addedAt"`
+	UpdatedAt           int     `json:"updatedAt"`
 	Media               []Media `json:"Media"`
 }
 type SongSearch struct {
@@ -100,7 +98,7 @@ type Media struct {
 
 type PlexSearch struct {
 	MediaContainer struct {
-		Size         int `json:"size"`
+		Size         int          `json:"size"`
 		SearchResult []SongSearch `json:"SearchResult"`
 	} `json:"MediaContainer"`
 }
@@ -410,13 +408,17 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 		}
 
 		key, err := getPlexSong(track, all)
+		if err != nil {
+			slog.Warn("failed to find match for '%s': %s", track.Title, err.Error())
+			continue
+		}
 		if key != "" {
 			track.ID = key
 			track.Present = true
 			matched = true
 		}
 		if !matched {
-			slog.Debug("no match found for track: %s", track.Title)
+			slog.Debug("no match found for track", "title", track.Title)
 		}
 	}
 
