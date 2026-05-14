@@ -35,42 +35,7 @@ type PlexSharedUser struct {
 	AccessToken string `xml:"accessToken,attr"`
 }
 
-type PlexHubSearch struct {
-	MediaContainer struct {
-		Size int `json:"size"`
-		Hub  []struct {
-			Type     string `json:"type"`
-			Metadata []struct {
-				LibrarySectionTitle string `json:"librarySectionTitle"`
-				RatingKey           string `json:"ratingKey"`
-				Key                 string `json:"key"`
-				Type                string `json:"type"`
-				Title               string `json:"title"`            // Track
-				GrandparentTitle    string `json:"grandparentTitle"` // Artist
-				ParentTitle         string `json:"parentTitle"`      // Album
-				OriginalTitle       string `json:"originalTitle"`
-				Summary             string `json:"summary"`
-				Duration            int    `json:"duration"`
-				AddedAt             int    `json:"addedAt"`
-				UpdatedAt           int    `json:"updatedAt"`
-				Media               []struct {
-					ID       int `json:"id"`
-					Duration int `json:"duration"`
-					Part     []struct {
-						ID       int    `json:"id"`
-						Key      string `json:"key"`
-						Duration int    `json:"duration"`
-						File     string `json:"file"`
-						Size     int    `json:"size"`
-					} `json:"Part"`
-					AudioChannels int    `json:"audioChannels"`
-					AudioCodec    string `json:"audioCodec"`
-					Container     string `json:"container"`
-				} `json:"Media"`
-			} `json:"Metadata"`
-		} `json:"Hub"`
-	} `json:"MediaContainer"`
-}
+
 
 type Libraries struct {
 	MediaContainer struct {
@@ -88,40 +53,55 @@ type Libraries struct {
 	} `json:"MediaContainer"`
 }
 
+type PlexHubSearch struct {
+	MediaContainer struct {
+		Size int `json:"size"`
+		Hub  []SongHubSearch `json:"Hub"`
+	} `json:"MediaContainer"`
+}
+
+type SongHubSearch struct {
+	Type     string `json:"type"`
+	Metadata []SongMetadata `json:"Metadata"`
+}
+type SongMetadata struct {
+	LibrarySectionTitle string `json:"librarySectionTitle"`
+	RatingKey           string `json:"ratingKey"`
+	Key                 string `json:"key"`
+	Type                string `json:"type"`
+	Title               string `json:"title"`            // Track
+	GrandparentTitle    string `json:"grandparentTitle"` // Artist
+	ParentTitle         string `json:"parentTitle"`      // Album
+	OriginalTitle       string `json:"originalTitle"`
+	Summary             string `json:"summary"`
+	Duration            int    `json:"duration"`
+	AddedAt             int    `json:"addedAt"`
+	UpdatedAt           int    `json:"updatedAt"`
+	Media               []Media `json:"Media"`
+}
+type SongSearch struct {
+	Metadata SongMetadata `json:"Metadata"`
+}
+
+type Media struct {
+	ID       int `json:"id"`
+	Duration int `json:"duration"`
+	Part     []struct {
+		ID       int    `json:"id"`
+		Key      string `json:"key"`
+		Duration int    `json:"duration"`
+		File     string `json:"file"`
+		Size     int    `json:"size"`
+	} `json:"Part"`
+	AudioChannels int    `json:"audioChannels"`
+	AudioCodec    string `json:"audioCodec"`
+	Container     string `json:"container"`
+}
+
 type PlexSearch struct {
 	MediaContainer struct {
 		Size         int `json:"size"`
-		SearchResult []struct {
-			Score    float64 `json:"score"`
-			Metadata struct {
-				LibrarySectionTitle string `json:"librarySectionTitle"`
-				RatingKey           string `json:"ratingKey"`
-				Key                 string `json:"key"`
-				Type                string `json:"type"`
-				Title               string `json:"title"`            // Track
-				GrandparentTitle    string `json:"grandparentTitle"` // Artist
-				ParentTitle         string `json:"parentTitle"`      // Album
-				OriginalTitle       string `json:"originalTitle"`
-				Summary             string `json:"summary"`
-				Duration            int    `json:"duration"`
-				AddedAt             int    `json:"addedAt"`
-				UpdatedAt           int    `json:"updatedAt"`
-				Media               []struct {
-					ID       int `json:"id"`
-					Duration int `json:"duration"`
-					Part     []struct {
-						ID       int    `json:"id"`
-						Key      string `json:"key"`
-						Duration int    `json:"duration"`
-						File     string `json:"file"`
-						Size     int    `json:"size"`
-					} `json:"Part"`
-					AudioChannels int    `json:"audioChannels"`
-					AudioCodec    string `json:"audioCodec"`
-					Container     string `json:"container"`
-				} `json:"Media"`
-			} `json:"Metadata"`
-		} `json:"SearchResult"`
+		SearchResult []SongSearch `json:"SearchResult"`
 	} `json:"MediaContainer"`
 }
 
@@ -380,116 +360,68 @@ func (c *Plex) refreshLibraryRequest() error {
 func (c *Plex) CheckRefreshState() bool {
 	return false
 }
-
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
 
 	for _, track := range tracks {
-		params := fmt.Sprintf("/hubs/search?query=%s&sectionId=%s", url.QueryEscape(track.CleanTitle), c.LibraryID)
+		params := fmt.Sprintf(
+			"/hubs/search?query=%s&sectionId=%s",
+			url.QueryEscape(track.CleanTitle),
+			c.LibraryID,
+		)
+
 		var body []byte
 		var err error
+
 		if c.AdminClient != nil {
-			body, err = c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.AdminClient.Cfg.Creds.Headers)
+			body, err = c.HttpClient.MakeRequest(
+				"GET",
+				c.Cfg.URL+params,
+				nil,
+				c.AdminClient.Cfg.Creds.Headers,
+			)
 		} else {
-			params += fmt.Sprintf("&X-Plex-Token=%s", c.Cfg.Creds.APIKey)
-			body, err = c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+			body, err = c.HttpClient.MakeRequest(
+				"GET",
+				c.Cfg.URL+params,
+				nil,
+				c.Cfg.Creds.Headers,
+			)
 		}
+
 		if err != nil {
 			slog.Warn("search request failed for '%s': %s", track.Title, err.Error())
 			continue
 		}
 
 		var hubResults PlexHubSearch
-		if err = util.ParseResp(body, &hubResults); err != nil {
-			slog.Warn("failed to parse response for '%s': %s", track.Title, err.Error())
+		if err := util.ParseResp(body, &hubResults); err != nil {
+			slog.Warn("failed to parse hub response for '%s': %s", track.Title, err.Error())
 			continue
 		}
 
-		var searchResults PlexSearch
+		var matched bool
+
+		var all []SongMetadata
+
 		for _, hub := range hubResults.MediaContainer.Hub {
 			if hub.Type == "track" {
-				searchResults.MediaContainer.Size = len(hub.Metadata)
-				searchResults.MediaContainer.SearchResult = make([]struct {
-					Score    float64 `json:"score"`
-					Metadata struct {
-						LibrarySectionTitle string `json:"librarySectionTitle"`
-						RatingKey           string `json:"ratingKey"`
-						Key                 string `json:"key"`
-						Type                string `json:"type"`
-						Title               string `json:"title"`
-						GrandparentTitle    string `json:"grandparentTitle"`
-						ParentTitle         string `json:"parentTitle"`
-						OriginalTitle       string `json:"originalTitle"`
-						Summary             string `json:"summary"`
-						Duration            int    `json:"duration"`
-						AddedAt             int    `json:"addedAt"`
-						UpdatedAt           int    `json:"updatedAt"`
-						Media               []struct {
-							ID       int `json:"id"`
-							Duration int `json:"duration"`
-							Part     []struct {
-								ID       int    `json:"id"`
-								Key      string `json:"key"`
-								Duration int    `json:"duration"`
-								File     string `json:"file"`
-								Size     int    `json:"size"`
-							} `json:"Part"`
-							AudioChannels int    `json:"audioChannels"`
-							AudioCodec    string `json:"audioCodec"`
-							Container     string `json:"container"`
-						} `json:"Media"`
-					} `json:"Metadata"`
-				}, len(hub.Metadata))
-				for i, md := range hub.Metadata {
-					searchResults.MediaContainer.SearchResult[i] = struct {
-						Score    float64 `json:"score"`
-						Metadata struct {
-							LibrarySectionTitle string `json:"librarySectionTitle"`
-							RatingKey           string `json:"ratingKey"`
-							Key                 string `json:"key"`
-							Type                string `json:"type"`
-							Title               string `json:"title"`
-							GrandparentTitle    string `json:"grandparentTitle"`
-							ParentTitle         string `json:"parentTitle"`
-							OriginalTitle       string `json:"originalTitle"`
-							Summary             string `json:"summary"`
-							Duration            int    `json:"duration"`
-							AddedAt             int    `json:"addedAt"`
-							UpdatedAt           int    `json:"updatedAt"`
-							Media               []struct {
-								ID       int `json:"id"`
-								Duration int `json:"duration"`
-								Part     []struct {
-									ID       int    `json:"id"`
-									Key      string `json:"key"`
-									Duration int    `json:"duration"`
-									File     string `json:"file"`
-									Size     int    `json:"size"`
-								} `json:"Part"`
-								AudioChannels int    `json:"audioChannels"`
-								AudioCodec    string `json:"audioCodec"`
-								Container     string `json:"container"`
-							} `json:"Media"`
-						} `json:"Metadata"`
-					}{Score: 0, Metadata: md}
-				}
-				break
+				all = append(all, hub.Metadata...)
 			}
 		}
 
-		key, err := getPlexSong(track, searchResults)
-		if err != nil {
-			slog.Debug(err.Error())
-			continue
-		}
-
+		key, err := getPlexSong(track, all)
 		if key != "" {
 			track.ID = key
 			track.Present = true
+			matched = true
+		}
+		if !matched {
+			slog.Debug("no match found for track: %s", track.Title)
 		}
 	}
+
 	return nil
 }
-
 func (c *Plex) SearchPlaylist() error {
 	params := "/playlists"
 
@@ -605,11 +537,10 @@ func (c *Plex) getServer() error {
 	return nil
 }
 
-func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) {
+func getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
 	loweredArtist := strings.ToLower(track.MainArtist)
 
-	for _, result := range searchResults.MediaContainer.SearchResult {
-		md := result.Metadata
+	for _, md := range metadata {
 		if md.Type != "track" {
 			continue
 		}
@@ -637,7 +568,7 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 		}
 	}
 
-	slog.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
+	slog.Debug(fmt.Sprintf("full search result: %v", metadata))
 	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
 }
 
