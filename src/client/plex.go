@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/xml"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -19,6 +20,19 @@ type LoginPayload struct {
 
 type LoginResponse struct {
 	AuthToken string `json:"authToken"`
+}
+
+type PlexSharedServers struct {
+	XMLName        xml.Name         `xml:"MediaContainer"`
+	SharedServers  []PlexSharedUser `xml:"SharedServer"`
+}
+type PlexSharedUser struct {
+	ID          string `xml:"id,attr"`
+	UserID      string `xml:"userID,attr"`
+	Username    string `xml:"username,attr"`
+	Email       string `xml:"email,attr"`
+	Name        string `xml:"name,attr"`
+	AccessToken string `xml:"accessToken,attr"`
 }
 
 type PlexHubSearch struct {
@@ -154,6 +168,94 @@ func NewPlex(cfg config.ClientConfig, httpClient *util.HttpClient) *Plex {
 		HttpClient: httpClient}
 }
 
+func (c *Plex) cloneHeaders() map[string]string {
+	h := make(map[string]string, len(c.Cfg.Creds.Headers))
+	for k, v := range c.Cfg.Creds.Headers {
+		h[k] = v
+	}
+	return h
+}
+
+func (c *Plex) getSharedServers() ([]PlexSharedUser, error) {
+	url := fmt.Sprintf(
+		"https://plex.tv/api/servers/%s/shared_servers",
+		c.machineID,
+	)
+
+	body, err := c.HttpClient.MakeRequest("GET", url, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch shared servers: %w", err)
+	}
+
+	var resp PlexSharedServers
+	if err := xml.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse shared_servers XML: %w", err)
+	}
+
+	return resp.SharedServers, nil
+}
+func (c *Plex) findSharedUser(username string) (*PlexSharedUser, error) {
+	users, err := c.getSharedServers()
+	if err != nil {
+		return nil, err
+	}
+
+	username = strings.ToLower(username)
+
+	for _, u := range users {
+
+		if strings.ToLower(u.Username) == username {
+			return &u, nil
+		}
+
+		if strings.ToLower(u.Email) == username {
+			return &u, nil
+		}
+
+		if strings.ToLower(u.Name) == username {
+			return &u, nil
+		}
+
+		if u.UserID == username || u.ID == username {
+			return &u, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unable to find shared user: %s", username)
+}
+
+func (c *Plex) SwitchUser(username string) (*Plex, error) {
+	user, err := c.findSharedUser(username)
+	if err != nil {
+		return nil, err
+	}
+
+	if user.AccessToken == "" {
+		return nil, fmt.Errorf("shared user has no access token: %s", username)
+	}
+
+	newClient := *c
+	newHeaders := make(map[string]string, len(c.Cfg.Creds.Headers))
+	for k, v := range c.Cfg.Creds.Headers {
+		newHeaders[k] = v
+	}
+	newHeaders["X-Plex-Token"] = user.AccessToken
+	newHeaders["Accept"] = "application/json"
+
+	newClient.Cfg.Creds.Headers = newHeaders
+	newClient.Cfg.Creds.APIKey = user.AccessToken
+
+	return &newClient, nil
+}
+func (c *Plex) ensureUserClient() (*Plex, error) {
+	// If no admin client, assume already user-scoped
+	if c.AdminClient == nil {
+		return c, nil
+	}
+
+	// Switch using admin client (correct source of truth)
+	return c.AdminClient.SwitchUser(c.Cfg.Creds.User)
+}
 func (c *Plex) AddHeader() error {
 	if c.Cfg.Creds.Headers == nil {
 		c.Cfg.Creds.Headers = make(map[string]string)
@@ -379,7 +481,6 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 			slog.Debug(err.Error())
 			continue
 		}
-		println(key)
 
 		if key != "" {
 			track.ID = key
@@ -412,26 +513,63 @@ func (c *Plex) SearchPlaylist() error {
 }
 
 func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
-	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", c.Cfg.PlaylistName, c.machineID, c.LibraryID)
+	if len(tracks) == 0 {
+		return fmt.Errorf("no tracks provided")
+	}
+	var userClient *Plex
+	var err error
+	if c.AdminClient != nil {
+		c.AdminClient.machineID = c.machineID
+		userClient, err = c.ensureUserClient()
+		if err != nil {
+			return fmt.Errorf("failed to switch user: %w", err)
+		}
+	} else {
+		userClient = c
+	}
 
-	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	metadataURI := fmt.Sprintf(
+		"server://%s/com.plexapp.plugins.library/%s",
+		userClient.machineID,
+		c.LibraryID,
+	)
+
+	params := fmt.Sprintf(
+		"/playlists?title=%s&type=audio&smart=0&uri=%s",
+		url.QueryEscape(userClient.Cfg.PlaylistName),
+		url.QueryEscape(metadataURI),
+	)
+
+	headers := userClient.cloneHeaders()
+	headers["Accept"] = "application/json"
+
+	body, err := userClient.HttpClient.MakeRequest(
+		"POST",
+		userClient.Cfg.URL+params,
+		nil,
+		headers,
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf("playlist create failed: %w", err)
 	}
 
 	var playlist PlexPlaylist
-
-	if err = util.ParseResp(body, &playlist); err != nil {
-		return err
+	if err := util.ParseResp(body, &playlist); err != nil {
+		return fmt.Errorf("failed parsing playlist response: %w", err)
 	}
 
-	c.Cfg.PlaylistID = playlist.MediaContainer.Metadata[0].RatingKey
+	if len(playlist.MediaContainer.Metadata) == 0 {
+		return fmt.Errorf("playlist created but no metadata returned")
+	}
 
-	c.addtoPlaylist(tracks)
+	userClient.Cfg.PlaylistID = playlist.MediaContainer.Metadata[0].RatingKey
+
+	userClient.addtoPlaylist(tracks)
+
+	c.Cfg.PlaylistID = userClient.Cfg.PlaylistID
 
 	return nil
 }
-
 func (c *Plex) UpdatePlaylist() error {
 	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
 
