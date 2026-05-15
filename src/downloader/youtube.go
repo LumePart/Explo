@@ -106,7 +106,9 @@ func queryYTMusic(track *models.Track, query string) error {
 
 	slog.Debug(fmt.Sprintf("Querying YTMusic for track %s", query))
 
-	cmd := exec.Command("python3", "search_ytmusic.py", query, "1")
+	// Use the absolute path to the search script
+	scriptPath := filepath.Join("src", "downloader", "youtube_music", "search_ytmusic.py")
+	cmd := exec.Command("python3", scriptPath, query, "1")
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -131,7 +133,7 @@ func queryYTMusic(track *models.Track, query string) error {
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 
-	track.File = fmt.Sprintf("%s.%s",getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
+	track.File = fmt.Sprintf("%s.%s", getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
@@ -247,7 +249,7 @@ func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track
 func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
-		slog.Error("failed getting stream for video", "trackID",track.ID, "context", err.Error())
+		slog.Error("failed getting stream for video", "trackID", track.ID, "context", err.Error())
 		return false
 	}
 
