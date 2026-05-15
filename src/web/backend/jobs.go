@@ -64,8 +64,15 @@ func (j *Jobs) RegisterCustomPlaylistRefresh(cfgDir string) error {
 				if time.Since(p.LastFetched) < time.Duration(p.RefreshDays)*24*time.Hour {
 					continue
 				}
-				slog.Info("custom-playlists: refreshing", "id", p.ID, "name", p.Name)
-				_, tracks, err := fetchLBPlaylistByMBID(p.LBMBID)
+				slog.Info("custom-playlists: refreshing", "id", p.ID, "name", p.Name, "source", p.Source)
+				var tracks [][4]string
+				var err error
+				switch p.Source {
+				case "apple_music":
+					_, _, tracks, err = fetchAppleMusicPlaylist(p.SourceURL)
+				default:
+					_, tracks, err = fetchLBPlaylistByMBID(p.LBMBID)
+				}
 				if err != nil {
 					slog.Warn("custom-playlists: refresh fetch failed", "id", p.ID, "err", err)
 					continue

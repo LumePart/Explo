@@ -169,11 +169,11 @@ export async function fetchCustomPlaylists() {
   return res.json()
 }
 
-export async function importCustomPlaylist(lb_url, refresh_days) {
+export async function importCustomPlaylist(url, source, refresh_days) {
   const res = await apiFetch('/api/ui/custom-playlists', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lb_url, refresh_days }),
+    body: JSON.stringify({ url, source, refresh_days }),
   })
   if (res.status === 409) throw Object.assign(new Error('already imported'), { duplicate: true })
   if (!res.ok) throw new Error(await res.text())

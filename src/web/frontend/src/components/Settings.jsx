@@ -305,7 +305,7 @@ function HomeSection() {
 
         {customPlaylists.length === 0 ? (
           <p className="text-[12px] text-muted mt-3">
-            No custom playlists yet. Import one from ListenBrainz.
+            No custom playlists yet. Import one from ListenBrainz or Apple Music.
           </p>
         ) : (
           <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
@@ -314,6 +314,7 @@ function HomeSection() {
                 key={cp.id}
                 playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
                 trackId={cp.id}
+                artworkUrl={cp.artwork_url || undefined}
                 schedule={{ enabled: true, editing: false, day: -1, hour: 0, minute: 0 }}
                 fixedSchedule
                 index={i}

@@ -13,17 +13,34 @@ import (
 	"time"
 )
 
-// CustomPlaylist holds the metadata for a user-imported ListenBrainz playlist.
+// CustomPlaylist holds the metadata for a user-imported playlist.
 type CustomPlaylist struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
-	LBMBID      string    `json:"lb_mbid"`
+	Source      string    `json:"source"`                // "listenbrainz" | "apple_music"
+	SourceURL   string    `json:"source_url,omitempty"`  // original URL for dedup + refresh
+	LBMBID      string    `json:"lb_mbid,omitempty"`     // ListenBrainz MBID (backward compat)
+	ArtworkURL  string    `json:"artwork_url,omitempty"` // playlist cover image (Apple Music)
 	RefreshDays int       `json:"refresh_days"`
 	ColorIndex  int       `json:"color_index"`
 	LastFetched time.Time `json:"last_fetched"`
 }
 
 var lbMBIDRe = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
+
+var appleMusicURLRe = regexp.MustCompile(
+	`^https?://music\.apple\.com/[a-z]{2}/playlist/[^/]+/(pl\.[a-z0-9-]+)`,
+)
+
+// extractAppleMusicID pulls the playlist ID (pl.xxx) from an Apple Music URL.
+func extractAppleMusicID(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	m := appleMusicURLRe.FindStringSubmatch(raw)
+	if len(m) < 2 {
+		return "", fmt.Errorf("not a valid Apple Music playlist URL")
+	}
+	return m[1], nil
+}
 
 // extractLBMBID pulls the playlist UUID out of a ListenBrainz playlist URL or bare MBID string.
 func extractLBMBID(raw string) (string, error) {
@@ -81,11 +98,12 @@ func (s *Server) handleGetCustomPlaylists(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// handleImportCustomPlaylist imports a ListenBrainz playlist by URL, writes a cache,
-// and returns the playlist name/tracks to the frontend for the import animation.
+// handleImportCustomPlaylist imports a playlist by URL (ListenBrainz or Apple Music),
+// writes a cache, and returns the playlist name/tracks to the frontend for the import animation.
 func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		LBURL       string `json:"lb_url"`
+		URL         string `json:"url"`
+		Source      string `json:"source"` // "listenbrainz" | "apple_music"
 		RefreshDays int    `json:"refresh_days"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -93,36 +111,74 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	mbid, err := extractLBMBID(body.LBURL)
-	if err != nil {
-		slog.Warn("custom-playlists: invalid URL", "url", body.LBURL, "err", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	slog.Info("custom-playlists: import request", "mbid", mbid, "refresh_days", body.RefreshDays)
-
-	// Reject duplicates
 	existing := loadCustomPlaylists(s.cfg.WebDataDir)
-	for _, p := range existing {
-		if p.LBMBID == mbid {
-			slog.Warn("custom-playlists: duplicate import rejected", "mbid", mbid, "existing_id", p.ID)
-			http.Error(w, "playlist already imported", http.StatusConflict)
+
+	var (
+		name       string
+		tracks     [][4]string
+		mbid       string
+		artworkURL string
+		sourceURL  = body.URL
+	)
+
+	switch body.Source {
+	case "apple_music":
+		apID, err := extractAppleMusicID(body.URL)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		slog.Info("custom-playlists: apple music import request", "playlist_id", apID, "refresh_days", body.RefreshDays)
+
+		for _, p := range existing {
+			if p.Source == "apple_music" {
+				existingID, _ := extractAppleMusicID(p.SourceURL)
+				if existingID == apID {
+					slog.Warn("custom-playlists: duplicate import rejected", "playlist_id", apID, "existing_id", p.ID)
+					http.Error(w, "playlist already imported", http.StatusConflict)
+					return
+				}
+			}
+		}
+
+		name, artworkURL, tracks, err = fetchAppleMusicPlaylist(body.URL)
+		if err != nil {
+			slog.Error("custom-playlists: apple music fetch failed", "err", err)
+			http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+
+	default: // "listenbrainz" or empty
+		body.Source = "listenbrainz"
+		var err error
+		mbid, err = extractLBMBID(body.URL)
+		if err != nil {
+			slog.Warn("custom-playlists: invalid URL", "url", body.URL, "err", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		slog.Info("custom-playlists: LB import request", "mbid", mbid, "refresh_days", body.RefreshDays)
+
+		for _, p := range existing {
+			if p.LBMBID == mbid {
+				slog.Warn("custom-playlists: duplicate import rejected", "mbid", mbid, "existing_id", p.ID)
+				http.Error(w, "playlist already imported", http.StatusConflict)
+				return
+			}
+		}
+
+		name, tracks, err = fetchLBPlaylistByMBID(mbid)
+		if err != nil {
+			slog.Error("custom-playlists: LB fetch failed", "mbid", mbid, "err", err)
+			http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
 			return
 		}
 	}
 
-	// Fetch playlist data from ListenBrainz
-	slog.Info("custom-playlists: fetching from LB", "mbid", mbid)
-	name, tracks, err := fetchLBPlaylistByMBID(mbid)
-	if err != nil {
-		slog.Error("custom-playlists: LB fetch failed", "mbid", mbid, "err", err)
-		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
-		return
-	}
 	if name == "" {
 		name = "Imported Playlist"
 	}
-	slog.Info("custom-playlists: fetched", "name", name, "tracks", len(tracks))
+	slog.Info("custom-playlists: fetched", "source", body.Source, "name", name, "tracks", len(tracks))
 
 	// Ensure data directories exist before writing anything
 	if err := os.MkdirAll(filepath.Join(s.cfg.WebDataDir, "cache"), 0755); err != nil {
@@ -147,7 +203,10 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	cp := CustomPlaylist{
 		ID:          id,
 		Name:        name,
-		LBMBID:      mbid,
+		Source:      body.Source,
+		SourceURL:   sourceURL,
+		LBMBID:      mbid,       // empty for apple_music
+		ArtworkURL:  artworkURL, // empty for listenbrainz
 		RefreshDays: body.RefreshDays,
 		ColorIndex:  len(existing),
 		LastFetched: time.Now().UTC(),
@@ -173,17 +232,18 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{
-		"id":         id,
-		"name":       name,
+		"id":          id,
+		"name":        name,
 		"track_count": len(tracks),
-		"cover_urls": covers,
+		"cover_urls":  covers,
 		"color_index": cp.ColorIndex,
+		"artwork_url": artworkURL,
 	}); err != nil {
 		slog.Error("custom-playlists: failed to write import response", "err", err)
 	}
 }
 
-// handleRefreshCustomPlaylist re-fetches a custom playlist from ListenBrainz and updates the cache.
+// handleRefreshCustomPlaylist re-fetches a custom playlist and updates the cache.
 // Equivalent to manually triggering the nightly refresh cron job for a single playlist.
 func (s *Server) handleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -206,9 +266,16 @@ func (s *Server) handleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Requ
 	}
 
 	p := playlists[idx]
-	slog.Info("custom-playlists: manual refresh", "id", id, "mbid", p.LBMBID)
+	slog.Info("custom-playlists: manual refresh", "id", id, "source", p.Source)
 
-	_, tracks, err := fetchLBPlaylistByMBID(p.LBMBID)
+	var tracks [][4]string
+	var err error
+	switch p.Source {
+	case "apple_music":
+		_, _, tracks, err = fetchAppleMusicPlaylist(p.SourceURL)
+	default:
+		_, tracks, err = fetchLBPlaylistByMBID(p.LBMBID)
+	}
 	if err != nil {
 		slog.Error("custom-playlists: refresh fetch failed", "id", id, "err", err)
 		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)

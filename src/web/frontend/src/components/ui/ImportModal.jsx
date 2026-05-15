@@ -10,6 +10,11 @@ const REFRESH_OPTIONS = [
   { value: 30, label: 'Every month' },
 ]
 
+const SOURCES = [
+  { key: 'listenbrainz', label: 'ListenBrainz', desc: 'Import a public ListenBrainz playlist by URL', placeholder: 'https://listenbrainz.org/playlist/\u2026' },
+  { key: 'apple_music',  label: 'Apple Music',  desc: 'Import a public Apple Music playlist by URL',  placeholder: 'https://music.apple.com/us/playlist/\u2026' },
+]
+
 function CoverThumb({ src, index }) {
   const [loaded, setLoaded] = useState(false)
   return (
@@ -28,18 +33,21 @@ function CoverThumb({ src, index }) {
 }
 
 export function ImportModal({ onClose, onImported, onSync }) {
+  const [source, setSource] = useState(null)   // 'listenbrainz' | 'apple_music'
   const [url, setUrl] = useState('')
   const [refreshDays, setRefreshDays] = useState(0)
-  const [phase, setPhase] = useState('form') // 'form' | 'success' | 'error'
+  const [phase, setPhase] = useState('source') // 'source' | 'form' | 'success' | 'error'
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const sourceCfg = SOURCES.find(s => s.key === source)
 
   const handleImport = async () => {
     if (!url.trim() || loading) return
     setLoading(true)
     try {
-      const data = await importCustomPlaylist(url.trim(), refreshDays)
+      const data = await importCustomPlaylist(url.trim(), source, refreshDays)
       setResult(data)
       setPhase('success')
     } catch (e) {
@@ -58,7 +66,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      onClick={(phase === 'form' || phase === 'error') && !loading ? onClose : undefined}
+      onClick={(phase === 'source' || phase === 'form' || phase === 'error') && !loading ? onClose : undefined}
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{
         background: 'rgba(0, 0, 0, 0.72)',
@@ -76,6 +84,47 @@ export function ImportModal({ onClose, onImported, onSync }) {
         style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}
       >
         <AnimatePresence mode="wait">
+
+          {/* ── Source selection ─────────────────────────────── */}
+          {phase === 'source' && (
+            <motion.div
+              key="source"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-ui-border">
+                <h2 className="text-[15px] font-semibold text-white leading-none">
+                  Import Playlist
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="text-muted hover:text-white transition-colors text-[18px] leading-none p-0 bg-transparent border-none cursor-pointer"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Source buttons */}
+              <div className="px-5 pt-5 pb-5 flex flex-col gap-2.5">
+                <p className="text-[12px] text-muted mb-1">Choose a source</p>
+                {SOURCES.map(s => (
+                  <button
+                    key={s.key}
+                    onClick={() => { setSource(s.key); setPhase('form') }}
+                    className="w-full text-left bg-well border border-ui-border rounded-lg px-4 py-3 cursor-pointer hover:border-accent transition-colors group"
+                  >
+                    <div className="text-[14px] font-semibold text-white group-hover:text-accent transition-colors">
+                      {s.label}
+                    </div>
+                    <div className="text-[11px] text-muted mt-0.5">{s.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* ── Form ───────────────────────────────────────── */}
           {phase === 'form' && (
@@ -96,7 +145,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                   disabled={loading}
                   className="text-muted hover:text-white transition-colors text-[18px] leading-none p-0 bg-transparent border-none cursor-pointer disabled:opacity-40"
                 >
-                  ×
+                  &times;
                 </button>
               </div>
 
@@ -104,14 +153,14 @@ export function ImportModal({ onClose, onImported, onSync }) {
               <div className="px-5 pt-5 pb-5 flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-medium text-muted">
-                    Playlist URL
+                    {sourceCfg?.label ?? 'Playlist'} URL
                   </label>
                   <input
                     type="text"
                     value={url}
                     onChange={e => setUrl(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleImport()}
-                    placeholder="https://listenbrainz.org/playlist/…"
+                    placeholder={sourceCfg?.placeholder ?? 'Paste a playlist URL\u2026'}
                     autoFocus
                     disabled={loading}
                     className="w-full bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] outline-none placeholder:text-[#444] focus:border-accent transition-colors disabled:opacity-50"
@@ -138,11 +187,11 @@ export function ImportModal({ onClose, onImported, onSync }) {
               {/* Footer */}
               <div className="flex justify-end gap-2 px-5 pb-5">
                 <button
-                  onClick={onClose}
+                  onClick={() => { setPhase('source'); setSource(null); setUrl('') }}
                   disabled={loading}
                   className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors disabled:opacity-40"
                 >
-                  Cancel
+                  Back
                 </button>
                 <button
                   onClick={handleImport}
@@ -153,7 +202,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                       : 'bg-[#2a2a2a] text-[#555] cursor-default'
                     }`}
                 >
-                  {loading ? 'Importing…' : 'Import'}
+                  {loading ? 'Importing\u2026' : 'Import'}
                 </button>
               </div>
             </motion.div>
@@ -184,6 +233,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
               {(() => {
                 const unique = [...new Map((result.cover_urls ?? []).map(u => [u, u])).values()].slice(0, 6)
                 const cols = unique.length <= 1 ? 1 : unique.length <= 4 ? 2 : 3
+                if (unique.length === 0) return null
                 return (
                   <div className="px-5 pt-4 pb-4">
                     <div className={`grid gap-1.5 rounded-lg overflow-hidden ${
@@ -215,7 +265,16 @@ export function ImportModal({ onClose, onImported, onSync }) {
                 >
                   {onSync && (
                     <button
-                      onClick={() => { onSync(result.id); onImported(result); onClose() }}
+                      onClick={async () => {
+                        try {
+                          await onSync(result.id)
+                          onImported(result)
+                          onClose()
+                        } catch (e) {
+                          setErrorMsg(e.message || 'Sync failed')
+                          setPhase('error')
+                        }
+                      }}
                       className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
                     >
                       Sync to Library

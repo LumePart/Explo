@@ -330,6 +330,7 @@ export function PlaylistCard({
   onTracklistToggle,
   onDelete,
   trackId,
+  artworkUrl,
 }) {
   const { value, name } = playlist
   // trackFetchId: use real playlist ID (custom playlists) if provided, else fall back to value
@@ -422,28 +423,43 @@ export function PlaylistCard({
         {/* Gradient map color field */}
         <div style={{ position: 'absolute', inset: 0, backgroundImage: gradientLayers }} />
 
-        {/* Album art luminosity — gives the gradient field cover-art detail */}
-        <AnimatePresence>
-          {bgCovers[coverIdx] && (
-            <motion.img
-              key={coverIdx}
-              src={bgCovers[coverIdx]}
-              alt=""
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.86 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.5, ease: 'easeInOut' }}
-              onError={() => setBgCovers(prev => prev.filter((_, i) => i !== coverIdx))}
-              style={{
-                position: 'absolute', inset: 0,
-                width: '100%', height: '100%',
-                objectFit: 'cover', display: 'block',
-                filter: 'grayscale(1) contrast(1) brightness(0.5)',
-                mixBlendMode: 'luminosity',
-              }}
-            />
-          )}
-        </AnimatePresence>
+        {/* Playlist artwork — static cover image (e.g. Apple Music playlists) */}
+        {artworkUrl && (
+          <img
+            src={artworkUrl}
+            alt=""
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover', display: 'block',
+            }}
+          />
+        )}
+
+        {/* Album art luminosity — gives the gradient field cover-art detail (skipped when static artwork present) */}
+        {!artworkUrl && (
+          <AnimatePresence>
+            {bgCovers[coverIdx] && (
+              <motion.img
+                key={coverIdx}
+                src={bgCovers[coverIdx]}
+                alt=""
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.86 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.5, ease: 'easeInOut' }}
+                onError={() => setBgCovers(prev => prev.filter((_, i) => i !== coverIdx))}
+                style={{
+                  position: 'absolute', inset: 0,
+                  width: '100%', height: '100%',
+                  objectFit: 'cover', display: 'block',
+                  filter: 'grayscale(1) contrast(1) brightness(0.5)',
+                  mixBlendMode: 'luminosity',
+                }}
+              />
+            )}
+          </AnimatePresence>
+        )}
 
         {/* Black wash — tune opacity to control gradient-map visibility */}
         <div style={{ position: 'absolute', inset: 0, background: '#000', opacity: 0.38 }} />
