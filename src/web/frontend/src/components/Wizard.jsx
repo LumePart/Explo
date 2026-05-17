@@ -256,7 +256,7 @@ function Collapse({ open, children }) {
 
 function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
-          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, extensions } = fields
+          downloadSubdirectoryFormat, youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, extensions } = fields
   const isLocked = key => envSources[key] === 'env'
 
   const valid = () => {
@@ -309,9 +309,16 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 checked={useSubdirectory}
                 onChange={v => setField('useSubdirectory', v)}
                 disabled={isLocked('USE_SUBDIRECTORY')}
-                name="Use playlist subfolders"
-                desc="Create a subfolder per playlist inside the download directory"
+                name="Use download subdirectories"
+                desc="Store downloads under a formatted subdirectory inside the download directory"
               />
+              <TextField label="Subdirectory format"
+                hint="Used only when USE_SUBDIRECTORY is enabled. Tokens: {playlist}, {artist}, {album}. Formats without a {playlist} root use playlist manifests for cleanup.">
+                <input type="text" className={inputCls} value={downloadSubdirectoryFormat}
+                  onChange={e => setField('downloadSubdirectoryFormat', e.target.value)}
+                  placeholder="{playlist}" autoComplete="off" spellCheck={false}
+                  disabled={!useSubdirectory || isLocked('DOWNLOAD_SUBDIRECTORY_FORMAT')} />
+              </TextField>
             </div>
           </Collapse>
         </div>
@@ -370,9 +377,16 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                     checked={useSubdirectory}
                     onChange={v => setField('useSubdirectory', v)}
                     disabled={isLocked('USE_SUBDIRECTORY')}
-                    name="Use playlist subfolders"
-                    desc="Create a subfolder per playlist inside the download directory"
+                    name="Use download subdirectories"
+                    desc="Store downloads under a formatted subdirectory inside the download directory"
                   />
+                  <TextField label="Subdirectory format"
+                    hint="Used only when USE_SUBDIRECTORY is enabled. Tokens: {playlist}, {artist}, {album}. Formats without a {playlist} root use playlist manifests for cleanup.">
+                    <input type="text" className={inputCls} value={downloadSubdirectoryFormat}
+                      onChange={e => setField('downloadSubdirectoryFormat', e.target.value)}
+                      placeholder="{playlist}" autoComplete="off" spellCheck={false}
+                      disabled={!useSubdirectory || isLocked('DOWNLOAD_SUBDIRECTORY_FORMAT')} />
+                  </TextField>
                 </div>
               </Collapse>
             </div>
@@ -420,6 +434,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
       // Step 3
       downloadDir:      config.DOWNLOAD_DIR || '',
       useSubdirectory:  config.USE_SUBDIRECTORY !== 'false',
+      downloadSubdirectoryFormat: config.DOWNLOAD_SUBDIRECTORY_FORMAT || '{playlist}',
       migrateDownloads: config.MIGRATE_DOWNLOADS === 'true',
       dlServices:       { youtube: s.includes('youtube'), slskd: s.includes('slskd') },
       youtubeApiKey:    config.YOUTUBE_API_KEY || '',
@@ -476,6 +491,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
       const services = Object.entries(fields.dlServices).filter(([, v]) => v).map(([k]) => k)
       await wizardStep3({
         download_dir: fields.downloadDir, use_subdirectory: fields.useSubdirectory,
+        download_subdirectory_format: fields.downloadSubdirectoryFormat,
         migrate_downloads: fields.migrateDownloads, download_services: services,
         youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
         filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,

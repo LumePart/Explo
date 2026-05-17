@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -33,7 +32,7 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 	for _, service := range cfg.Services {
 		switch service {
 		case "youtube":
-			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg.Discovery, cfg.DownloadDir, httpClient))
+			downloader = append(downloader, NewYoutube(cfg.Youtube, cfg, httpClient))
 		case "slskd":
 			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
@@ -49,6 +48,8 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 }
 
 func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
+	var filesBeforeDownload map[string]struct{}
+
 	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
 		filterLocalTracks(tracks, true)
 	}
@@ -56,6 +57,13 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 		if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
 			slog.Error(err.Error())
 			return
+		}
+	}
+	if c.needsDownloadDir() && playlistManifestCleanupRequired(c.Cfg) {
+		var err error
+		filesBeforeDownload, err = snapshotDownloadFiles(c.Cfg.DownloadDir)
+		if err != nil {
+			slog.Warn("failed to snapshot download directory before run", "context", err.Error())
 		}
 	}
 
@@ -92,6 +100,12 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 			}
 		}
 	}
+
+	if c.needsDownloadDir() && playlistManifestCleanupRequired(c.Cfg) {
+		if err := c.writePlaylistManifest(*tracks, filesBeforeDownload); err != nil {
+			slog.Warn("failed to write playlist manifest", "context", err.Error())
+		}
+	}
 	filterLocalTracks(tracks, false)
 }
 
@@ -105,17 +119,34 @@ func (c *DownloadClient) needsDownloadDir() bool {
 }
 
 func (c *DownloadClient) DeleteSongs() {
-	entries, err := os.ReadDir(c.Cfg.DownloadDir)
+	if playlistManifestCleanupRequired(c.Cfg) {
+		if err := c.deletePlaylistManifestFiles(c.Cfg); err != nil {
+			slog.Warn("failed to clean playlist manifest downloads", "context", err.Error())
+		}
+		result, err := cleanupOrphanDownloads(c.Cfg)
+		if err != nil {
+			slog.Warn("failed to clean orphan downloads", "context", err.Error())
+		} else {
+			slog.Info("orphan cleanup finished", "scanned", result.Scanned, "removed", result.Removed, "referenced", result.Referenced, "skipped", result.Skipped)
+		}
+		return
+	}
+
+	downloadDir := cleanupDownloadDir(c.Cfg)
+	entries, err := os.ReadDir(downloadDir)
 	if err != nil {
 		slog.Error("failed to read directory", "context", err.Error())
 	}
 	for _, entry := range entries {
-		if !(entry.IsDir()) {
-			err = os.Remove(path.Join(c.Cfg.DownloadDir, entry.Name()))
+		entryPath := filepath.Join(downloadDir, entry.Name())
+		if entry.IsDir() {
+			err = os.RemoveAll(entryPath)
+		} else {
+			err = os.Remove(entryPath)
+		}
 
-			if err != nil {
-				slog.Error("failed to remove file", "context", err.Error())
-			}
+		if err != nil {
+			slog.Error("failed to remove downloaded track", "context", err.Error())
 		}
 	}
 }
@@ -201,11 +232,14 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		}
 	}()
 
-	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
+	moveCfg := *c.Cfg
+	moveCfg.DownloadDir = destDir
+	targetDir := trackDownloadDir(&moveCfg, track)
+	if err = os.MkdirAll(targetDir, os.ModePerm); err != nil {
 		return fmt.Errorf("couldn't make download directory: %s", err.Error())
 	}
 
-	dstFile := filepath.Join(destDir, track.File)
+	dstFile := filepath.Join(targetDir, track.File)
 	out, err := os.Create(dstFile)
 	if err != nil {
 		return fmt.Errorf("couldn't create destination file: %s", err.Error())
