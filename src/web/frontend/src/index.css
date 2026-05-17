@@ -33,6 +33,16 @@
 }
 .animate-fade-up { animation: fade-up 0.4s ease both; }
 
+/* Track row stagger entrance */
+@keyframes track-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.track-row {
+  animation: track-in 0.18s ease-out both;
+  animation-delay: var(--delay, 0ms);
+}
+
 /* Syntax highlight classes used in the config editor */
 .env-comment, .env-unset, .env-eq { color: var(--color-muted); }
 .env-key, .env-val { color: white; }

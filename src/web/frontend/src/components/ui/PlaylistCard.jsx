@@ -3,18 +3,23 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './Toggle'
 import { Button } from './common'
 import { fetchPlaylistTracks } from '../../lib/listenbrainz'
+import { prefetchPlaylists } from '../../lib/api'
 
 // ── TrackRow ──────────────────────────────────────────────────────────────────
 
-function TrackRow({ track }) {
+function TrackRow({ track, index = 0 }) {
   const [imgFailed, setImgFailed] = useState(false)
+  const [imgLoaded, setImgLoaded] = useState(false)
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '0 2px', minHeight: 52,
-      borderBottom: '1px solid rgba(255,255,255,0.04)',
-    }}>
+    <div
+      className="track-row"
+      style={{
+        '--delay': `${index * 30}ms`,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '0 2px', minHeight: 52,
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+      }}>
       <span style={{
         width: 24, fontSize: 11, color: '#3a3a3a', textAlign: 'right',
         flexShrink: 0, fontVariantNumeric: 'tabular-nums',
@@ -23,18 +28,33 @@ function TrackRow({ track }) {
       </span>
 
       <div style={{
-        width: 42, height: 42, borderRadius: 3, flexShrink: 0,
+        position: 'relative', width: 42, height: 42, borderRadius: 3, flexShrink: 0,
         background: '#1e1e1e', overflow: 'hidden',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {track.coverUrl && !imgFailed ? (
-          <img
-            src={track.coverUrl}
-            alt=""
-            loading="lazy"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            onError={() => setImgFailed(true)}
-          />
+          <>
+            <img
+              src={track.coverUrl}
+              alt=""
+              loading="lazy"
+              style={{
+                width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.35s ease',
+              }}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgFailed(true)}
+            />
+            <motion.div
+              animate={{ backgroundPosition: ['200% 0', '-200% 0'], opacity: imgLoaded ? 0 : 1 }}
+              transition={{ backgroundPosition: { duration: 1.2, repeat: Infinity, ease: 'linear' }, opacity: { duration: 0.35 } }}
+              style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(90deg, #1e1e1e 25%, #2e2e2e 50%, #1e1e1e 75%)',
+                backgroundSize: '200% 100%',
+              }}
+            />
+          </>
         ) : (
           <span style={{ fontSize: 14, color: '#2e2e2e' }}>♪</span>
         )}
@@ -88,24 +108,24 @@ function nextUpdateLabel(playlistType) {
   return `Next update ${nextMonday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
 }
 
-export function TracklistDropdown({ playlist }) {
+export function TracklistDropdown({ playlist, lbUser }) {
   const [tracks, setTracks] = useState([])
   const [generatedAt, setGeneratedAt] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [fetching, setFetching] = useState(false)
 
-  useEffect(() => {
-    if (!playlist) return
+  const loadTracks = (withRetry = false) => {
     let cancelled = false
     let retry = 0
     let retryTimer = null
     setLoading(true)
     setError(null)
     const load = () => {
-      fetchPlaylistTracks(playlist, { force: retry > 0 })
+      fetchPlaylistTracks(playlist, { force: retry > 0 || withRetry })
         .then(({ tracks: t, generatedAt: g }) => {
           if (cancelled) return
-          if (t.length === 0 && retry < 8) {
+          if (t.length === 0 && withRetry && retry < 8) {
             retry += 1
             retryTimer = setTimeout(load, 1500)
             return
@@ -117,11 +137,22 @@ export function TracklistDropdown({ playlist }) {
         .catch(e => { if (!cancelled) { setError(e.message); setLoading(false) } })
     }
     load()
-    return () => {
-      cancelled = true
-      if (retryTimer) clearTimeout(retryTimer)
-    }
+    return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer) }
+  }
+
+  useEffect(() => {
+    if (!playlist) return
+    return loadTracks(false)
   }, [playlist])
+
+  const handleFetch = () => {
+    if (!lbUser) return
+    setFetching(true)
+    prefetchPlaylists(lbUser, [playlist])
+      .then(() => loadTracks(true))
+      .catch(e => setError(e.message))
+      .finally(() => setFetching(false))
+  }
 
   const genDate = generatedAt ? new Date(generatedAt) : null
 
@@ -142,16 +173,28 @@ export function TracklistDropdown({ playlist }) {
       {/* Track list */}
       <div className="no-scrollbar" style={{ maxHeight: 560, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {loading ? (
-          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a' }}>Loading…</div>
+          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a' }}>{fetching ? 'Fetching…' : 'Loading…'}</div>
         ) : error ? (
           <div style={{ padding: '16px 2px', fontSize: 12, color: '#c0392b' }}>{error}</div>
         ) : tracks.length === 0 ? (
-          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a' }}>
-            No playlist found yet. {nextUpdateLabel(playlist)}.
+          <div style={{ padding: '16px 2px', fontSize: 12, color: '#4a4a4a', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>No playlist found yet. {nextUpdateLabel(playlist)}.</span>
+            {lbUser && (
+              <button
+                onClick={handleFetch}
+                disabled={fetching}
+                style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #444',
+                  background: '#1f1f1f', color: 'white', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                Pull tracks
+              </button>
+            )}
           </div>
         ) : (
-          tracks.map(t => (
-            <TrackRow key={`${t.rank}-${t.title}-${t.artist}`} track={t} />
+          tracks.map((t, i) => (
+            <TrackRow key={`${t.rank}-${t.title}-${t.artist}`} track={t} index={i} />
           ))
         )}
       </div>
