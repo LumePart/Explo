@@ -1,6 +1,7 @@
 // Polls GitHub releases API and compares to build version, shows a modal if a new version is out
 import { useState, useEffect } from 'react'
-import { marked } from 'marked'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 const GITHUB_RELEASE_URL = 'https://api.github.com/repos/LumePart/Explo/releases/latest'
 const SEEN_VERSION_KEY = 'explo_seen_version'
@@ -127,10 +128,9 @@ export function UpdateNotification() {
             </div>
 
             {updateInfo.releaseNotes && (
-              <div
-                className="markdown overflow-y-auto p-5 flex-1"
-                dangerouslySetInnerHTML={{ __html: marked.parse(updateInfo.releaseNotes) }}
-              />
+              <div className="markdown overflow-y-auto p-5 flex-1">
+                <Markdown remarkPlugins={[remarkGfm]}>{updateInfo.releaseNotes}</Markdown>
+              </div>
             )}
 
             <div className="flex items-center justify-end gap-2 p-4 border-t border-ui-border">

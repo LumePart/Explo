@@ -125,11 +125,15 @@ func (s *Server) Start() error {
 }
 
 func checkForUpdate() {
-	resp, err := http.Get("https://api.github.com/repos/LumePart/Explo/releases/latest")
-	if err != nil || resp.StatusCode != http.StatusOK {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://api.github.com/repos/LumePart/Explo/releases/latest")
+	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
 	var release struct {
 		TagName string `json:"tag_name"`
 	}
