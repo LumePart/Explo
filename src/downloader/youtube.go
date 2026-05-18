@@ -225,11 +225,22 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		metadata = append(metadata, "MUSICBRAINZ_ARTISTID="+track.MusicBrainzArtistID)
 	}
 
-	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
-		"map":      "0:a",
-		"metadata": metadata,
-		"loglevel": "error",
-	}).OverWriteOutput().ErrorToStdOut()
+	var cmd *ffmpeg.Stream
+
+	if c.Cfg.EmbedCoverArt {
+		util.DownloadCover(track.CoverURL, c.DownloadDir)
+		coverPath := filepath.Join(c.DownloadDir, track.MusicBrainzAlbumID+".jpg")
+		cmd = ffmpeg.Output([]*ffmpeg.Stream{ffmpeg.Input(input), ffmpeg.Input(coverPath)}, filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+			"metadata": metadata,
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut()
+	} else {
+		cmd = ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+			"map":      "0:a",
+			"metadata": metadata,
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut()
+	}
 
 	if c.Cfg.FfmpegPath != "" {
 		cmd.SetFfmpegPath(c.Cfg.FfmpegPath)

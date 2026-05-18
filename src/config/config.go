@@ -113,6 +113,7 @@ type Youtube struct {
 	FfmpegPath    string `env:"FFMPEG_PATH"`
 	YtdlpPath     string `env:"YTDLP_PATH"`
 	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"` // yt-dlp
+	EmbedCoverArt bool   `env:"EMBED_COVER_ART" env-default:"false"`
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
 }

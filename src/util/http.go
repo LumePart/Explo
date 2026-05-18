@@ -6,6 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"explo/src/logging"
@@ -16,7 +19,7 @@ type HttpClientConfig struct {
 }
 
 type HttpClient struct {
-	Client *http.Client
+	Client    *http.Client
 	UserAgent string
 }
 
@@ -73,4 +76,35 @@ func ParseResp[T any](body []byte, target *T) error {
 		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil
+}
+
+// DownloadCover downloads coverURL into coversDir and returns "/api/covers/<mbid>.jpg".
+// Returns "" if url is empty.
+func DownloadCover(url, coversDir string) string {
+	if url == "" {
+		return ""
+	}
+	parts := strings.Split(strings.TrimRight(url, "/"), "/")
+	mbid := parts[len(parts)-2]
+	destPath := filepath.Join(coversDir, mbid+".jpg")
+	if _, err := os.Stat(destPath); os.IsNotExist(err) {
+		resp, err := http.Get(url) //nolint:noctx
+		if err == nil {
+			func() {
+				defer func() {
+					if cerr := resp.Body.Close(); cerr != nil {
+						slog.Error("failed to close cover response", "err", cerr.Error())
+					}
+				}()
+				if resp.StatusCode == http.StatusOK {
+					if data, err := io.ReadAll(resp.Body); err == nil {
+						if err := os.WriteFile(destPath, data, 0644); err != nil {
+							slog.Error("failed writing cover", "path", destPath, "err", err.Error())
+						}
+					}
+				}
+			}()
+		}
+	}
+	return "/api/covers/" + mbid + ".jpg"
 }
