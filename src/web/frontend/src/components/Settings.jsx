@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
+import { UpdateNotification } from './ui/UpdateNotification'
 
 const tabBtnCls = active =>
   `bg-transparent border-none border-b-2 pb-2 px-3.5 text-[13px] leading-none cursor-pointer transition-colors
@@ -547,6 +548,7 @@ export default function Settings({ onWizard, onLogout }) {
               <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
               <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
             </nav>
+            <UpdateNotification />
             <button
               onClick={onLogout}
               className="pb-2 text-[12px] text-muted hover:text-white transition-colors cursor-pointer bg-transparent border-none"
