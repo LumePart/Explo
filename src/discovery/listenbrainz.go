@@ -243,7 +243,7 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 	}
 
 	tracks := make([]*models.Track, 0, len(recordings))
-	for _, recording := range recordings {
+	for mbTrackID, recording := range recordings {
 		rec := recording.Recording
 
 		title := rec.Name
@@ -271,12 +271,16 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 		}
 
 		tracks = append(tracks, &models.Track{
-			Album:      recording.Release.Name,
-			Artist:     artist,
-			MainArtist: mainArtist,
-			CleanTitle: rec.Name,
-			Title:      title,
-			Duration:   rec.Length,
+			Album:                     recording.Release.Name,
+			Artist:                    artist,
+			MainArtist:                mainArtist,
+			CleanTitle:                rec.Name,
+			Title:                     title,
+			Duration:                  rec.Length,
+			MusicBrainzTrackID:        mbTrackID,
+			MusicBrainzAlbumID:        recording.Release.Mbid,
+			MusicBrainzReleaseGroupID: recording.Release.ReleaseGroupMbid,
+			MusicBrainzArtistID:       recArtists[0].ArtistMbid,
 		})
 	}
 
@@ -340,7 +344,6 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) {
 	return bestID, nil
 }
 
-
 func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*models.Track, error) {
 	body, err := c.lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
@@ -388,14 +391,28 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 			}
 		}
 
+		recordingMBID := ""
+		if len(track.Identifier) > 0 {
+			parts := strings.Split(track.Identifier[0], "/")
+			recordingMBID = parts[len(parts)-1]
+		}
+
+		artistMBID := ""
+		if len(trackMeta.Artists) > 0 {
+			artistMBID = trackMeta.Artists[0].ArtistMbid
+		}
+
 		tracks = append(tracks, &models.Track{
-			Album:      track.Album,
-			MainArtist: mainArtist,
-			Artist:     artist,
-			CleanTitle: track.Title,
-			Title:      title,
-			Duration:   track.Duration,
-			CoverURL:   coverURL,
+			Album:               track.Album,
+			MainArtist:          mainArtist,
+			Artist:              artist,
+			CleanTitle:          track.Title,
+			Title:               title,
+			Duration:            track.Duration,
+			CoverURL:            coverURL,
+			MusicBrainzTrackID:  recordingMBID,
+			MusicBrainzArtistID: artistMBID,
+			MusicBrainzAlbumID:  trackMeta.CaaReleaseMbid,
 		})
 	}
 

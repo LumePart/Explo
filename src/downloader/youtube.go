@@ -205,9 +205,29 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
+	metadata := []string{"ARTIST=" + track.Artist, "TITLE=" + track.Title, "ALBUM=" + track.Album}
+	if track.MusicBrainzReleaseGroupID != "" {
+		metadata = append(metadata, "MUSICBRAINZ_RELEASEGROUPID="+track.MusicBrainzReleaseGroupID)
+	}
+	if track.MusicBrainzAlbumArtistID != "" {
+		metadata = append(metadata, "MUSICBRAINZ_ALBUMARTISTID="+track.MusicBrainzAlbumArtistID)
+	}
+	if track.MusicBrainzTrackID != "" {
+		metadata = append(metadata, "MUSICBRAINZ_TRACKID="+track.MusicBrainzTrackID)
+	}
+	if track.MusicBrainzAlbumID != "" {
+		metadata = append(metadata, "MUSICBRAINZ_ALBUMID="+track.MusicBrainzAlbumID)
+	}
+	if track.MusicBrainzReleaseTrackID != "" {
+		metadata = append(metadata, "MUSICBRAINZ_RELEASETRACKID="+track.MusicBrainzReleaseTrackID)
+	}
+	if track.MusicBrainzArtistID != "" {
+		metadata = append(metadata, "MUSICBRAINZ_ARTISTID="+track.MusicBrainzArtistID)
+	}
+
 	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
 		"map":      "0:a",
-		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
+		"metadata": metadata,
 		"loglevel": "error",
 	}).OverWriteOutput().ErrorToStdOut()
 
