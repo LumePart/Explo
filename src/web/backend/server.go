@@ -429,8 +429,16 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	def, ok := playlistDefs[body.Name]
-	if !ok {
+	var envPrefix string
+	var defaultFlags string
+
+	if def, ok := playlistDefs[body.Name]; ok {
+		envPrefix = def.EnvPrefix
+		defaultFlags = def.DefaultFlags
+	} else if customIDRe.MatchString(body.Name) {
+		envPrefix = customEnvPrefix(body.Name)
+		defaultFlags = "--playlist " + body.Name
+	} else {
 		http.Error(w, "unknown playlist name", http.StatusBadRequest)
 		return
 	}
@@ -444,11 +452,11 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		} else if body.Day >= 0 {
 			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
-		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
+		updates[envPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
+		updates[envPrefix+"_FLAGS"] = defaultFlags
 	} else {
-		updates[def.EnvPrefix+"_SCHEDULE"] = ""
-		updates[def.EnvPrefix+"_FLAGS"] = ""
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = ""
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {

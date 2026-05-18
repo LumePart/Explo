@@ -85,7 +85,7 @@ const PLAYLISTS = [
 ]
 
 const SCHEDULE_DAYS = [
-  { value: -1,  label: 'Every day',        summary: '' },
+  { value: -1,  label: 'Every day',        summary: 'Every day' },
   { value: 0,   label: 'Sunday',           summary: 'Every Sunday' },
   { value: 1,   label: 'Monday',           summary: 'Every Monday' },
   { value: 2,   label: 'Tuesday',          summary: 'Every Tuesday' },
@@ -117,17 +117,6 @@ function TracklistSlide({ show, slideKey, children }) {
   )
 }
 
-function initSchedules(config) {
-  const out = {}
-  for (const p of PLAYLISTS) {
-    const cron = config[p.scheduleKey]
-    out[p.value] = cron
-      ? { enabled: true, editing: false, ...cronToFields(cron) }
-      : { enabled: false, day: p.defaultDay, hour: p.defaultHour, minute: p.defaultMinute, editing: false }
-  }
-  return out
-}
-
 function HomeSection() {
   const [schedules, setSchedules] = useState(null)
   const [envSources, setEnvSources] = useState({})
@@ -149,12 +138,28 @@ function HomeSection() {
   const logRef = useRef(null)
 
   useEffect(() => {
-    fetchConfig().then(({ values, sources }) => {
-      setSchedules(initSchedules(values))
+    Promise.all([
+      fetchConfig(),
+      fetchCustomPlaylists().catch(() => [])
+    ]).then(([{ values, sources }, customList]) => {
       setEnvSources(sources || {})
       setLbUser(values.LISTENBRAINZ_USER || '')
+      setCustomPlaylists(customList)
+
+      const s = {}
+      for (const p of PLAYLISTS) {
+        const cron = values[p.scheduleKey]
+        s[p.value] = cron
+          ? { enabled: true, editing: false, ...cronToFields(cron) }
+          : { enabled: false, day: p.defaultDay, hour: p.defaultHour, minute: p.defaultMinute, editing: false }
+      }
+      for (const cp of customList) {
+        s[cp.id] = cp.schedule
+          ? { enabled: true, editing: false, ...cronToFields(cp.schedule) }
+          : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
+      }
+      setSchedules(s)
     })
-    fetchCustomPlaylists().then(setCustomPlaylists).catch(() => {})
   }, [])
 
   const onLine = useCallback(data => {
@@ -183,41 +188,55 @@ function HomeSection() {
     return () => disconnect()
   }, [connect, disconnect])
 
-  const isScheduleLocked = name => {
-    const p = PLAYLISTS.find(p => p.value === name)
+  const isScheduleLocked = id => {
+    const p = PLAYLISTS.find(p => p.value === id)
     return p ? envSources[p.scheduleKey] === 'env' : false
   }
 
-  const scheduleTime = name => {
-    const s = schedules[name]
-    return `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
+  const nextRunText = id => {
+    const s = schedules[id]
+    if (!s?.enabled) return 'Disabled'
+    return SCHEDULE_DAYS.find(d => d.value === s.day)?.summary || 'Every day'
   }
 
-  const scheduleSummary = day => SCHEDULE_DAYS.find(d => d.value === day)?.summary ?? ''
-
-  const nextRunText = name => {
-    const s = schedules[name]
-    if (!s.enabled) return 'Disabled'
-    return scheduleSummary(s.day)
+  const flashStatus = (id, msg) => {
+    setScheduleSaveStatus(prev => ({ ...prev, [id]: msg }))
+    if (msg === 'Saved.') setTimeout(() => setScheduleSaveStatus(prev => ({ ...prev, [id]: '' })), 2000)
   }
 
-  const updateScheduleTime = (name, val) => {
-    const [h = '00', m = '00'] = val.split(':')
-    setSchedules(prev => ({
-      ...prev,
-      [name]: { ...prev[name], hour: parseInt(h) || 0, minute: parseInt(m) || 0 },
-    }))
-  }
-
-  const handleSaveSchedule = async name => {
-    if (isScheduleLocked(name)) return
-    const s = schedules[name]
-    try {
-      await saveSchedule(name, s.enabled, s.day, s.hour, s.minute)
-      setScheduleSaveStatus(prev => ({ ...prev, [name]: 'Saved.' }))
-      setTimeout(() => setScheduleSaveStatus(prev => ({ ...prev, [name]: '' })), 2000)
-    } catch {
-      setScheduleSaveStatus(prev => ({ ...prev, [name]: 'Error saving.' }))
+  const scheduleProps = id => {
+    const s = schedules[id]
+    return {
+      schedule: s,
+      scheduleSaveStatus: scheduleSaveStatus[id] || '',
+      onToggle: v => {
+        setSchedules(prev => ({ ...prev, [id]: { ...prev[id], enabled: v } }))
+        saveSchedule(id, v, s.day, s.hour, s.minute)
+          .then(() => flashStatus(id, 'Saved.'))
+          .catch(() => flashStatus(id, 'Error saving.'))
+      },
+      onToggleEdit: () => setSchedules(prev => ({
+        ...prev, [id]: { ...prev[id], editing: !prev[id].editing }
+      })),
+      onSave: () => {
+        if (isScheduleLocked(id)) return
+        saveSchedule(id, s.enabled, s.day, s.hour, s.minute)
+          .then(() => flashStatus(id, 'Saved.'))
+          .catch(() => flashStatus(id, 'Error saving.'))
+        setSchedules(prev => ({ ...prev, [id]: { ...prev[id], editing: false } }))
+      },
+      onCancelEdit: () => setSchedules(prev => ({
+        ...prev, [id]: { ...prev[id], editing: false }
+      })),
+      onDayChange: day => setSchedules(prev => ({
+        ...prev, [id]: { ...prev[id], day }
+      })),
+      onTimeChange: val => {
+        const [h = '00', m = '00'] = val.split(':')
+        setSchedules(prev => ({
+          ...prev, [id]: { ...prev[id], hour: parseInt(h) || 0, minute: parseInt(m) || 0 }
+        }))
+      },
     }
   }
 
@@ -249,41 +268,19 @@ function HomeSection() {
       <div className="mt-6">
         <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Scheduled Playlists</div>
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
-          {PLAYLISTS.map((p, i) => {
-            const s = schedules[p.value]
-            const locked = isScheduleLocked(p.value)
-            return (
-              <PlaylistCard
-                key={p.value}
-                playlist={p}
-                schedule={s}
-                locked={locked}
-                fixedSchedule={!!p.fixedSchedule}
-                index={i}
-                nextRunText={nextRunText(p.value)}
-                scheduleSaveStatus={scheduleSaveStatus[p.value] || ''}
-                tracklistOpen={openTracklist === p.value}
-                onTracklistToggle={() => setOpenTracklist(v => v === p.value ? null : p.value)}
-                onToggle={v => {
-                  // Read current schedule synchronously — avoids stale-closure bug where
-                  // handleSaveSchedule would see the pre-toggle enabled value.
-                  const cur = schedules[p.value]
-                  setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], enabled: v } }))
-                  saveSchedule(p.value, v, cur.day, cur.hour, cur.minute)
-                    .then(() => {
-                      setScheduleSaveStatus(prev => ({ ...prev, [p.value]: 'Saved.' }))
-                      setTimeout(() => setScheduleSaveStatus(prev => ({ ...prev, [p.value]: '' })), 2000)
-                    })
-                    .catch(() => setScheduleSaveStatus(prev => ({ ...prev, [p.value]: 'Error saving.' })))
-                }}
-                onToggleEdit={() => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: !prev[p.value].editing } }))}
-                onSave={() => { handleSaveSchedule(p.value); setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: false } })) }}
-                onCancelEdit={() => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], editing: false } }))}
-                onDayChange={day => setSchedules(prev => ({ ...prev, [p.value]: { ...prev[p.value], day } }))}
-                onTimeChange={val => updateScheduleTime(p.value, val)}
-              />
-            )
-          })}
+          {PLAYLISTS.map((p, i) => (
+            <PlaylistCard
+              key={p.value}
+              playlist={p}
+              {...scheduleProps(p.value)}
+              locked={isScheduleLocked(p.value)}
+              fixedSchedule={!!p.fixedSchedule}
+              index={i}
+              nextRunText={nextRunText(p.value)}
+              tracklistOpen={openTracklist === p.value}
+              onTracklistToggle={() => setOpenTracklist(v => v === p.value ? null : p.value)}
+            />
+          ))}
         </div>
         <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
           <TracklistDropdown lbUser={lbUser} playlist={openTracklist} />
@@ -309,29 +306,30 @@ function HomeSection() {
           </p>
         ) : (
           <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
-            {customPlaylists.map((cp, i) => (
-              <PlaylistCard
-                key={cp.id}
-                playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
-                trackId={cp.id}
-                artworkUrl={cp.artwork_url || undefined}
-                schedule={{ enabled: true, editing: false, day: -1, hour: 0, minute: 0 }}
-                fixedSchedule
-                index={i}
-                nextRunText={cp.refresh_days > 0 ? `Every ${cp.refresh_days} day${cp.refresh_days !== 1 ? 's' : ''}` : ''}
-                tracklistOpen={openTracklist === cp.id}
-                onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
-                onDelete={async () => {
-                  try {
-                    await deleteCustomPlaylist(cp.id)
-                    setCustomPlaylists(prev => prev.filter(p => p.id !== cp.id))
-                    if (openTracklist === cp.id) setOpenTracklist(null)
-                  } catch {
-                    // ignore
-                  }
-                }}
-              />
-            ))}
+            {customPlaylists.map((cp, i) => {
+              if (!schedules[cp.id]) return null
+              return (
+                <PlaylistCard
+                  key={cp.id}
+                  playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
+                  trackId={cp.id}
+                  artworkUrl={cp.artwork_url || undefined}
+                  {...scheduleProps(cp.id)}
+                  index={i}
+                  nextRunText={nextRunText(cp.id)}
+                  tracklistOpen={openTracklist === cp.id}
+                  onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                  onDelete={async () => {
+                    try {
+                      await deleteCustomPlaylist(cp.id)
+                      setCustomPlaylists(prev => prev.filter(p => p.id !== cp.id))
+                      setSchedules(prev => { const next = { ...prev }; delete next[cp.id]; return next })
+                      if (openTracklist === cp.id) setOpenTracklist(null)
+                    } catch {}
+                  }}
+                />
+              )
+            })}
           </div>
         )}
 
@@ -363,7 +361,19 @@ function HomeSection() {
           <ImportModal
             onClose={() => setShowImportModal(false)}
             onImported={() => {
-              fetchCustomPlaylists().then(setCustomPlaylists).catch(() => {})
+              fetchCustomPlaylists().then(list => {
+                setCustomPlaylists(list)
+                setSchedules(prev => {
+                  const next = { ...prev }
+                  for (const cp of list) {
+                    if (next[cp.id]) continue
+                    next[cp.id] = cp.schedule
+                      ? { enabled: true, editing: false, ...cronToFields(cp.schedule) }
+                      : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
+                  }
+                  return next
+                })
+              }).catch(() => {})
               setShowImportModal(false)
             }}
             onSync={async (id) => {
@@ -406,6 +416,8 @@ function HomeSection() {
           <label className="text-[12px] text-muted">Playlist</label>
           <select className={selectCls} value={playlist} onChange={e => setPlaylist(e.target.value)}>
             {PLAYLISTS.map(p => <option key={p.value} value={p.value}>{p.name}</option>)}
+            {customPlaylists.length > 0 && <option disabled>---</option>}
+            {customPlaylists.map(cp => <option key={cp.id} value={cp.id}>{cp.name}</option>)}
           </select>
           <label className="flex items-center gap-1.5 text-[12px] text-muted cursor-pointer" title="When unchecked (default), previously generated playlists and their tracks are kept and added to over time. When checked, the playlist is wiped and rebuilt from scratch on each run.">
             <input type="checkbox" checked={noPersist} onChange={e => setNoPersist(e.target.checked)} /> don't persist

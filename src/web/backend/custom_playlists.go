@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"explo/src/web"
 )
 
 // CustomPlaylist holds the metadata for a user-imported playlist.
@@ -56,6 +58,12 @@ func customPlaylistsPath(cfgDir string) string {
 	return filepath.Join(cfgDir, "custom-playlists.json")
 }
 
+// customEnvPrefix converts a custom playlist ID like "custom-a1b2c3d4"
+// to an env-var prefix like "CUSTOM_A1B2C3D4".
+func customEnvPrefix(id string) string {
+	return strings.ToUpper(strings.ReplaceAll(id, "-", "_"))
+}
+
 func loadCustomPlaylists(cfgDir string) []CustomPlaylist {
 	data, err := os.ReadFile(customPlaylistsPath(cfgDir))
 	if err != nil {
@@ -77,19 +85,90 @@ func saveCustomPlaylists(cfgDir string, playlists []CustomPlaylist) error {
 	return os.WriteFile(customPlaylistsPath(cfgDir), raw, 0644)
 }
 
+// FetchResult is the uniform return type for fetching playlist data from any source.
+type FetchResult struct {
+	Name       string
+	ArtworkURL string
+	Tracks     [][4]string
+}
+
+// fetchCustomPlaylistTracks dispatches to the appropriate source fetcher.
+// This is the single point where source-specific logic lives for fetching.
+func fetchCustomPlaylistTracks(p CustomPlaylist) (FetchResult, error) {
+	switch p.Source {
+	case "apple_music":
+		name, art, tracks, err := fetchAppleMusicPlaylist(p.SourceURL)
+		return FetchResult{name, art, tracks}, err
+	default: // "listenbrainz" or legacy empty
+		mbid := p.LBMBID
+		if mbid == "" && p.SourceURL != "" {
+			var err error
+			mbid, err = extractLBMBID(p.SourceURL)
+			if err != nil {
+				return FetchResult{}, err
+			}
+		}
+		if mbid == "" {
+			return FetchResult{}, fmt.Errorf("no source data for playlist %s", p.ID)
+		}
+		name, tracks, err := fetchLBPlaylistByMBID(mbid)
+		return FetchResult{Name: name, Tracks: tracks}, err
+	}
+}
+
+// extractSourceID validates a URL and returns the canonical ID for the given source.
+func extractSourceID(source, url string) (string, error) {
+	switch source {
+	case "apple_music":
+		return extractAppleMusicID(url)
+	default:
+		return extractLBMBID(url)
+	}
+}
+
+// isDuplicate checks whether a playlist with the same source and source ID already exists.
+func isDuplicate(source, sourceID string, existing []CustomPlaylist) (string, bool) {
+	for _, p := range existing {
+		if p.Source != source && p.Source != "" {
+			continue
+		}
+		existID, _ := extractSourceID(p.Source, p.SourceURL)
+		if existID == "" && p.LBMBID != "" {
+			existID = p.LBMBID
+		}
+		if existID == "" {
+			continue
+		}
+		if existID == sourceID {
+			return p.ID, true
+		}
+	}
+	return "", false
+}
+
 // handleGetCustomPlaylists returns all saved custom playlists with a track_count
-// derived from their cache file (if present).
+// derived from their cache file (if present) and the current sync schedule from .env.
 func (s *Server) handleGetCustomPlaylists(w http.ResponseWriter, r *http.Request) {
 	playlists := loadCustomPlaylists(s.cfg.WebDataDir)
 
+	// Read .env to look up schedule state for each custom playlist.
+	var envValues map[string]string
+	if data, err := os.ReadFile(s.cfg.WebEnvPath); err == nil {
+		envValues = parseEnvText(string(data))
+	} else {
+		envValues = map[string]string{}
+	}
+
 	type respItem struct {
 		CustomPlaylist
-		TrackCount int `json:"track_count"`
+		TrackCount int    `json:"track_count"`
+		Schedule   string `json:"schedule"`
 	}
 	items := make([]respItem, 0, len(playlists))
 	for _, p := range playlists {
 		count := customPlaylistTrackCount(s.cfg.WebDataDir, p.ID)
-		items = append(items, respItem{CustomPlaylist: p, TrackCount: count})
+		sched := envValues[customEnvPrefix(p.ID)+"_SCHEDULE"]
+		items = append(items, respItem{CustomPlaylist: p, TrackCount: count, Schedule: sched})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -113,68 +192,33 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 
 	existing := loadCustomPlaylists(s.cfg.WebDataDir)
 
-	var (
-		name       string
-		tracks     [][4]string
-		mbid       string
-		artworkURL string
-		sourceURL  = body.URL
-	)
-
-	switch body.Source {
-	case "apple_music":
-		apID, err := extractAppleMusicID(body.URL)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		slog.Info("custom-playlists: apple music import request", "playlist_id", apID, "refresh_days", body.RefreshDays)
-
-		for _, p := range existing {
-			if p.Source == "apple_music" {
-				existingID, _ := extractAppleMusicID(p.SourceURL)
-				if existingID == apID {
-					slog.Warn("custom-playlists: duplicate import rejected", "playlist_id", apID, "existing_id", p.ID)
-					http.Error(w, "playlist already imported", http.StatusConflict)
-					return
-				}
-			}
-		}
-
-		name, artworkURL, tracks, err = fetchAppleMusicPlaylist(body.URL)
-		if err != nil {
-			slog.Error("custom-playlists: apple music fetch failed", "err", err)
-			http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
-			return
-		}
-
-	default: // "listenbrainz" or empty
+	if body.Source == "" {
 		body.Source = "listenbrainz"
-		var err error
-		mbid, err = extractLBMBID(body.URL)
-		if err != nil {
-			slog.Warn("custom-playlists: invalid URL", "url", body.URL, "err", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		slog.Info("custom-playlists: LB import request", "mbid", mbid, "refresh_days", body.RefreshDays)
-
-		for _, p := range existing {
-			if p.LBMBID == mbid {
-				slog.Warn("custom-playlists: duplicate import rejected", "mbid", mbid, "existing_id", p.ID)
-				http.Error(w, "playlist already imported", http.StatusConflict)
-				return
-			}
-		}
-
-		name, tracks, err = fetchLBPlaylistByMBID(mbid)
-		if err != nil {
-			slog.Error("custom-playlists: LB fetch failed", "mbid", mbid, "err", err)
-			http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
-			return
-		}
 	}
 
+	sourceID, err := extractSourceID(body.Source, body.URL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	slog.Info("custom-playlists: import request", "source", body.Source, "source_id", sourceID, "refresh_days", body.RefreshDays)
+
+	if existingID, dup := isDuplicate(body.Source, sourceID, existing); dup {
+		slog.Warn("custom-playlists: duplicate import rejected", "source_id", sourceID, "existing_id", existingID)
+		http.Error(w, "playlist already imported", http.StatusConflict)
+		return
+	}
+
+	result, err := fetchCustomPlaylistTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL})
+	if err != nil {
+		slog.Error("custom-playlists: fetch failed", "source", body.Source, "err", err)
+		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+
+	name := result.Name
+	tracks := result.Tracks
+	artworkURL := result.ArtworkURL
 	if name == "" {
 		name = "Imported Playlist"
 	}
@@ -200,12 +244,18 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	go downloadAndCacheCovers(s.cfg.WebDataDir, id, tracks)
 
 	// Save metadata
+	// Derive LBMBID for backward compatibility (LB playlists only)
+	var lbMBID string
+	if body.Source != "apple_music" {
+		lbMBID = sourceID
+	}
+
 	cp := CustomPlaylist{
 		ID:          id,
 		Name:        name,
 		Source:      body.Source,
-		SourceURL:   sourceURL,
-		LBMBID:      mbid,       // empty for apple_music
+		SourceURL:   body.URL,
+		LBMBID:      lbMBID,     // empty for apple_music
 		ArtworkURL:  artworkURL, // empty for listenbrainz
 		RefreshDays: body.RefreshDays,
 		ColorIndex:  len(existing),
@@ -268,19 +318,13 @@ func (s *Server) handleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Requ
 	p := playlists[idx]
 	slog.Info("custom-playlists: manual refresh", "id", id, "source", p.Source)
 
-	var tracks [][4]string
-	var err error
-	switch p.Source {
-	case "apple_music":
-		_, _, tracks, err = fetchAppleMusicPlaylist(p.SourceURL)
-	default:
-		_, tracks, err = fetchLBPlaylistByMBID(p.LBMBID)
-	}
+	result, err := fetchCustomPlaylistTracks(p)
 	if err != nil {
 		slog.Error("custom-playlists: refresh fetch failed", "id", id, "err", err)
 		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
 		return
 	}
+	tracks := result.Tracks
 
 	if !writePreliminaryCache(s.cfg.WebDataDir, id, tracks) {
 		http.Error(w, "failed to write playlist cache", http.StatusInternalServerError)
@@ -333,6 +377,13 @@ func (s *Server) handleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	// Remove the cache file; ignore error if already gone
 	cachePath := filepath.Join(s.cfg.WebDataDir, "cache", id+".json")
 	_ = os.Remove(cachePath)
+
+	// Remove schedule env vars from .env
+	prefix := customEnvPrefix(id)
+	_ = updateEnvKeys(s.cfg.WebEnvPath, map[string]string{
+		prefix + "_SCHEDULE": "",
+		prefix + "_FLAGS":    "",
+	}, web.SampleEnv)
 
 	slog.Info("custom-playlists: deleted", "id", id)
 	w.WriteHeader(http.StatusNoContent)

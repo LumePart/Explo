@@ -520,8 +520,8 @@ export function PlaylistCard({
           </span>
         </div>
 
-        {/* Toggle — bottom right (hidden for custom playlists, which use onDelete in the tracklist) */}
-        {!onDelete && (
+        {/* Toggle — bottom right */}
+        {onToggle && (
           <>
             <label
               onClick={e => e.stopPropagation()}
@@ -544,9 +544,9 @@ export function PlaylistCard({
         )}
       </div>
 
-      {/* Inline schedule editor — not shown for custom playlists (onDelete present) */}
+      {/* Inline schedule editor */}
       <AnimatePresence>
-        {!onDelete && s.editing && s.enabled && !locked && !fixedSchedule && (
+        {s.editing && s.enabled && !locked && !fixedSchedule && (
           <motion.div
             key="editor"
             initial={{ opacity: 0, height: 0 }}
