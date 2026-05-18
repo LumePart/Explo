@@ -106,9 +106,7 @@ func queryYTMusic(track *models.Track, query string) error {
 
 	slog.Debug(fmt.Sprintf("Querying YTMusic for track %s", query))
 
-	// Use the absolute path to the search script
-	scriptPath := filepath.Join("src", "downloader", "youtube_music", "search_ytmusic.py")
-	cmd := exec.Command("python3", scriptPath, query, "1")
+	cmd := exec.Command("python3", "search_ytmusic.py", query, "1")
 
 	out, err := cmd.Output()
 	if err != nil {
