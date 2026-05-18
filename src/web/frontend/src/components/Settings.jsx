@@ -513,6 +513,7 @@ export default function Settings({ onWizard, onLogout }) {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
+      <UpdateNotification />
       {/* Page background art */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#121212', overflow: 'hidden', willChange: 'transform' }}>
         <AnimatePresence>
@@ -548,7 +549,6 @@ export default function Settings({ onWizard, onLogout }) {
               <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
               <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
             </nav>
-            <UpdateNotification />
             <button
               onClick={onLogout}
               className="pb-2 text-[12px] text-muted hover:text-white transition-colors cursor-pointer bg-transparent border-none"
