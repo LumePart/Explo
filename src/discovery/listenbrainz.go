@@ -147,6 +147,39 @@ type TopRecordings struct {
 	} `json:"payload"`
 }
 
+type MBRecording struct {
+	ID       string `json:"id"`
+	Releases []struct {
+		ID           string `json:"id"`
+		Title        string `json:"title"`
+		Status       string `json:"status"`
+		Country      string `json:"country"`
+		Date         string `json:"date"`
+		Year         int    `json:"year,omitempty"`
+		ArtistCredit []struct {
+			Name   string `json:"name"`
+			Artist struct {
+				ID       string `json:"id"`
+				SortName string `json:"sort-name"`
+			} `json:"artist"`
+		} `json:"artist-credit"`
+		ReleaseGroup struct {
+			ID          string `json:"id"`
+			PrimaryType string `json:"primary-type"`
+		} `json:"release-group"`
+		Media []struct {
+			Position   int    `json:"position"`
+			Format     string `json:"format"`
+			TrackCount int    `json:"track-count"`
+			Tracks     []struct {
+				ID       string `json:"id"`
+				Position int    `json:"position"`
+				Number   string `json:"number"`
+			} `json:"tracks"`
+		} `json:"media"`
+	} `json:"releases"`
+}
+
 type ListenBrainz struct {
 	HttpClient *util.HttpClient
 	cfg        cfg.Listenbrainz
@@ -393,6 +426,63 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 			}
 		}
 
+		releaseCountry := ""
+		releaseStatus := recording.Release.Status
+		mbReleaseGroupID := recording.Release.ReleaseGroupMbid
+		mbAlbumArtistID := ""
+		artistSort := ""
+		media := ""
+		trackNumber := 0
+		trackTotal := 0
+		discNumber := 0
+		discTotal := 0
+		mbReleaseTrackID := ""
+
+		if mbData, err := c.mbRequest(fmt.Sprintf("recording/%s?inc=media+releases+artist-credits+release-groups&fmt=json", track.MusicBrainzTrackID)); err == nil && mbData != nil {
+			if len(mbData.Releases) > 0 {
+				// Find best matching release
+				bestRelease := mbData.Releases[0]
+				if track.MusicBrainzAlbumID != "" {
+					for _, rel := range mbData.Releases {
+						if rel.ID == track.MusicBrainzAlbumID {
+							bestRelease = rel
+							break
+						}
+					}
+				}
+
+				if bestRelease.Country != "" {
+					releaseCountry = bestRelease.Country
+				}
+				if bestRelease.Status != "" {
+					releaseStatus = bestRelease.Status
+				}
+				if bestRelease.ReleaseGroup.ID != "" {
+					mbReleaseGroupID = bestRelease.ReleaseGroup.ID
+				}
+				if len(bestRelease.ArtistCredit) > 0 {
+					mbAlbumArtistID = bestRelease.ArtistCredit[0].Artist.ID
+					artistSort = bestRelease.ArtistCredit[0].Artist.SortName
+				}
+
+				discTotal = len(bestRelease.Media)
+				if len(bestRelease.Media) > 0 {
+					firstMedia := bestRelease.Media[0]
+					media = firstMedia.Format
+					discNumber = firstMedia.Position
+					trackTotal = firstMedia.TrackCount
+
+					if len(firstMedia.Tracks) > 0 {
+						firstTrack := firstMedia.Tracks[0]
+						trackNumber = firstTrack.Position
+						mbReleaseTrackID = firstTrack.ID
+					}
+				}
+			}
+		} else if err != nil {
+			slog.Debug("failed to enrich from MusicBrainz", "mbid", track.MusicBrainzTrackID, "error", err)
+		}
+
 		tracks[i] = &models.Track{
 			ID:                        track.ID,
 			File:                      track.File,
@@ -403,19 +493,28 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 			Artist:                    artist,
 			MainArtist:                mainArtist,
 			MainArtistID:              mainArtistID,
+			ArtistSort:                artistSort,
 			CleanTitle:                rec.Name,
 			Title:                     title,
 			Duration:                  rec.Length,
-			ReleaseStatus:             recording.Release.Status,
+			ReleaseCountry:            releaseCountry,
+			ReleaseStatus:             releaseStatus,
 			ReleaseType:               recording.Release.ReleaseGroup.PrimaryType,
 			OriginalDate:              originalDate,
 			OriginalYear:              originalYear,
 			CoverURL:                  track.CoverURL,
 			Genres:                    strings.Join(genres, "; "),
 			ISRCs:                     append([]string(nil), rec.ISRCs...),
+			Media:                     media,
+			TrackNumber:               trackNumber,
+			TrackTotal:                trackTotal,
+			DiscNumber:                discNumber,
+			DiscTotal:                 discTotal,
 			MusicBrainzTrackID:        track.MusicBrainzTrackID,
 			MusicBrainzAlbumID:        recording.Release.CaaReleaseMbid,
-			MusicBrainzReleaseGroupID: recording.Release.ReleaseGroupMbid,
+			MusicBrainzReleaseGroupID: mbReleaseGroupID,
+			MusicBrainzAlbumArtistID:  mbAlbumArtistID,
+			MusicBrainzReleaseTrackID: mbReleaseTrackID,
 			MusicBrainzArtistID: func() string {
 				if len(recArtists) == 0 {
 					return ""
@@ -575,6 +674,27 @@ func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func (c *ListenBrainz) mbRequest(path string) (*MBRecording, error) {
+	reqURL := fmt.Sprintf("https://musicbrainz.org/ws/2/%s", path)
+	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, map[string]string{
+		"User-Agent": "Explo/1.0",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request to MusicBrainz API: %s", err)
+	}
+
+	if len(body) == 0 {
+		return nil, fmt.Errorf("MusicBrainz API returned empty response for: %s", reqURL)
+	}
+
+	var recording MBRecording
+	if err := util.ParseResp(body, &recording); err != nil {
+		return nil, fmt.Errorf("failed to parse MusicBrainz response: %s", err)
+	}
+
+	return &recording, nil
 }
 
 type LBTag struct {

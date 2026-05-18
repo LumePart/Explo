@@ -9,6 +9,7 @@ type Track struct {
 	Artist                    string // All artists as returned by LB
 	MainArtist                string
 	MainArtistID              string
+	ArtistSort                string
 	ReleaseCountry            string
 	ReleaseStatus             string
 	ReleaseType               string
@@ -23,6 +24,11 @@ type Track struct {
 	OriginalYear              int
 	Genres                    string
 	ISRCs                     []string
+	Media                     string // Media format (e.g., CD, Digital Media)
+	TrackNumber               int    // Track position in media
+	TrackTotal                int    // Total tracks in media
+	DiscNumber                int    // Disc/media position
+	DiscTotal                 int    // Total discs/media
 	MusicBrainzReleaseGroupID string
 	MusicBrainzAlbumArtistID  string
 	MusicBrainzTrackID        string
