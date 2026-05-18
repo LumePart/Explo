@@ -21,7 +21,7 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg    ClientConfig
 	NotifyCfg    NotifyConfig
-	ServerCfg	 ServerConfig
+	ServerCfg    ServerConfig
 	Flags        Flags
 	PersistENV   bool `env:"PERSIST" env-default:"true"`
 	Persist      bool
@@ -32,7 +32,7 @@ type Config struct {
 
 type Flags struct {
 	CfgPath      string
-	CfgSet		 bool
+	CfgSet       bool
 	Playlist     string
 	DownloadMode string
 	ExcludeLocal bool
@@ -41,14 +41,14 @@ type Flags struct {
 }
 
 type ServerConfig struct {
-	Enabled bool `env:"WEB_UI" env-default:"false"`
-	Port string `env:"WEB_ADDR" env-default:":7288"`
-	Username string `env:"UI_USERNAME"`
-	Password string `env:"UI_PASSWORD"`
-	WebDataDir string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
-	WebEnvPath string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
+	Enabled     bool   `env:"WEB_UI" env-default:"false"`
+	Port        string `env:"WEB_ADDR" env-default:":7288"`
+	Username    string `env:"UI_USERNAME"`
+	Password    string `env:"UI_PASSWORD"`
+	WebDataDir  string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
+	WebEnvPath  string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
 	CacheSizeMB int64  `env:"WEB_CACHE_MB" env-default:"500"`
-	ExploPath string
+	ExploPath   string
 }
 
 type ClientConfig struct {
@@ -148,7 +148,8 @@ type Listenbrainz struct {
 	Discovery      string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User           string `env:"LISTENBRAINZ_USER"`
 	ImportPlaylist string
-	SingleArtist   bool `env:"SINGLE_ARTIST" env-default:"true"`
+	SingleArtist   bool   `env:"SINGLE_ARTIST" env-default:"true"`
+	CoverArtSize   string `env:"COVERART_SIZE" env-default:"250"`
 }
 
 type NotifyConfig struct {

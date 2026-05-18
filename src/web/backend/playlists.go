@@ -167,8 +167,12 @@ func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time
 		meta := t.Extension.JspfTrack.AdditionalMetadata
 		var cover string
 		if meta.CaaReleaseMbid != "" && meta.CaaID != 0 {
-			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/%d-250.jpg",
-				meta.CaaReleaseMbid, meta.CaaID)
+			coverSize := os.Getenv("COVERART_SIZE")
+			if coverSize == "" {
+				coverSize = "250"
+			}
+			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/%d-%s.jpg",
+				meta.CaaReleaseMbid, meta.CaaID, coverSize)
 		}
 		out = append(out, [4]string{t.Title, t.Creator, t.Album, cover})
 	}
