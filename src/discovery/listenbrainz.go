@@ -3,6 +3,8 @@ package discovery
 import (
 	"fmt"
 	"log/slog"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,11 @@ type Recommendations struct {
 }
 
 type Metadata struct {
+	Tag struct {
+		Artist       []LBTag `json:"artist"`
+		Recording    []LBTag `json:"recording"`
+		ReleaseGroup []LBTag `json:"release_group"`
+	} `json:"tag"`
 	Artist struct {
 		ArtistCreditID int `json:"artist_credit_id"`
 		Artists        []struct {
@@ -39,19 +46,36 @@ type Metadata struct {
 		Name string `json:"name"`
 	} `json:"artist"`
 	Recording struct {
-		Length int    `json:"length"`
-		Name   string `json:"name"`
-		Rels   []any  `json:"rels"`
+		FirstReleaseDate string   `json:"first_release_date"`
+		ISRCs            []string `json:"isrcs"`
+		Length           int      `json:"length"`
+		Name             string   `json:"name"`
+		Rels             []any    `json:"rels"`
+		URLRels          []struct {
+			Type string `json:"type"`
+			URL  string `json:"url"`
+		} `json:"url_rels"`
 	} `json:"recording"`
-	Release struct {
-		AlbumArtistName  string `json:"album_artist_name"`
-		CaaID            int64  `json:"caa_id"`
-		CaaReleaseMbid   string `json:"caa_release_mbid"`
-		Mbid             string `json:"mbid"`
-		Name             string `json:"name"`
-		ReleaseGroupMbid string `json:"release_group_mbid"`
-		Year             int    `json:"year"`
-	} `json:"release"`
+	Release ReleaseMetadata `json:"release"`
+}
+
+type ReleaseMetadata struct {
+	AlbumArtistName string `json:"album_artist_name"`
+	CaaID           int64  `json:"caa_id"`
+	CaaReleaseMbid  string `json:"caa_release_mbid"`
+	ReleaseGroup    struct {
+		ID               string   `json:"id"`
+		PrimaryType      string   `json:"primary_type"`
+		SecondaryTypes   []string `json:"secondary_types"`
+		FirstReleaseDate string   `json:"first_release_date"`
+		Title            string   `json:"title"`
+	} `json:"release_group"`
+	Status           string `json:"status"`
+	Mbid             string `json:"mbid"`
+	MBReleaseID      string `json:"mb_release_id"`
+	Name             string `json:"name"`
+	ReleaseGroupMbid string `json:"release_group_mbid"`
+	Year             int    `json:"year"`
 }
 
 type Recordings map[string]Metadata
@@ -152,6 +176,14 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
 		tracks, err = c.parsePlaylist(id, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
+		}
+		if c.cfg.EnrichPlaylistMetadata && len(tracks) > 0 {
+			enrichedTracks, err := c.enrichTracks(tracks, c.cfg.SingleArtist)
+			if err != nil {
+				slog.Warn("failed to enrich playlist metadata", "error", err)
+			} else {
+				tracks = enrichedTracks
+			}
 		}
 
 	default:
@@ -278,10 +310,119 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 			Title:                     title,
 			Duration:                  rec.Length,
 			MusicBrainzTrackID:        mbTrackID,
-			MusicBrainzAlbumID:        recording.Release.Mbid,
+			MusicBrainzAlbumID:        recording.Release.CaaReleaseMbid,
 			MusicBrainzReleaseGroupID: recording.Release.ReleaseGroupMbid,
 			MusicBrainzArtistID:       recArtists[0].ArtistMbid,
 		})
+	}
+
+	return tracks, nil
+
+}
+
+func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) ([]*models.Track, error) {
+	mbids := make([]string, 0, len(tracks))
+	for _, track := range tracks {
+		if track.MusicBrainzTrackID != "" {
+			mbids = append(mbids, track.MusicBrainzTrackID)
+		}
+	}
+	strMbids := strings.Join(mbids, ",")
+
+	body, err := c.lbRequest(fmt.Sprintf("metadata/recording/?recording_mbids=%s&inc=release+artist+tag+release_group+recording", strMbids))
+	if err != nil {
+		return nil, fmt.Errorf("getTracks(): %s", err.Error())
+	}
+
+	var recordings Recordings
+	if err := util.ParseResp(body, &recordings); err != nil {
+		return nil, fmt.Errorf("getTracks(): %s", err.Error())
+	}
+
+	if len(recordings) == 0 {
+		return nil, fmt.Errorf("no recordings found for MBIDs: %s", strMbids)
+	}
+
+	for i, track := range tracks {
+		recording, ok := recordings[track.MusicBrainzTrackID]
+		if !ok {
+			continue
+		}
+
+		rec := recording.Recording
+
+		title := rec.Name
+		artist := recording.Artist.Name
+		mainArtist := recording.Artist.Name
+		mainArtistID := ""
+		if len(recording.Artist.Artists) > 0 {
+			mainArtistID = recording.Artist.Artists[0].ArtistMbid
+		}
+
+		recArtists := recording.Artist.Artists
+		genres := topTags(recording.Tag.Recording, 3)
+		if len(genres) == 0 {
+			genres = topTags(recording.Tag.ReleaseGroup, 3)
+		}
+		if len(genres) == 0 {
+			genres = topTags(recording.Tag.Artist, 3)
+		}
+		originalDate := rec.FirstReleaseDate
+		originalYear := recording.Release.Year
+		if originalYear == 0 && originalDate != "" && len(originalDate) >= 4 {
+			if year, err := strconv.Atoi(originalDate[:4]); err == nil {
+				originalYear = year
+			}
+		}
+
+		if len(recArtists) > 1 {
+			mainArtist = recArtists[0].Name
+			if singleArtist {
+				var b strings.Builder
+				b.WriteString(title)
+				b.WriteString(" feat. ")
+				b.WriteString(recArtists[1].Name)
+
+				for _, a := range recArtists[2:] {
+					b.WriteString(", ")
+					b.WriteString(a.Name)
+				}
+
+				title = b.String()
+				artist = mainArtist
+			}
+		}
+
+		tracks[i] = &models.Track{
+			ID:                        track.ID,
+			File:                      track.File,
+			Size:                      track.Size,
+			Present:                   track.Present,
+			Album:                     recording.Release.Name,
+			AlbumArtist:               recording.Release.AlbumArtistName,
+			Artist:                    artist,
+			MainArtist:                mainArtist,
+			MainArtistID:              mainArtistID,
+			CleanTitle:                rec.Name,
+			Title:                     title,
+			Duration:                  rec.Length,
+			ReleaseStatus:             recording.Release.Status,
+			ReleaseType:               recording.Release.ReleaseGroup.PrimaryType,
+			OriginalDate:              originalDate,
+			OriginalYear:              originalYear,
+			CoverURL:                  track.CoverURL,
+			Genres:                    strings.Join(genres, "; "),
+			ISRCs:                     append([]string(nil), rec.ISRCs...),
+			MusicBrainzTrackID:        track.MusicBrainzTrackID,
+			MusicBrainzAlbumID:        recording.Release.CaaReleaseMbid,
+			MusicBrainzReleaseGroupID: recording.Release.ReleaseGroupMbid,
+			MusicBrainzArtistID: func() string {
+				if len(recArtists) == 0 {
+					return ""
+				}
+				return recArtists[0].ArtistMbid
+			}(),
+		}
 	}
 
 	return tracks, nil
@@ -434,4 +575,35 @@ func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+type LBTag struct {
+	Count int    `json:"count"`
+	Tag   string `json:"tag"`
+}
+
+func topTags(tags []LBTag, limit int) []string {
+	if len(tags) == 0 || limit <= 0 {
+		return nil
+	}
+
+	ordered := append([]LBTag(nil), tags...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].Count == ordered[j].Count {
+			return ordered[i].Tag < ordered[j].Tag
+		}
+		return ordered[i].Count > ordered[j].Count
+	})
+
+	if limit > len(ordered) {
+		limit = len(ordered)
+	}
+
+	out := make([]string, 0, limit)
+	for _, tag := range ordered[:limit] {
+		if tag.Tag != "" {
+			out = append(out, tag.Tag)
+		}
+	}
+	return out
 }

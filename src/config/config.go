@@ -147,11 +147,12 @@ type DiscoveryConfig struct {
 	Listenbrainz Listenbrainz
 }
 type Listenbrainz struct {
-	Discovery      string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	User           string `env:"LISTENBRAINZ_USER"`
-	ImportPlaylist string
-	SingleArtist   bool   `env:"SINGLE_ARTIST" env-default:"true"`
-	CoverArtSize   string `env:"COVERART_SIZE" env-default:"250"`
+	Discovery              string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	User                   string `env:"LISTENBRAINZ_USER"`
+	ImportPlaylist         string
+	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
+	CoverArtSize           string `env:"COVERART_SIZE" env-default:"250"`
+	EnrichPlaylistMetadata bool   `env:"ENRICH_PLAYLIST_METADATA" env-default:"false"`
 }
 
 type NotifyConfig struct {
