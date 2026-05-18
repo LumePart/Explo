@@ -130,7 +130,7 @@ func checkForUpdate() {
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return
 	}
@@ -160,7 +160,7 @@ func parseVer(v string) [3]int {
 		if i >= 3 {
 			break
 		}
-		fmt.Sscanf(p, "%d", &out[i])
+		_, _ = fmt.Sscanf(p, "%d", &out[i])
 	}
 	return out
 }
