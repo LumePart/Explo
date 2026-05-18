@@ -138,7 +138,12 @@ func checkForUpdate() {
 	}
 	l := parseVer(release.TagName)
 	c := parseVer(config.Version)
-	if l[0] > c[0] || (l[0] == c[0] && l[1] > c[1]) || (l[0] == c[0] && l[1] == c[1] && l[2] > c[2]) {
+	newer := false
+	for i := range 3 {
+		if l[i] > c[i] { newer = true; break }
+		if l[i] < c[i] { break }
+	}
+	if newer {
 		slog.Info("new version available!", "latest", release.TagName, "current", config.Version)
 	}
 }

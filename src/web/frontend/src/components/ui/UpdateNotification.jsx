@@ -85,7 +85,6 @@ export function UpdateNotification() {
   }
 
   const hasUpdate = !!updateInfo
-  const isNew = hasUpdate && !dismissed
 
   return (
     <>
