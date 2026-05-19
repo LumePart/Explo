@@ -36,6 +36,7 @@ type Libraries struct {
 		Library   []struct {
 			Title    string `json:"title"`
 			Key      string `json:"key"`
+			Type     string `json:"type"`
 			Location []struct {
 				ID   int    `json:"id"`
 				Path string `json:"path"`
@@ -44,40 +45,39 @@ type Libraries struct {
 	} `json:"MediaContainer"`
 }
 
-type PlexSearch struct {
+type PlexTrackMetadata struct {
+	LibrarySectionTitle string `json:"librarySectionTitle"`
+	RatingKey           string `json:"ratingKey"`
+	Key                 string `json:"key"`
+	Type                string `json:"type"`
+	Title               string `json:"title"`            // Track
+	GrandparentTitle    string `json:"grandparentTitle"` // Artist
+	ParentTitle         string `json:"parentTitle"`      // Album
+	OriginalTitle       string `json:"originalTitle"`
+	Summary             string `json:"summary"`
+	Duration            int    `json:"duration"`
+	AddedAt             int    `json:"addedAt"`
+	UpdatedAt           int    `json:"updatedAt"`
+	Media               []struct {
+		ID       int `json:"id"`
+		Duration int `json:"duration"`
+		Part     []struct {
+			ID       int    `json:"id"`
+			Key      string `json:"key"`
+			Duration int    `json:"duration"`
+			File     string `json:"file"`
+			Size     int    `json:"size"`
+		} `json:"Part"`
+		AudioChannels int    `json:"audioChannels"`
+		AudioCodec    string `json:"audioCodec"`
+		Container     string `json:"container"`
+	} `json:"Media"`
+}
+
+type PlexLibraryItems struct {
 	MediaContainer struct {
-		Size         int `json:"size"`
-		SearchResult []struct {
-			Score    float64 `json:"score"`
-			Metadata struct {
-				LibrarySectionTitle string `json:"librarySectionTitle"`
-				RatingKey           string `json:"ratingKey"`
-				Key                 string `json:"key"`
-				Type                string `json:"type"`
-				Title               string `json:"title"`            // Track
-				GrandparentTitle    string `json:"grandparentTitle"` // Artist
-				ParentTitle         string `json:"parentTitle"`      // Album
-				OriginalTitle       string `json:"originalTitle"`
-				Summary             string `json:"summary"`
-				Duration            int    `json:"duration"`
-				AddedAt             int    `json:"addedAt"`
-				UpdatedAt           int    `json:"updatedAt"`
-				Media               []struct {
-					ID       int `json:"id"`
-					Duration int `json:"duration"`
-					Part     []struct {
-						ID       int    `json:"id"`
-						Key      string `json:"key"`
-						Duration int    `json:"duration"`
-						File     string `json:"file"`
-						Size     int    `json:"size"`
-					} `json:"Part"`
-					AudioChannels int    `json:"audioChannels"`
-					AudioCodec    string `json:"audioCodec"`
-					Container     string `json:"container"`
-				} `json:"Media"`
-			} `json:"Metadata"`
-		} `json:"SearchResult"`
+		Size     int                  `json:"size"`
+		Metadata []PlexTrackMetadata  `json:"Metadata"`
 	} `json:"MediaContainer"`
 }
 
@@ -111,10 +111,11 @@ type PlexPlaylist struct {
 }
 
 type Plex struct {
-	machineID  string
-	LibraryID  string
-	HttpClient *util.HttpClient
-	Cfg        config.ClientConfig
+	machineID       string
+	LibraryID       string
+	musicSectionIDs []string
+	HttpClient      *util.HttpClient
+	Cfg             config.ClientConfig
 }
 
 func NewPlex(cfg config.ClientConfig, httpClient *util.HttpClient) *Plex {
@@ -184,10 +185,15 @@ func (c *Plex) GetLibrary() error {
 	}
 
 	for _, library := range libraries.MediaContainer.Library {
+		if library.Type == "artist" {
+			c.musicSectionIDs = append(c.musicSectionIDs, library.Key)
+		}
 		if c.Cfg.LibraryName == library.Title {
 			c.LibraryID = library.Key
-			return nil
 		}
+	}
+	if c.LibraryID != "" {
+		return nil
 	}
 	if err = c.AddLibrary(); err != nil {
 		slog.Debug(err.Error())
@@ -227,20 +233,7 @@ func (c *Plex) CheckRefreshState() bool {
 
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		params := fmt.Sprintf("/library/search?query=%s", url.QueryEscape(track.CleanTitle))
-
-		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
-		if err != nil {
-			slog.Warn("search request failed for '%s': %s", track.Title, err.Error())
-			continue
-		}
-
-		var searchResults PlexSearch
-		if err = util.ParseResp(body, &searchResults); err != nil {
-			slog.Warn("failed to parse response for '%s': %s", track.Title, err.Error())
-			continue
-		}
-		key, err := getPlexSong(track, searchResults)
+		key, err := c.findTrackAcrossSections(track)
 		if err != nil {
 			slog.Debug(err.Error())
 			continue
@@ -251,6 +244,30 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 		}
 	}
 	return nil
+}
+
+// findTrackAcrossSections searches every music library section for the given track,
+// returning the Plex key of the first match. Using per-section /all?type=10 avoids
+// the global search endpoint, which ignores the type filter and floods results with
+// TV/movie episodes that happen to share the track title.
+func (c *Plex) findTrackAcrossSections(track *models.Track) (string, error) {
+	for _, sectionID := range c.musicSectionIDs {
+		params := fmt.Sprintf("/library/sections/%s/all?type=10&title=%s", sectionID, url.QueryEscape(track.CleanTitle))
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+		if err != nil {
+			slog.Warn("search request failed", "section", sectionID, "track", track.Title, "err", err.Error())
+			continue
+		}
+		var items PlexLibraryItems
+		if err = util.ParseResp(body, &items); err != nil {
+			slog.Warn("failed to parse search response", "section", sectionID, "track", track.Title, "err", err.Error())
+			continue
+		}
+		if key := getPlexSong(track, items.MediaContainer.Metadata); key != "" {
+			return key, nil
+		}
+	}
+	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
 }
 
 func (c *Plex) SearchPlaylist() error {
@@ -331,22 +348,17 @@ func (c *Plex) getServer() error {
 	return nil
 }
 
-func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) {
+func getPlexSong(track *models.Track, candidates []PlexTrackMetadata) string {
 	loweredArtist := strings.ToLower(track.MainArtist)
 
-	for _, result := range searchResults.MediaContainer.SearchResult {
-		md := result.Metadata
-		if md.Type != "track" {
-			continue
-		}
-
+	for _, md := range candidates {
 		titleMatch := strings.EqualFold(md.Title, track.Title) || strings.EqualFold(md.Title, track.CleanTitle)
 		albumMatch := strings.EqualFold(md.ParentTitle, track.Album)
 		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
 
 		if titleMatch && (albumMatch || artistMatch) {
 			slog.Debug(fmt.Sprintf("matched track via metadata: %s by %s", track.Title, track.Artist))
-			return md.Key, nil
+			return md.Key
 		}
 
 		if track.File == "" || len(md.Media) == 0 || len(md.Media[0].Part) == 0 {
@@ -359,12 +371,11 @@ func getPlexSong(track *models.Track, searchResults PlexSearch) (string, error) 
 
 		if durationMatch && pathMatch {
 			slog.Debug(fmt.Sprintf("matched track via path: %s by %s", track.Title, track.Artist))
-			return md.Key, nil
+			return md.Key
 		}
 	}
 
-	slog.Debug(fmt.Sprintf("full search result: %v", searchResults.MediaContainer.SearchResult))
-	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
+	return ""
 }
 
 func (c *Plex) addtoPlaylist(tracks []*models.Track) {

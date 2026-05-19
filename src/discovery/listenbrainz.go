@@ -284,6 +284,16 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 }
 
+// LookupRecording resolves a single recording MBID to a Track using the same
+// LB metadata endpoint and field mapping as the normal discovery path.
+func (c *ListenBrainz) LookupRecording(mbid string) (*models.Track, error) {
+	tracks, err := c.getTracks([]string{mbid}, false)
+	if err != nil {
+		return nil, err
+	}
+	return tracks[0], nil
+}
+
 // Get user LB playlists and find wanted playlists ID
 func (c *ListenBrainz) getImportPlaylist(user string) (string, error) {
 	var offset int

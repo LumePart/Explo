@@ -27,6 +27,30 @@ func initHttpClient() *util.HttpClient {
 	})
 }
 
+func runSearchTest(cfg *config.Config, httpClient *util.HttpClient) {
+	lb := discovery.NewListenBrainz(cfg.DiscoveryCfg, httpClient)
+	track, err := lb.LookupRecording(cfg.Flags.SearchMBID)
+	if err != nil {
+		log.Fatalf("failed to resolve MBID %s from ListenBrainz: %s", cfg.Flags.SearchMBID, err)
+	}
+	slog.Info("resolved recording", "title", track.CleanTitle, "artist", track.MainArtist, "album", track.Album, "duration_ms", track.Duration)
+
+	c, err := client.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("failed to init client: %s", err)
+	}
+	tracks := []*models.Track{track}
+	if err := c.CheckTracks(tracks); err != nil {
+		slog.Warn("CheckTracks error", "err", err)
+	}
+
+	if track.Present {
+		slog.Info("FOUND in library", "system", cfg.System, "key", track.ID)
+	} else {
+		slog.Info("NOT FOUND in library", "system", cfg.System)
+	}
+}
+
 // Inits debug, gets playlist name, if needed, handles deprecation
 func setup(cfg *config.Config) {
 	cfg.HandleDeprecation()
@@ -43,6 +67,14 @@ func main() {
 	cfg.ReadEnv()
 	cfg.MergeFlags()
 	setup(&cfg)
+
+	httpClient := initHttpClient()
+
+	if cfg.Flags.SearchMBID != "" {
+		runSearchTest(&cfg, httpClient)
+		return
+	}
+
 	slog.Info("Starting Explo...")
 
 	if cfg.ServerCfg.Enabled {
@@ -56,7 +88,8 @@ func main() {
 		srv := backend.NewServer(cfg.ServerCfg)
 		log.Fatal(srv.Start())
 	}
-	httpClient := initHttpClient()
+
+	slog.Info("Starting Explo...")
 	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 	tracks, err := discovery.Discover()
 	if err != nil {
