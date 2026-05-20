@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"explo/src/discovery"
 	"explo/src/models"
 	"fmt"
 	"image"
@@ -93,6 +94,26 @@ type lbPlaylistResp struct {
 			} `json:"extension"`
 		} `json:"track"`
 	} `json:"playlist"`
+}
+
+func fetchOnRepeatTracks(username string) ([][4]string, error) {
+	body, err := lbGet(fmt.Sprintf("%s/stats/user/%s/recordings?count=30&range=month", lbAPIBase, username))
+	if err != nil {
+		return nil, fmt.Errorf("on-repeat stats fetch: %w", err)
+	}
+	var resp discovery.TopRecordings
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("on-repeat stats parse: %w", err)
+	}
+	out := make([][4]string, 0, len(resp.Payload.Recordings))
+	for _, rec := range resp.Payload.Recordings {
+		var cover string
+		if rec.ReleaseMbid != "" {
+			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/front-250", rec.ReleaseMbid)
+		}
+		out = append(out, [4]string{rec.TrackName, rec.ArtistName, rec.ReleaseName, cover})
+	}
+	return out, nil
 }
 
 func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time.Time, error) {
@@ -287,7 +308,13 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
 			}
-			tracks, _, err := fetchMostRecentLBPlaylist(body.User, pt)
+			var tracks [][4]string
+			var err error
+			if pt == "on-repeat" {
+				tracks, err = fetchOnRepeatTracks(body.User)
+			} else {
+				tracks, _, err = fetchMostRecentLBPlaylist(body.User, pt)
+			}
 			if err != nil {
 				slog.Warn("prefetch: failed to fetch LB playlist", "type", pt, "err", err)
 				continue

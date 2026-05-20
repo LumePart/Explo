@@ -450,6 +450,7 @@ function ConfigSection({ onWizard }) {
 
 function LogsSection() {
   const [logFileEntries, setLogFileEntries] = useState([])
+  const panelRef = useRef(null)
 
   const loadLog = () => {
     fetchLogs().then(text => {
@@ -458,6 +459,10 @@ function LogsSection() {
   }
 
   useEffect(() => { loadLog() }, [])
+
+  useEffect(() => {
+    if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight
+  }, [logFileEntries])
 
   return (
     <div className="mt-6">
@@ -474,7 +479,7 @@ function LogsSection() {
       {logFileEntries.length === 0 ? (
         <p className="text-[12px] text-muted py-1">No log output yet.</p>
       ) : (
-        <Panel className="h-[400px]">
+        <Panel ref={panelRef} className="h-[400px]">
           {logFileEntries.map((e, i) => <LogRow key={i} entry={e} />)}
         </Panel>
       )}
