@@ -205,7 +205,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 
 	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
 		"map":      "0:a",
-		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
+		"metadata": []string{"artist=" + track.Artist, "album_artist=" + track.MainArtist, "title=" + track.Title, "album=" + track.Album},
 		"loglevel": "error",
 	}).OverWriteOutput().ErrorToStdOut()
 
