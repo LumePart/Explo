@@ -1,6 +1,8 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"log/slog"
@@ -213,12 +215,8 @@ func (c *Plex) SwitchUser(username string) (*Plex, error) {
 	}
 
 	newClient := *c
-	newHeaders := make(map[string]string, len(c.Cfg.Creds.Headers))
-	for k, v := range c.Cfg.Creds.Headers {
-		newHeaders[k] = v
-	}
+	newHeaders := newClient.cloneHeaders()
 	newHeaders["X-Plex-Token"] = user.AccessToken
-	newHeaders["Accept"] = "application/json"
 
 	newClient.Cfg.Creds.Headers = newHeaders
 	newClient.Cfg.Creds.APIKey = user.AccessToken
@@ -253,9 +251,16 @@ func (c *Plex) AddHeader() error {
 }
 
 func (c *Plex) GetAuth() error { // Get user token from plex
-	url := fmt.Sprintf("https://plex.tv/api/v2/users/signin.json?login=%s&password=%s", url.QueryEscape(c.Cfg.Creds.User), url.QueryEscape(c.Cfg.Creds.Password))
-
-	body, err := c.HttpClient.MakeRequest("POST", url, nil, c.Cfg.Creds.Headers)
+	payload := LoginPayload{
+		Login:    c.Cfg.Creds.User,
+		Password: c.Cfg.Creds.Password,
+	}
+	url := "https://plex.tv/api/v2/users/signin.json"
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %s", err.Error())
+	}
+	body, err := c.HttpClient.MakeRequest("POST", url, bytes.NewBuffer(payloadBytes), c.Cfg.Creds.Headers)
 
 	if err != nil {
 		return fmt.Errorf("%s", err.Error())
@@ -473,7 +478,6 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 	)
 
 	headers := userClient.cloneHeaders()
-	headers["Accept"] = "application/json"
 
 	body, err := userClient.HttpClient.MakeRequest(
 		"POST",
