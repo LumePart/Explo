@@ -308,6 +308,58 @@ const SCHEDULE_DAYS = [
   { value: 100, label: 'Monthly (1st)' },
 ]
 
+// ── ScheduleEditor ────────────────────────────────────────────────────────────
+
+function ScheduleEditor({ schedule: s, onSave, onCancelEdit, onDayChange, onTimeChange }) {
+  const timeStr = `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
+  const open = s.editing && s.enabled
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateRows: open ? '1fr' : '0fr',
+      opacity: open ? 1 : 0,
+      transition: 'grid-template-rows 0.22s ease-in-out, opacity 0.22s ease-in-out',
+    }}>
+      <div style={{ overflow: 'hidden' }}>
+        <div style={{
+          marginTop: 8,
+          background: '#161616', border: '1px solid #2a2a2a',
+          borderRadius: 10, padding: '11px 13px',
+          display: 'flex', flexDirection: 'column', gap: 9,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#7a7a7a' }}>Runs</span>
+            <select
+              value={s.day}
+              onChange={e => onDayChange(parseInt(e.target.value))}
+              style={{
+                background: '#1f1f1f', border: '1px solid #333', color: 'white',
+                borderRadius: 6, padding: '5px 10px', fontSize: 13, cursor: 'pointer', outline: 'none',
+              }}
+            >
+              {SCHEDULE_DAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+            <span style={{ fontSize: 12, color: '#7a7a7a' }}>at</span>
+            <input
+              type="time"
+              value={timeStr}
+              onChange={e => onTimeChange(e.target.value)}
+              style={{
+                background: '#1f1f1f', border: '1px solid #333', color: 'white',
+                borderRadius: 6, padding: '5px 8px', fontSize: 13, outline: 'none',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 7 }}>
+            <Button style={{ padding: '4px 12px', fontSize: 12 }} onClick={onSave}>Save</Button>
+            <Button style={{ padding: '4px 10px', fontSize: 12 }} onClick={onCancelEdit}>✕</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Inline SVG noise — subtle film-grain texture
 const NOISE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`
 
@@ -393,7 +445,6 @@ export function PlaylistCard({
 
   const [line1, ...rest] = name.split(' ')
   const line2 = rest.join(' ')
-  const timeStr = `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
 
   return (
     <motion.div
@@ -545,53 +596,15 @@ export function PlaylistCard({
       </div>
 
       {/* Inline schedule editor */}
-      <AnimatePresence>
-        {s.editing && s.enabled && !locked && !fixedSchedule && (
-          <motion.div
-            key="editor"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.22, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div style={{
-              marginTop: 8,
-              background: '#161616', border: '1px solid #2a2a2a',
-              borderRadius: 10, padding: '11px 13px',
-              display: 'flex', flexDirection: 'column', gap: 9,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: '#7a7a7a' }}>Runs</span>
-                <select
-                  value={s.day}
-                  onChange={e => onDayChange(parseInt(e.target.value))}
-                  style={{
-                    background: '#1f1f1f', border: '1px solid #333', color: 'white',
-                    borderRadius: 6, padding: '5px 10px', fontSize: 13, cursor: 'pointer', outline: 'none',
-                  }}
-                >
-                  {SCHEDULE_DAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-                <span style={{ fontSize: 12, color: '#7a7a7a' }}>at</span>
-                <input
-                  type="time"
-                  value={timeStr}
-                  onChange={e => onTimeChange(e.target.value)}
-                  style={{
-                    background: '#1f1f1f', border: '1px solid #333', color: 'white',
-                    borderRadius: 6, padding: '5px 8px', fontSize: 13, outline: 'none',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 7 }}>
-                <Button style={{ padding: '4px 12px', fontSize: 12 }} onClick={onSave}>Save</Button>
-                <Button style={{ padding: '4px 10px', fontSize: 12 }} onClick={onCancelEdit}>✕</Button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!locked && !fixedSchedule && (
+        <ScheduleEditor
+          schedule={s}
+          onSave={onSave}
+          onCancelEdit={onCancelEdit}
+          onDayChange={onDayChange}
+          onTimeChange={onTimeChange}
+        />
+      )}
     </motion.div>
   )
 }

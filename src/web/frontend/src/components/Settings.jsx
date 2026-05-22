@@ -117,6 +117,81 @@ function TracklistSlide({ show, slideKey, children }) {
   )
 }
 
+function CustomPlaylistsSection({
+  customPlaylists,
+  schedules,
+  scheduleProps,
+  openTracklist,
+  setOpenTracklist,
+  lbUser,
+  onImportedRefresh,
+  onSync,
+  onDelete,
+  showImportModal,
+  setShowImportModal,
+}) {
+  return (
+    <div className="mt-6">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists</div>
+        <button
+          onClick={() => setShowImportModal(true)}
+          className="bg-transparent border border-ui-border text-muted rounded-full px-3 py-1 text-[12px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
+        >
+          + Import
+        </button>
+      </div>
+
+      {customPlaylists.length === 0 ? (
+        <p className="text-[12px] text-muted mt-3">
+          No custom playlists yet. Import one from ListenBrainz or Apple Music.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
+          {customPlaylists.map((cp, i) => {
+            if (!schedules[cp.id]) return null
+            return (
+              <PlaylistCard
+                key={cp.id}
+                playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
+                trackId={cp.id}
+                artworkUrl={cp.artwork_url || undefined}
+                {...scheduleProps(cp.id)}
+                index={i}
+                nextRunText={schedules[cp.id]?.enabled
+                  ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary || 'Every day'
+                  : 'Disabled'}
+                tracklistOpen={openTracklist === cp.id}
+                onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                onDelete={() => onDelete(cp.id)}
+              />
+            )
+          })}
+        </div>
+      )}
+
+      <TracklistSlide show={openTracklist && openTracklist.startsWith('custom-')} slideKey={openTracklist}>
+        <TracklistDropdown
+          playlist={openTracklist}
+          lbUser={null}
+          onRun={() => onSync(openTracklist)}
+          onDelete={() => onDelete(openTracklist)}
+        />
+      </TracklistSlide>
+
+      <AnimatePresence>
+        {showImportModal && (
+          <ImportModal
+            onClose={() => setShowImportModal(false)}
+            onImported={onImportedRefresh}
+            onSync={onSync}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 function HomeSection() {
   const [schedules, setSchedules] = useState(null)
   const [envSources, setEnvSources] = useState({})
@@ -289,103 +364,47 @@ function HomeSection() {
       </div>
 
       {/* Custom Playlists */}
-      <div className="mt-6">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists</div>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="bg-transparent border border-ui-border text-muted rounded-full px-3 py-1 text-[12px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
-          >
-            + Import
-          </button>
-        </div>
-
-        {customPlaylists.length === 0 ? (
-          <p className="text-[12px] text-muted mt-3">
-            No custom playlists yet. Import one from ListenBrainz or Apple Music.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
-            {customPlaylists.map((cp, i) => {
-              if (!schedules[cp.id]) return null
-              return (
-                <PlaylistCard
-                  key={cp.id}
-                  playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
-                  trackId={cp.id}
-                  artworkUrl={cp.artwork_url || undefined}
-                  {...scheduleProps(cp.id)}
-                  index={i}
-                  nextRunText={nextRunText(cp.id)}
-                  tracklistOpen={openTracklist === cp.id}
-                  onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
-                  onDelete={async () => {
-                    try {
-                      await deleteCustomPlaylist(cp.id)
-                      setCustomPlaylists(prev => prev.filter(p => p.id !== cp.id))
-                      setSchedules(prev => { const next = { ...prev }; delete next[cp.id]; return next })
-                      if (openTracklist === cp.id) setOpenTracklist(null)
-                    } catch {}
-                  }}
-                />
-              )
-            })}
-          </div>
-        )}
-
-        <TracklistSlide show={openTracklist && openTracklist.startsWith('custom-')} slideKey={openTracklist}>
-          <TracklistDropdown
-            playlist={openTracklist}
-            lbUser={null}
-            onRun={async () => {
-              await startRun(openTracklist, 'normal', true, false)
-              setRunning(true)
-              setStatus('running…')
-              setLogEntries([])
-              connect()
-            }}
-            onDelete={async () => {
-              try {
-                await deleteCustomPlaylist(openTracklist)
-                setCustomPlaylists(prev => prev.filter(p => p.id !== openTracklist))
-                setOpenTracklist(null)
-              } catch { }
-            }}
-          />
-        </TracklistSlide>
-      </div>
-
-      {/* Import Modal */}
-      <AnimatePresence>
-        {showImportModal && (
-          <ImportModal
-            onClose={() => setShowImportModal(false)}
-            onImported={() => {
-              fetchCustomPlaylists().then(list => {
-                setCustomPlaylists(list)
-                setSchedules(prev => {
-                  const next = { ...prev }
-                  for (const cp of list) {
-                    if (next[cp.id]) continue
-                    next[cp.id] = cp.schedule
-                      ? { enabled: true, editing: false, ...cronToFields(cp.schedule) }
-                      : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
-                  }
-                  return next
-                })
-              }).catch(() => {})
-              setShowImportModal(false)
-            }}
-            onSync={async (id) => {
-              await startRun(id, 'normal', true, false)
-              setRunning(true)
-              setStatus('running…')
-              setLogEntries([])
-              connect()
-            }}
-          />
-        )}
-      </AnimatePresence>
+      <CustomPlaylistsSection
+        customPlaylists={customPlaylists}
+        schedules={schedules}
+        scheduleProps={scheduleProps}
+        openTracklist={openTracklist}
+        setOpenTracklist={setOpenTracklist}
+        lbUser={lbUser}
+        showImportModal={showImportModal}
+        setShowImportModal={setShowImportModal}
+        onImportedRefresh={() => {
+          fetchCustomPlaylists().then(list => {
+            setCustomPlaylists(list)
+            setSchedules(prev => {
+              const next = { ...prev }
+              for (const cp of list) {
+                if (next[cp.id]) continue
+                next[cp.id] = cp.schedule
+                  ? { enabled: true, editing: false, ...cronToFields(cp.schedule) }
+                  : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
+              }
+              return next
+            })
+          }).catch(() => {})
+          setShowImportModal(false)
+        }}
+        onSync={async (id) => {
+          await startRun(id, 'normal', true, false)
+          setRunning(true)
+          setStatus('running…')
+          setLogEntries([])
+          connect()
+        }}
+        onDelete={async (id) => {
+          try {
+            await deleteCustomPlaylist(id)
+            setCustomPlaylists(prev => prev.filter(p => p.id !== id))
+            setSchedules(prev => { const next = { ...prev }; delete next[id]; return next })
+            if (openTracklist === id) setOpenTracklist(null)
+          } catch {}
+        }}
+      />
 
       {/* Manual Run */}
       <div className="mt-6">

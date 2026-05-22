@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"explo/src/discovery"
+	"explo/src/util"
 	"explo/src/web"
 )
 
@@ -111,8 +113,16 @@ func fetchCustomPlaylistTracks(p CustomPlaylist) (FetchResult, error) {
 		if mbid == "" {
 			return FetchResult{}, fmt.Errorf("no source data for playlist %s", p.ID)
 		}
-		name, tracks, err := fetchLBPlaylistByMBID(mbid)
-		return FetchResult{Name: name, Tracks: tracks}, err
+		httpClient := util.NewHttp(util.HttpClientConfig{Timeout: 30})
+		name, modelTracks, err := discovery.FetchPlaylistByMBID(httpClient, mbid)
+		if err != nil {
+			return FetchResult{}, err
+		}
+		tracks := make([][4]string, len(modelTracks))
+		for i, t := range modelTracks {
+			tracks[i] = [4]string{t.CleanTitle, t.Artist, t.Album, t.CoverURL}
+		}
+		return FetchResult{Name: name, Tracks: tracks}, nil
 	}
 }
 
