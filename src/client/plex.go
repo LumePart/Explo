@@ -361,7 +361,7 @@ func (c *Plex) CheckRefreshState() bool {
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
 		params := fmt.Sprintf(
-			"/hubs/search?query=%s",
+			"/hubs/search?query=%s&limit=10",
 			url.QueryEscape(track.CleanTitle),
 		)
 
