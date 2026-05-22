@@ -359,13 +359,9 @@ func (c *Plex) CheckRefreshState() bool {
 	return false
 }
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
-	url_q := "/hubs/search?sectionId="+c.LibraryID+"&query=%s"
-	if c.Cfg.MultiLib {
-		url_q = "/hubs/search?type=10&sectionId=%s"
-	}
 	for _, track := range tracks {
 		params := fmt.Sprintf(
-			url_q,
+			"/hubs/search?query=%s",
 			url.QueryEscape(track.CleanTitle),
 		)
 
