@@ -132,7 +132,7 @@ func (s *Server) startJobs() {
 		slog.Warn("failed to register cover cleanup job", "err", err.Error())
 	}
 
-	if err := s.cronJobs.RegisterCustomPlaylistRefresh(s.cfg.WebDataDir); err != nil {
+	if err := s.cronJobs.RegisterCustomPlaylistRefresh(s.cfg.WebDataDir, s.cfg.WebEnvPath); err != nil {
 		slog.Warn("failed to register custom playlist refresh job", "err", err.Error())
 	}
 
@@ -444,7 +444,11 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updates := map[string]string{}
-	if body.Enabled {
+	if body.Day == -2 {
+		// "Never" — keep playlist active for manual runs but remove auto-schedule
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = defaultFlags
+	} else if body.Enabled {
 		dom := "*"
 		dow := "*"
 		if body.Day == 100 {

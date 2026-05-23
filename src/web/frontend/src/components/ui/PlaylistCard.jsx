@@ -108,7 +108,7 @@ function nextUpdateLabel(playlistType) {
   return `Next update ${nextMonday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
 }
 
-export function TracklistDropdown({ playlist, lbUser, onRun, onDelete }) {
+export function TracklistDropdown({ playlist, lbUser, onRun }) {
   const [tracks, setTracks] = useState([])
   const [generatedAt, setGeneratedAt] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -185,40 +185,23 @@ export function TracklistDropdown({ playlist, lbUser, onRun, onDelete }) {
             Generated {genDate.toLocaleDateString([], { month: 'short', day: 'numeric' })}
           </span>
         )}
-        {(onRun || onDelete) && (
+        {onRun && (
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             {runStatus && <span style={{ fontSize: 10, color: '#565656' }}>{runStatus}</span>}
-            {onRun && (
-              <button
-                onClick={handleRun}
-                disabled={running}
-                style={{
-                  background: 'none', border: 'none', padding: 0,
-                  fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  color: running ? '#3a3a3a' : '#565656',
-                  cursor: running ? 'default' : 'pointer',
-                }}
-                onMouseEnter={e => { if (!running) e.currentTarget.style.color = 'white' }}
-                onMouseLeave={e => { if (!running) e.currentTarget.style.color = '#565656' }}
-              >
-                {running ? 'Starting…' : '▶ Run'}
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={onDelete}
-                title="Remove playlist"
-                style={{
-                  background: 'none', border: 'none', padding: 0,
-                  fontSize: 14, lineHeight: 1,
-                  color: '#3a3a3a', cursor: 'pointer',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#c0392b' }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#3a3a3a' }}
-              >
-                ×
-              </button>
-            )}
+            <button
+              onClick={handleRun}
+              disabled={running}
+              style={{
+                background: 'none', border: 'none', padding: 0,
+                fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+                color: running ? '#3a3a3a' : '#565656',
+                cursor: running ? 'default' : 'pointer',
+              }}
+              onMouseEnter={e => { if (!running) e.currentTarget.style.color = 'white' }}
+              onMouseLeave={e => { if (!running) e.currentTarget.style.color = '#565656' }}
+            >
+              {running ? 'Starting…' : '▶ Run'}
+            </button>
           </span>
         )}
       </div>
@@ -291,21 +274,22 @@ const FALLBACK = {
 
 // Color pool for user-imported custom playlists (cycled by colorIndex % 3)
 const CUSTOM_PRESETS = [
-  { background: cardGradient('#6366f1', '#8b5cf6', '#a78bfa'), accent: '#a78bfa', label: 'CUSTOM' },
-  { background: cardGradient('#0891b2', '#0e7490', '#67e8f9'), accent: '#67e8f9', label: 'CUSTOM' },
-  { background: cardGradient('#d97706', '#b45309', '#fcd34d'), accent: '#fcd34d', label: 'CUSTOM' },
+  { background: cardGradient('#6366f1', '#8b5cf6', '#a78bfa'), accent: '#a78bfa' },
+  { background: cardGradient('#0891b2', '#0e7490', '#67e8f9'), accent: '#67e8f9' },
+  { background: cardGradient('#d97706', '#b45309', '#fcd34d'), accent: '#fcd34d' },
 ]
 
 const SCHEDULE_DAYS = [
-  { value: -1,  label: 'Every day' },
-  { value: 0,   label: 'Sunday' },
-  { value: 1,   label: 'Monday' },
-  { value: 2,   label: 'Tuesday' },
-  { value: 3,   label: 'Wednesday' },
-  { value: 4,   label: 'Thursday' },
-  { value: 5,   label: 'Friday' },
-  { value: 6,   label: 'Saturday' },
-  { value: 100, label: 'Monthly (1st)' },
+  { value: -2,   label: 'Never' },
+  { value: -1,   label: 'Every day' },
+  { value: 0,    label: 'Sunday' },
+  { value: 1,    label: 'Monday' },
+  { value: 2,    label: 'Tuesday' },
+  { value: 3,    label: 'Wednesday' },
+  { value: 4,    label: 'Thursday' },
+  { value: 5,    label: 'Friday' },
+  { value: 6,    label: 'Saturday' },
+  { value: 100,  label: 'Monthly (1st)' },
 ]
 
 // ── ScheduleEditor ────────────────────────────────────────────────────────────
@@ -313,6 +297,7 @@ const SCHEDULE_DAYS = [
 function ScheduleEditor({ schedule: s, onSave, onCancelEdit, onDayChange, onTimeChange }) {
   const timeStr = `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`
   const open = s.editing && s.enabled
+  const isNever = s.day === -2
   return (
     <div style={{
       display: 'grid',
@@ -337,18 +322,24 @@ function ScheduleEditor({ schedule: s, onSave, onCancelEdit, onDayChange, onTime
                 borderRadius: 6, padding: '5px 10px', fontSize: 13, cursor: 'pointer', outline: 'none',
               }}
             >
-              {SCHEDULE_DAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              {SCHEDULE_DAYS.map(d => (
+                <option key={d.value} value={d.value}>{d.label}</option>
+              ))}
             </select>
-            <span style={{ fontSize: 12, color: '#7a7a7a' }}>at</span>
-            <input
-              type="time"
-              value={timeStr}
-              onChange={e => onTimeChange(e.target.value)}
-              style={{
-                background: '#1f1f1f', border: '1px solid #333', color: 'white',
-                borderRadius: 6, padding: '5px 8px', fontSize: 13, outline: 'none',
-              }}
-            />
+            {!isNever && (
+              <>
+                <span style={{ fontSize: 12, color: '#7a7a7a' }}>at</span>
+                <input
+                  type="time"
+                  value={timeStr}
+                  onChange={e => onTimeChange(e.target.value)}
+                  style={{
+                    background: '#1f1f1f', border: '1px solid #333', color: 'white',
+                    borderRadius: 6, padding: '5px 8px', fontSize: 13, outline: 'none',
+                  }}
+                />
+              </>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 7 }}>
             <Button style={{ padding: '4px 12px', fontSize: 12 }} onClick={onSave}>Save</Button>
@@ -446,14 +437,30 @@ export function PlaylistCard({
   const [line1, ...rest] = name.split(' ')
   const line2 = rest.join(' ')
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [cardHovered, setCardHovered] = useState(false)
+  const canEdit = !locked && !fixedSchedule && !!onToggleEdit
+  const hasMenu = canEdit || !!onDelete
+
+  useEffect(() => {
+    if (!menuOpen) { setConfirmDelete(false); return }
+    const close = () => setMenuOpen(false)
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 28, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.55, delay: index * 0.09, ease: [0.16, 1, 0.3, 1] }}
+      style={{ position: 'relative' }}
     >
       <div
-        onClick={s.enabled ? onTracklistToggle : undefined}
+        onClick={e => { if (menuOpen) return; if (s.enabled && onTracklistToggle) onTracklistToggle() }}
+        onMouseEnter={() => setCardHovered(true)}
+        onMouseLeave={() => setCardHovered(false)}
         className="playlist-card"
         style={{
           position: 'relative',
@@ -541,6 +548,23 @@ export function PlaylistCard({
           </div>
         )}
 
+        {hasMenu && (
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); setMenuOpen(o => !o) }}
+            style={{
+              position: 'absolute', top: 6, right: 8,
+              background: 'none', border: 'none',
+              color: 'white', fontSize: 18, lineHeight: 1,
+              cursor: 'pointer', padding: '2px 6px',
+              opacity: cardHovered || menuOpen ? 1 : 0.5,
+              transition: 'opacity 0.15s',
+              zIndex: 10,
+            }}
+          >
+            ⋮
+          </button>
+        )}
 
         {/* Name + schedule — bottom left */}
         <div style={{ position: 'absolute', bottom: 8, left: 10, maxWidth: 'calc(100% - 50px)', minWidth: 0 }}>
@@ -554,19 +578,14 @@ export function PlaylistCard({
             <div style={{ fontSize: 'clamp(11px, 3.5vw, 20px)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{line1}</div>
             {line2 && <div style={{ fontSize: 'clamp(11px, 3.5vw, 20px)', opacity: 0.88, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{line2}</div>}
           </div>
-          <span
-            onClick={e => { e.stopPropagation(); if (!locked && !fixedSchedule) onToggleEdit() }}
-            style={{
-              display: 'block', marginTop: 4,
-              fontSize: 8, fontWeight: 300,
-              color: 'rgba(255,255,255,0.55)',
-              mixBlendMode: 'hard-light',
-              cursor: (locked || fixedSchedule) ? 'default' : 'pointer',
-              letterSpacing: '0.02em',
-              whiteSpace: 'nowrap',
-              transition: 'color 0.3s',
-            }}
-          >
+          <span style={{
+            display: 'block', marginTop: 4,
+            fontSize: 8, fontWeight: 300,
+            color: 'rgba(255,255,255,0.55)',
+            mixBlendMode: 'hard-light',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+          }}>
             {nextRunText}
           </span>
         </div>
@@ -594,6 +613,84 @@ export function PlaylistCard({
           </>
         )}
       </div>
+
+      {/* 3-dot dropdown menu */}
+      {menuOpen && hasMenu && (
+        <div
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', top: 4, right: 4,
+            zIndex: 50,
+            background: '#1c1c1c',
+            border: '1px solid #2e2e2e',
+            borderRadius: 8,
+            padding: '4px 0',
+            minWidth: 155,
+            boxShadow: '0 8px 24px #00000088',
+          }}
+        >
+          {canEdit && (
+            <button
+              onClick={e => { e.stopPropagation(); setMenuOpen(false); onToggleEdit() }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'none', border: 'none',
+                padding: '8px 14px', fontSize: 13, color: '#c0c0c0',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              Edit Schedule
+            </button>
+          )}
+          {onDelete && !confirmDelete && (
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'none', border: 'none',
+                padding: '8px 14px', fontSize: 13, color: '#e05050',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              Delete Playlist
+            </button>
+          )}
+          {onDelete && confirmDelete && (
+            <div
+              onMouseDown={e => e.stopPropagation()}
+              style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}
+            >
+              <span style={{ fontSize: 12, color: '#9a9a9a' }}>Remove this playlist?</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={e => { e.stopPropagation(); setMenuOpen(false); onDelete() }}
+                  style={{
+                    flex: 1, background: '#6b1a1a', border: '1px solid #8b2a2a',
+                    borderRadius: 5, padding: '5px 0', fontSize: 12,
+                    color: '#ff8080', cursor: 'pointer',
+                  }}
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); setConfirmDelete(false) }}
+                  style={{
+                    flex: 1, background: '#242424', border: '1px solid #333',
+                    borderRadius: 5, padding: '5px 0', fontSize: 12,
+                    color: '#888', cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Inline schedule editor */}
       {!locked && !fixedSchedule && (

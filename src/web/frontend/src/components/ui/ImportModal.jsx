@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { importCustomPlaylist } from '../../lib/api'
 
@@ -15,20 +15,101 @@ const SOURCES = [
   { key: 'apple_music',  label: 'Apple Music',  desc: 'Import a public Apple Music playlist by URL',  placeholder: 'https://music.apple.com/us/playlist/\u2026' },
 ]
 
-function CoverThumb({ src, index }) {
+function CoverThumb({ src, index, onLoaded }) {
   const [loaded, setLoaded] = useState(false)
+  const done = () => { setLoaded(true); onLoaded?.() }
   return (
-    <div className="relative w-full aspect-square bg-well overflow-hidden">
+    <div className="relative w-full aspect-square overflow-hidden" style={{ background: '#141414' }}>
+      <motion.div
+        animate={{ backgroundPosition: ['200% 0', '-200% 0'], opacity: loaded ? 0 : 1 }}
+        transition={{
+          backgroundPosition: { duration: 1.2, repeat: Infinity, ease: 'linear' },
+          opacity: { duration: 0.4 },
+        }}
+        style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(90deg, #141414 25%, #242424 50%, #141414 75%)',
+          backgroundSize: '200% 100%',
+          pointerEvents: 'none',
+        }}
+      />
       <motion.img
         src={src}
         alt=""
-        onLoad={() => setLoaded(true)}
+        onLoad={done}
+        onError={done}
         initial={false}
         animate={loaded ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }}
         transition={{ duration: 1.2, delay: loaded ? index * 0.18 : 0, ease: [0.16, 1, 0.3, 1] }}
         className="w-full h-full object-cover block"
       />
     </div>
+  )
+}
+
+function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
+  const unique = [...new Map((result.cover_urls ?? []).map(u => [u, u])).values()].slice(0, 6)
+  const cols = unique.length <= 1 ? 1 : unique.length <= 4 ? 2 : 3
+  const [loadedCount, setLoadedCount] = useState(0)
+  const [footerReady, setFooterReady] = useState(unique.length === 0)
+
+  const handleCoverLoaded = useCallback(() => setLoadedCount(n => n + 1), [])
+
+  useEffect(() => {
+    if (unique.length === 0 || loadedCount < unique.length) return
+    const t = setTimeout(() => setFooterReady(true), (unique.length - 1) * 180 + 1300)
+    return () => clearTimeout(t)
+  }, [loadedCount, unique.length])
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-ui-border">
+        <div>
+          <h2 className="text-[15px] font-semibold text-white leading-none">{result.name}</h2>
+          <p className="text-[11px] text-muted mt-1">
+            {result.track_count} track{result.track_count !== 1 ? 's' : ''} imported
+          </p>
+        </div>
+      </div>
+
+      {unique.length > 0 && (
+        <div className="px-5 pt-4 pb-4">
+          <div className={`grid gap-1.5 rounded-lg overflow-hidden ${
+            cols === 1 ? 'grid-cols-1 max-w-[180px] mx-auto' : cols === 2 ? 'grid-cols-2' : 'grid-cols-3'
+          }`}>
+            {unique.map((src, i) => (
+              <CoverThumb key={src} src={src} index={i} onLoaded={handleCoverLoaded} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: footerReady ? 1 : 0 }}
+        transition={{ duration: 0.4 }}
+        style={{ pointerEvents: footerReady ? 'auto' : 'none' }}
+        className="flex justify-end gap-2 px-5 pb-5"
+      >
+        {onSync && (
+          <button
+            onClick={async () => {
+              try { await onSync(result.id); onImported(result); onClose() }
+              catch (e) { onError(e.message || 'Sync failed') }
+            }}
+            className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
+          >
+            Sync to Library
+          </button>
+        )}
+        <button
+          onClick={() => { onImported(result); onClose() }}
+          className="bg-accent text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer hover:scale-[1.04] active:scale-[0.97] transition-transform"
+        >
+          Done
+        </button>
+      </motion.div>
+    </>
   )
 }
 
@@ -217,77 +298,13 @@ export function ImportModal({ onClose, onImported, onSync }) {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-ui-border">
-                <div>
-                  <h2 className="text-[15px] font-semibold text-white leading-none">
-                    {result.name}
-                  </h2>
-                  <p className="text-[11px] text-muted mt-1">
-                    {result.track_count} track{result.track_count !== 1 ? 's' : ''} imported
-                  </p>
-                </div>
-              </div>
-
-              {/* Cover grid — deduplicated, adaptive column count */}
-              {(() => {
-                const unique = [...new Map((result.cover_urls ?? []).map(u => [u, u])).values()].slice(0, 6)
-                const cols = unique.length <= 1 ? 1 : unique.length <= 4 ? 2 : 3
-                if (unique.length === 0) return null
-                return (
-                  <div className="px-5 pt-4 pb-4">
-                    <div className={`grid gap-1.5 rounded-lg overflow-hidden ${
-                      cols === 1 ? 'grid-cols-1 max-w-[180px] mx-auto' : cols === 2 ? 'grid-cols-2' : 'grid-cols-3'
-                    }`}>
-                      {unique.map((src, i) => (
-                        <CoverThumb key={src} src={src} index={i} />
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* Footer */}
-              <div className="flex items-center justify-between px-5 pb-5">
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-[12px] text-accent tracking-wide"
-                >
-                  Added to your playlists
-                </motion.span>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="flex gap-2"
-                >
-                  {onSync && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await onSync(result.id)
-                          onImported(result)
-                          onClose()
-                        } catch (e) {
-                          setErrorMsg(e.message || 'Sync failed')
-                          setPhase('error')
-                        }
-                      }}
-                      className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
-                    >
-                      Sync to Library
-                    </button>
-                  )}
-                  <button
-                    onClick={() => { onImported(result); onClose() }}
-                    className="bg-accent text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer hover:scale-[1.04] active:scale-[0.97] transition-transform"
-                  >
-                    Done
-                  </button>
-                </motion.div>
-              </div>
+              <SuccessPanel
+                result={result}
+                onImported={onImported}
+                onSync={onSync}
+                onClose={onClose}
+                onError={msg => { setErrorMsg(msg); setPhase('error') }}
+              />
             </motion.div>
           )}
 

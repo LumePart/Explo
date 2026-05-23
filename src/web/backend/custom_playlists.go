@@ -173,12 +173,15 @@ func (s *Server) handleGetCustomPlaylists(w http.ResponseWriter, r *http.Request
 		CustomPlaylist
 		TrackCount int    `json:"track_count"`
 		Schedule   string `json:"schedule"`
+		Flags      string `json:"flags"`
 	}
 	items := make([]respItem, 0, len(playlists))
 	for _, p := range playlists {
 		count := customPlaylistTrackCount(s.cfg.WebDataDir, p.ID)
-		sched := envValues[customEnvPrefix(p.ID)+"_SCHEDULE"]
-		items = append(items, respItem{CustomPlaylist: p, TrackCount: count, Schedule: sched})
+		prefix := customEnvPrefix(p.ID)
+		sched := envValues[prefix+"_SCHEDULE"]
+		flags := envValues[prefix+"_FLAGS"]
+		items = append(items, respItem{CustomPlaylist: p, TrackCount: count, Schedule: sched, Flags: flags})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -279,10 +282,12 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	}
 	slog.Info("custom-playlists: import complete", "id", id, "name", name)
 
-	// Collect up to 6 remote cover URLs for the import animation
+	// Collect up to 6 unique remote cover URLs for the import animation
+	seen := make(map[string]bool)
 	covers := make([]string, 0, 6)
 	for _, t := range tracks {
-		if t[3] != "" {
+		if t[3] != "" && !seen[t[3]] {
+			seen[t[3]] = true
 			covers = append(covers, t[3])
 		}
 		if len(covers) >= 6 {

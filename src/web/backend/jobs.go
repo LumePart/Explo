@@ -49,39 +49,60 @@ func (j *Jobs) RegisterCoverCleanup(schedule, coversDir string, maxBytes int64) 
 	return err
 }
 
-// RegisterCustomPlaylistRefresh registers a daily job that re-fetches custom playlists
-// whose refresh interval has elapsed.
-func (j *Jobs) RegisterCustomPlaylistRefresh(cfgDir string) error {
-	_, err := j.scheduler.NewJob(
-		gocron.CronJob("0 4 * * *", false),
-		gocron.NewTask(func() {
-			playlists := loadCustomPlaylists(cfgDir)
-			updated := false
-			for i, p := range playlists {
-				if p.RefreshDays <= 0 {
-					continue
-				}
+// RegisterCustomPlaylistRefresh registers a cache-refresh job for each custom playlist
+// using its stored schedule. Falls back to daily at 4 AM if no schedule is set.
+func (j *Jobs) RegisterCustomPlaylistRefresh(cfgDir, envPath string) error {
+	playlists := loadCustomPlaylists(cfgDir)
+	if len(playlists) == 0 {
+		return nil
+	}
+
+	var envValues map[string]string
+	if data, err := os.ReadFile(envPath); err == nil {
+		envValues = parseEnvText(string(data))
+	} else {
+		envValues = map[string]string{}
+	}
+
+	for _, p := range playlists {
+		p := p
+		if p.RefreshDays <= 0 {
+			continue
+		}
+		schedule := envValues[customEnvPrefix(p.ID)+"_SCHEDULE"]
+		if schedule == "" {
+			schedule = "0 4 * * *"
+		}
+		_, err := j.scheduler.NewJob(
+			gocron.CronJob(schedule, false),
+			gocron.NewTask(func() {
 				if time.Since(p.LastFetched) < time.Duration(p.RefreshDays)*24*time.Hour {
-					continue
+					return
 				}
 				slog.Info("custom-playlists: refreshing", "id", p.ID, "name", p.Name, "source", p.Source)
 				result, err := fetchCustomPlaylistTracks(p)
 				if err != nil {
 					slog.Warn("custom-playlists: refresh fetch failed", "id", p.ID, "err", err)
-					continue
+					return
 				}
 				writePrefetchCache(cfgDir, p.ID, result.Tracks)
-				playlists[i].LastFetched = time.Now().UTC()
-				updated = true
-			}
-			if updated {
+				playlists := loadCustomPlaylists(cfgDir)
+				for i, pl := range playlists {
+					if pl.ID == p.ID {
+						playlists[i].LastFetched = time.Now().UTC()
+						break
+					}
+				}
 				if err := saveCustomPlaylists(cfgDir, playlists); err != nil {
 					slog.Error("custom-playlists: failed to save after refresh", "err", err)
 				}
-			}
-		}),
-	)
-	return err
+			}),
+		)
+		if err != nil {
+			slog.Warn("custom-playlists: failed to register refresh job", "id", p.ID, "err", err)
+		}
+	}
+	return nil
 }
 
 func trimCacheDir(dataDir string, maxBytes int64) {

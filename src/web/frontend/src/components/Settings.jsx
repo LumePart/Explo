@@ -85,15 +85,16 @@ const PLAYLISTS = [
 ]
 
 const SCHEDULE_DAYS = [
-  { value: -1,  label: 'Every day',        summary: 'Every day' },
-  { value: 0,   label: 'Sunday',           summary: 'Every Sunday' },
-  { value: 1,   label: 'Monday',           summary: 'Every Monday' },
-  { value: 2,   label: 'Tuesday',          summary: 'Every Tuesday' },
-  { value: 3,   label: 'Wednesday',        summary: 'Every Wednesday' },
-  { value: 4,   label: 'Thursday',         summary: 'Every Thursday' },
-  { value: 5,   label: 'Friday',           summary: 'Every Friday' },
-  { value: 6,   label: 'Saturday',         summary: 'Every Saturday' },
-  { value: 100, label: 'Monthly (1st)',     summary: 'Every 1st of the month' },
+  { value: -2,   label: 'Never',           summary: 'No schedule' },
+  { value: -1,   label: 'Every day',       summary: 'Every day' },
+  { value: 0,    label: 'Sunday',          summary: 'Every Sunday' },
+  { value: 1,    label: 'Monday',          summary: 'Every Monday' },
+  { value: 2,    label: 'Tuesday',         summary: 'Every Tuesday' },
+  { value: 3,    label: 'Wednesday',       summary: 'Every Wednesday' },
+  { value: 4,    label: 'Thursday',        summary: 'Every Thursday' },
+  { value: 5,    label: 'Friday',          summary: 'Every Friday' },
+  { value: 6,    label: 'Saturday',        summary: 'Every Saturday' },
+  { value: 100,  label: 'Monthly (1st)',   summary: 'Every 1st of the month' },
 ]
 
 const selectCls = 'bg-surface border border-ui-border text-white rounded-[6px] px-2.5 py-1.5 text-[13px] cursor-pointer outline-none focus:border-accent'
@@ -159,7 +160,7 @@ function CustomPlaylistsSection({
                 {...scheduleProps(cp.id)}
                 index={i}
                 nextRunText={schedules[cp.id]?.enabled
-                  ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary || 'Every day'
+                  ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
                   : 'Disabled'}
                 tracklistOpen={openTracklist === cp.id}
                 onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
@@ -175,7 +176,6 @@ function CustomPlaylistsSection({
           playlist={openTracklist}
           lbUser={null}
           onRun={() => onSync(openTracklist)}
-          onDelete={() => onDelete(openTracklist)}
         />
       </TracklistSlide>
 
@@ -231,7 +231,9 @@ function HomeSection() {
       for (const cp of customList) {
         s[cp.id] = cp.schedule
           ? { enabled: true, editing: false, ...cronToFields(cp.schedule) }
-          : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
+          : cp.flags
+            ? { enabled: true, editing: false, day: -2, hour: 4, minute: 0 }
+            : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
       }
       setSchedules(s)
     })
@@ -382,7 +384,9 @@ function HomeSection() {
                 if (next[cp.id]) continue
                 next[cp.id] = cp.schedule
                   ? { enabled: true, editing: false, ...cronToFields(cp.schedule) }
-                  : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
+                  : cp.flags
+                    ? { enabled: true, editing: false, day: -2, hour: 4, minute: 0 }
+                    : { enabled: false, day: -1, hour: 4, minute: 0, editing: false }
               }
               return next
             })
