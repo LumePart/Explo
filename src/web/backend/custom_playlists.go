@@ -33,7 +33,7 @@ type CustomPlaylist struct {
 var lbMBIDRe = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
 var appleMusicURLRe = regexp.MustCompile(
-	`^https?://music\.apple\.com/[a-z]{2}/playlist/[^/]+/(pl\.[a-z0-9-]+)`,
+	`^https?://music\.apple\.com/[a-z]{2}/playlist/[^/]+/(pl\.[a-zA-Z0-9-]+)`,
 )
 
 // extractAppleMusicID pulls the playlist ID (pl.xxx) from an Apple Music URL.
@@ -280,6 +280,17 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "failed to save playlist metadata: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// If the user picked "Never" for auto-refresh, mark the playlist as active
+	// without a download schedule (FLAGS set, SCHEDULE empty) so the card is
+	// immediately usable for manual runs and the schedule editor pre-selects "Never".
+	if body.RefreshDays == 0 {
+		prefix := customEnvPrefix(id)
+		_ = updateEnvKeys(s.cfg.WebEnvPath, map[string]string{
+			prefix + "_FLAGS": "--playlist " + id,
+		}, web.SampleEnv)
+	}
+
 	slog.Info("custom-playlists: import complete", "id", id, "name", name)
 
 	// Collect up to 6 unique remote cover URLs for the import animation

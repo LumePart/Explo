@@ -111,7 +111,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 
 	ct := make([]cachedTrack, len(tracks))
 	for i, t := range tracks {
-		localCover := downloadCover(t.CoverURL, coversDir)
+		localCover := util.DownloadCover(t.CoverURL, coversDir)
 		var inLibrary *bool
 		if added != nil {
 			v := added[t.CleanTitle+"|"+t.Artist]
@@ -155,37 +155,6 @@ func lbGet(url string) ([]byte, error) {
 		return nil, fmt.Errorf("LB returned %d", resp.StatusCode)
 	}
 	return io.ReadAll(resp.Body)
-}
-
-// downloadCover downloads coverURL into coversDir and returns "/api/covers/<mbid>.jpg".
-// Returns "" if url is empty.
-func downloadCover(url, coversDir string) string {
-	if url == "" {
-		return ""
-	}
-	parts := strings.Split(strings.TrimRight(url, "/"), "/")
-	mbid := parts[len(parts)-2]
-	destPath := filepath.Join(coversDir, mbid+".jpg")
-	if _, err := os.Stat(destPath); os.IsNotExist(err) {
-		resp, err := http.Get(url) //nolint:noctx
-		if err == nil {
-			func() {
-				defer func() {
-					if cerr := resp.Body.Close(); cerr != nil {
-						slog.Error("failed to close cover response", "err", cerr.Error())
-					}
-				}()
-				if resp.StatusCode == http.StatusOK {
-					if data, err := io.ReadAll(resp.Body); err == nil {
-						if err := os.WriteFile(destPath, data, 0644); err != nil {
-							slog.Error("failed writing cover", "path", destPath, "err", err.Error())
-						}
-					}
-				}
-			}()
-		}
-	}
-	return "/api/covers/" + mbid + ".jpg"
 }
 
 // handlePrefetchCovers fetches the most recent LB playlists for the given user,
@@ -271,7 +240,7 @@ func downloadAndCacheCovers(cfgDir, playlistType string, tracks [][4]string) {
 	}
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: downloadCover(t[3], coversDir)}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: util.DownloadCover(t[3], coversDir)}
 	}
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")

@@ -148,24 +148,28 @@ function CustomPlaylistsSection({
           No custom playlists yet. Import one from ListenBrainz or Apple Music.
         </p>
       ) : (
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
+        <div className="flex gap-3 mt-3 overflow-x-auto snap-x snap-mandatory pb-2">
           {customPlaylists.map((cp, i) => {
             if (!schedules[cp.id]) return null
             return (
-              <PlaylistCard
+              <div
                 key={cp.id}
-                playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
-                trackId={cp.id}
-                artworkUrl={cp.artwork_url || undefined}
-                {...scheduleProps(cp.id)}
-                index={i}
-                nextRunText={schedules[cp.id]?.enabled
-                  ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
-                  : 'Disabled'}
-                tracklistOpen={openTracklist === cp.id}
-                onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
-                onDelete={() => onDelete(cp.id)}
-              />
+                className="shrink-0 snap-start w-full min-[420px]:w-[calc((100%-12px)/2)] min-[720px]:w-[calc((100%-36px)/4)]"
+              >
+                <PlaylistCard
+                  playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
+                  trackId={cp.id}
+                  artworkUrl={cp.artwork_url || undefined}
+                  {...scheduleProps(cp.id)}
+                  index={i}
+                  nextRunText={schedules[cp.id]?.enabled
+                    ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
+                    : 'Disabled'}
+                  tracklistOpen={openTracklist === cp.id}
+                  onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                  onDelete={() => onDelete(cp.id)}
+                />
+              </div>
             )
           })}
         </div>
