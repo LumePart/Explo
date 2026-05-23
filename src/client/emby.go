@@ -162,7 +162,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 }
 
 func (c *Emby) SearchPlaylist() error {
-	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", c.Cfg.PlaylistName)
+	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", url.QueryEscape(c.Cfg.PlaylistName))
 
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
@@ -185,7 +185,7 @@ func (c *Emby) SearchPlaylist() error {
 func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
 	songIDs := formatEmbySongs(tracks)
 
-	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", c.Cfg.PlaylistName, songIDs)
+	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", url.QueryEscape(c.Cfg.PlaylistName), songIDs)
 
 
 	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)

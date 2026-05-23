@@ -39,6 +39,15 @@ func (w *sessionResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+// Flush forwards to the wrapped ResponseWriter so SSE handlers can do
+// w.(http.Flusher) — without this, the auth middleware breaks streaming.
+func (w *sessionResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		writeCookieIfNecessary(w)
+		f.Flush()
+	}
+}
+
 func NewInMemorySessionStore() *InMemorySessionStore {
 	return &InMemorySessionStore{
 		sessions: make(map[string]*Session),

@@ -15,6 +15,9 @@ import (
 	"explo/src/discovery"
 	"explo/src/util"
 	"explo/src/web"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // CustomPlaylist holds the metadata for a user-imported playlist.
@@ -371,6 +374,8 @@ func (s *Server) handleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Requ
 }
 
 // handleDeleteCustomPlaylist removes a custom playlist's metadata and cache file.
+// If ?delete_tracks=true is set and USE_SUBDIRECTORY is on, also removes the
+// playlist's download subdirectories from DOWNLOAD_DIR.
 func (s *Server) handleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !customIDRe.MatchString(id) {
@@ -378,7 +383,8 @@ func (s *Server) handleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "invalid playlist id", http.StatusBadRequest)
 		return
 	}
-	slog.Info("custom-playlists: delete request", "id", id)
+	deleteTracks := r.URL.Query().Get("delete_tracks") == "true"
+	slog.Info("custom-playlists: delete request", "id", id, "delete_tracks", deleteTracks)
 
 	existing := loadCustomPlaylists(s.cfg.WebDataDir)
 	filtered := existing[:0]
@@ -410,6 +416,27 @@ func (s *Server) handleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Reque
 		prefix + "_SCHEDULE": "",
 		prefix + "_FLAGS":    "",
 	}, web.SampleEnv)
+
+	if deleteTracks {
+		if data, err := os.ReadFile(s.cfg.WebEnvPath); err == nil {
+			env := parseEnvText(string(data))
+			if env["USE_SUBDIRECTORY"] == "true" && env["DOWNLOAD_DIR"] != "" {
+				prefix := cases.Title(language.Und).String(id) // "custom-1234" -> "Custom-1234"
+				removed, err := util.RemoveDirsByPrefix(env["DOWNLOAD_DIR"], prefix)
+				if err != nil {
+					slog.Warn("custom-playlists: track cleanup failed", "id", id, "err", err)
+				} else {
+					slog.Info("custom-playlists: removed download dirs", "id", id, "count", removed)
+					if removed > 0 {
+						s.triggerLibraryRefresh()
+					}
+				}
+			} else {
+				slog.Info("custom-playlists: skipping track cleanup", "id", id,
+					"use_subdir", env["USE_SUBDIRECTORY"], "download_dir", env["DOWNLOAD_DIR"])
+			}
+		}
+	}
 
 	slog.Info("custom-playlists: deleted", "id", id)
 	w.WriteHeader(http.StatusNoContent)

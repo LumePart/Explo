@@ -221,7 +221,7 @@ func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 		fmt.Fprintf(&trackIDs, "&songId=%s", track.ID)
 	}
 
-	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", c.Cfg.PlaylistName, trackIDs.String())
+	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", url.QueryEscape(c.Cfg.PlaylistName), trackIDs.String())
 
 	body, err := c.subsonicRequest(reqParam)
 	if err != nil {

@@ -276,7 +276,7 @@ func (c *Plex) SearchPlaylist() error {
 }
 
 func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
-	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", c.Cfg.PlaylistName, c.machineID, c.LibraryID)
+	params := fmt.Sprintf("/playlists?title=%s&type=audio&smart=0&uri=server://%s/com.plexapp.plugins.library/%s", url.QueryEscape(c.Cfg.PlaylistName), c.machineID, c.LibraryID)
 
 	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {

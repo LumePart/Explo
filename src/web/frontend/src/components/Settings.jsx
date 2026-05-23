@@ -167,7 +167,7 @@ function CustomPlaylistsSection({
                     : 'Disabled'}
                   tracklistOpen={openTracklist === cp.id}
                   onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
-                  onDelete={() => onDelete(cp.id)}
+                  onDelete={(opts) => onDelete(cp.id, opts)}
                 />
               </div>
             )
@@ -404,9 +404,9 @@ function HomeSection() {
           setLogEntries([])
           connect()
         }}
-        onDelete={async (id) => {
+        onDelete={async (id, opts) => {
           try {
-            await deleteCustomPlaylist(id)
+            await deleteCustomPlaylist(id, opts)
             setCustomPlaylists(prev => prev.filter(p => p.id !== id))
             setSchedules(prev => { const next = { ...prev }; delete next[id]; return next })
             if (openTracklist === id) setOpenTracklist(null)
@@ -416,7 +416,7 @@ function HomeSection() {
 
       {/* Manual Run */}
       <div className="mt-6">
-        <SectionLabel>Manual run</SectionLabel>
+        <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Manual Run</div>
         <div className="flex flex-col gap-1.5 mb-3">
           <label className="text-[12px] text-muted">Download mode</label>
           <div className="flex gap-1.5">

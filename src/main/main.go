@@ -114,6 +114,16 @@ func main() {
 		srv := backend.NewServer(cfg.ServerCfg)
 		log.Fatal(srv.Start())
 	}
+
+	if cfg.Flags.RefreshOnly {
+		if err := client.TriggerRefresh(&cfg); err != nil {
+			slog.Error("refresh-only failed", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("library refresh triggered")
+		return
+	}
+
 	httpClient := initHttpClient()
 
 	var tracks []*models.Track

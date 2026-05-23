@@ -439,12 +439,13 @@ export function PlaylistCard({
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteTracksChecked, setDeleteTracksChecked] = useState(false)
   const [cardHovered, setCardHovered] = useState(false)
   const canEdit = !locked && !fixedSchedule && !!onToggleEdit
   const hasMenu = canEdit || !!onDelete
 
   useEffect(() => {
-    if (!menuOpen) { setConfirmDelete(false); return }
+    if (!menuOpen) { setConfirmDelete(false); setDeleteTracksChecked(false); return }
     const close = () => setMenuOpen(false)
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
@@ -662,12 +663,28 @@ export function PlaylistCard({
           {onDelete && confirmDelete && (
             <div
               onMouseDown={e => e.stopPropagation()}
-              style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}
+              style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}
             >
               <span style={{ fontSize: 12, color: '#9a9a9a' }}>Remove this playlist?</span>
+              <label
+                onClick={e => e.stopPropagation()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 11, color: '#9a9a9a', cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={deleteTracksChecked}
+                  onChange={e => setDeleteTracksChecked(e.target.checked)}
+                  style={{ margin: 0, cursor: 'pointer', accentColor: '#c0392b' }}
+                />
+                Also delete downloaded files
+              </label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
-                  onClick={e => { e.stopPropagation(); setMenuOpen(false); onDelete() }}
+                  onClick={e => { e.stopPropagation(); setMenuOpen(false); onDelete({ deleteTracks: deleteTracksChecked }) }}
                   style={{
                     flex: 1, background: '#6b1a1a', border: '1px solid #8b2a2a',
                     borderRadius: 5, padding: '5px 0', fontSize: 12,
@@ -677,7 +694,7 @@ export function PlaylistCard({
                   Delete
                 </button>
                 <button
-                  onClick={e => { e.stopPropagation(); setConfirmDelete(false) }}
+                  onClick={e => { e.stopPropagation(); setConfirmDelete(false); setDeleteTracksChecked(false) }}
                   style={{
                     flex: 1, background: '#242424', border: '1px solid #333',
                     borderRadius: 5, padding: '5px 0', fontSize: 12,

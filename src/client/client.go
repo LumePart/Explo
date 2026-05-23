@@ -70,6 +70,16 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	return c, nil
 }
 
+// TriggerRefresh Runs a trigger to refresh the users app music library
+// Useful for one-shot operations
+func TriggerRefresh(cfg *config.Config) error {
+	c, err := NewClient(cfg)
+	if err != nil {
+		return fmt.Errorf("client setup: %w", err)
+	}
+	return c.API.RefreshLibrary()
+}
+
 // systemSetup checks needed credentials and initializes the selected system
 func (c *Client) systemSetup() error {
 	switch c.System {
@@ -108,7 +118,7 @@ func (c *Client) systemSetup() error {
 			}
 
 		}
-		
+
 		if err := c.API.AddHeader(); err != nil {
 			return err
 		}

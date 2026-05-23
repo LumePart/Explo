@@ -180,8 +180,9 @@ export async function importCustomPlaylist(url, source, refresh_days) {
   return res.json()
 }
 
-export async function deleteCustomPlaylist(id) {
-  const res = await apiFetch(`/api/ui/custom-playlists/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export async function deleteCustomPlaylist(id, { deleteTracks = false } = {}) {
+  const qs = deleteTracks ? '?delete_tracks=true' : ''
+  const res = await apiFetch(`/api/ui/custom-playlists/${encodeURIComponent(id)}${qs}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(await res.text())
 }
 
