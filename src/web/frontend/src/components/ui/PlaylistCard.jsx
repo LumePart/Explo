@@ -616,14 +616,22 @@ export function PlaylistCard({
       </div>
 
       {/* 3-dot dropdown menu */}
+      <AnimatePresence>
       {menuOpen && hasMenu && (
-        <div
+        <motion.div
           onMouseDown={e => e.stopPropagation()}
+          initial={{ opacity: 0, scale: 0.92, y: -6 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: -4 }}
+          transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           style={{
             position: 'absolute', top: 4, right: 4,
             zIndex: 50,
-            background: '#1c1c1c',
-            border: '1px solid #2e2e2e',
+            transformOrigin: 'top right',
+            background: '#1a1a1ae6',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid #282828',
             borderRadius: 8,
             padding: '4px 0',
             minWidth: 155,
@@ -706,8 +714,9 @@ export function PlaylistCard({
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Inline schedule editor */}
       {!locked && !fixedSchedule && (

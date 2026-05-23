@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { importCustomPlaylist } from '../../lib/api'
+import listenbrainzIcon from '../../assets/listenbrainz.svg'
+import appleMusicIcon from '../../assets/apple-music.svg'
 
 const REFRESH_OPTIONS = [
   { value: 0,  label: 'Never' },
@@ -11,8 +13,8 @@ const REFRESH_OPTIONS = [
 ]
 
 const SOURCES = [
-  { key: 'listenbrainz', label: 'ListenBrainz', desc: 'Import a public ListenBrainz playlist by URL', placeholder: 'https://listenbrainz.org/playlist/\u2026' },
-  { key: 'apple_music',  label: 'Apple Music',  desc: 'Import a public Apple Music playlist by URL',  placeholder: 'https://music.apple.com/us/playlist/\u2026' },
+  { key: 'listenbrainz', label: 'ListenBrainz', icon: listenbrainzIcon, color: '#EB743B', placeholder: 'https://listenbrainz.org/playlist/\u2026' },
+  { key: 'apple_music',  label: 'Apple Music',  icon: appleMusicIcon,  color: '#FA243C', placeholder: 'https://music.apple.com/us/playlist/\u2026' },
 ]
 
 function CoverThumb({ src, index, onLoaded }) {
@@ -104,7 +106,7 @@ function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
         )}
         <button
           onClick={() => { onImported(result); onClose() }}
-          className="bg-accent text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer hover:scale-[1.04] active:scale-[0.97] transition-transform"
+          className="bg-[var(--brand)] text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer hover:scale-[1.04] active:scale-[0.97] transition-transform"
         >
           Done
         </button>
@@ -161,8 +163,14 @@ export function ImportModal({ onClose, onImported, onSync }) {
         exit={{ opacity: 0, y: 16, scale: 0.97 }}
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-[420px] mx-4 bg-surface border border-ui-border rounded-2xl overflow-hidden"
-        style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}
+        className="w-full max-w-[420px] mx-4 border border-ui-border rounded-lg overflow-hidden"
+        style={{
+          background: '#1a1a1ae6',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          boxShadow: '0 24px 64px #00000099',
+          '--brand': sourceCfg?.color ?? '#1ed760',
+        }}
       >
         <AnimatePresence mode="wait">
 
@@ -178,7 +186,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-ui-border">
                 <h2 className="text-[15px] font-semibold text-white leading-none">
-                  Import Playlist
+                  Choose a Playlist Source
                 </h2>
                 <button
                   onClick={onClose}
@@ -189,18 +197,36 @@ export function ImportModal({ onClose, onImported, onSync }) {
               </div>
 
               {/* Source buttons */}
-              <div className="px-5 pt-5 pb-5 flex flex-col gap-2.5">
-                <p className="text-[12px] text-muted mb-1">Choose a source</p>
+              <div className="px-5 pt-5 pb-5 grid grid-cols-2 gap-3">
                 {SOURCES.map(s => (
                   <button
                     key={s.key}
                     onClick={() => { setSource(s.key); setPhase('form') }}
-                    className="w-full text-left bg-well border border-ui-border rounded-lg px-4 py-3 cursor-pointer hover:border-accent transition-colors group"
+                    onMouseMove={e => {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`)
+                      e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`)
+                    }}
+                    style={{ '--brand': s.color }}
+                    className="relative overflow-hidden aspect-square flex flex-col items-center justify-center gap-3 bg-well border border-ui-border rounded-md cursor-pointer transition-colors group hover:border-[var(--brand)]"
                   >
-                    <div className="text-[14px] font-semibold text-white group-hover:text-accent transition-colors">
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -inset-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{
+                        background: 'radial-gradient(circle 230px at calc(var(--mx, 50%) + 40px) calc(var(--my, 50%) + 40px), var(--brand) 30%, transparent)',
+                        filter: 'blur(22px)',
+                      }}
+                    />
+                    <img
+                      src={s.icon}
+                      alt=""
+                      draggable={false}
+                      className="relative w-[40px] h-[40px] object-contain select-none transition-transform group-hover:scale-[1.04]"
+                    />
+                    <div className="relative text-[12px] font-bold tracking-tight text-white">
                       {s.label}
                     </div>
-                    <div className="text-[11px] text-muted mt-0.5">{s.desc}</div>
                   </button>
                 ))}
               </div>
@@ -244,7 +270,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                     placeholder={sourceCfg?.placeholder ?? 'Paste a playlist URL\u2026'}
                     autoFocus
                     disabled={loading}
-                    className="w-full bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] outline-none placeholder:text-[#444] focus:border-accent transition-colors disabled:opacity-50"
+                    className="w-full bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] outline-none placeholder:text-[#444] focus:border-[var(--brand)] transition-colors disabled:opacity-50"
                   />
                 </div>
 
@@ -256,7 +282,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                     value={refreshDays}
                     onChange={e => setRefreshDays(Number(e.target.value))}
                     disabled={loading}
-                    className="bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] cursor-pointer outline-none focus:border-accent transition-colors disabled:opacity-50"
+                    className="bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] cursor-pointer outline-none focus:border-[var(--brand)] transition-colors disabled:opacity-50"
                   >
                     {REFRESH_OPTIONS.map(o => (
                       <option key={o.value} value={o.value}>{o.label}</option>
@@ -279,7 +305,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                   disabled={!canSubmit}
                   className={`border-none rounded-full px-5 py-1.5 text-[13px] font-semibold transition-all
                     ${canSubmit
-                      ? 'bg-accent text-black cursor-pointer hover:scale-[1.04] active:scale-[0.97]'
+                      ? 'bg-[var(--brand)] text-black cursor-pointer hover:scale-[1.04] active:scale-[0.97]'
                       : 'bg-[#2a2a2a] text-[#555] cursor-default'
                     }`}
                 >
@@ -335,7 +361,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                 </button>
                 <button
                   onClick={() => { setPhase('form'); setErrorMsg('') }}
-                  className="bg-accent text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer hover:scale-[1.04] active:scale-[0.97] transition-transform"
+                  className="bg-[var(--brand)] text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer hover:scale-[1.04] active:scale-[0.97] transition-transform"
                 >
                   Try again
                 </button>
