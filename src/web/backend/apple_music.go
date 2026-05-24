@@ -68,7 +68,11 @@ func fetchAppleMusicPlaylist(pageURL string) (string, string, [][4]string, error
 	if err != nil {
 		return "", "", nil, fmt.Errorf("apple music: fetch failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.Warn("apple music: response body close failed", "err", cerr.Error())
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return "", "", nil, fmt.Errorf("apple music: page returned %d", resp.StatusCode)
 	}

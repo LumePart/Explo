@@ -35,7 +35,11 @@ func uploadPlaylistArtwork(hc *util.HttpClient, endpoint, localPath string, head
 	if err != nil {
 		return fmt.Errorf("post: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.Warn("artwork upload: response body close failed", "err", cerr.Error())
+		}
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("upload artwork: status %d, body: %s", resp.StatusCode, string(body))
