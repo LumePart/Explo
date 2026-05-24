@@ -64,6 +64,7 @@ type ClientConfig struct {
 	PlaylistID      string
 	Sleep           int `env:"SLEEP" env-default:"2"`
 	HTTPTimeout     int `env:"CLIENT_HTTP_TIMEOUT" env-default:"10"`
+	MultiLib		bool `env:"MULTI_LIB" env-default:"false"`
 	Creds           Credentials
 	AdminCreds      AdminCredentials
 	Subsonic        SubsonicConfig

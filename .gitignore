@@ -10,3 +10,4 @@ src/web/frontend/node_modules/
 /cache
 /data/
 /.data/
+.zed/

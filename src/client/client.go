@@ -93,6 +93,9 @@ func (c *Client) systemSetup() error {
 		if c.Cfg.Creds.APIKey == "" {
 			return fmt.Errorf("Jellyfin API_KEY is required")
 		}
+		if c.Cfg.Creds.User == "" {
+			return fmt.Errorf("Jellyfin SYSTEM_USERNAME is required")
+		}
 		if err := c.API.AddHeader(); err != nil {
 			return err
 		}

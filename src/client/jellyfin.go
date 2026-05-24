@@ -55,6 +55,11 @@ type JFPlaylist struct {
 	ID string `json:"Id"`
 }
 
+type JFUser struct {
+	ID   string `json:"Id"`
+	Name string `json:"Name"`
+}
+
 type Jellyfin struct {
 	LibraryID  string
 	HttpClient *util.HttpClient
@@ -197,6 +202,11 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal track IDs: %s", err.Error())
 	}
+	userID, err := c.ResolveUserID()
+	if err != nil {
+		return err
+	}
+	isPublic := c.Cfg.Subsonic.PublicPlaylist
 
 	queryParams := "/Playlists"
 	payload := fmt.Appendf(nil, `
@@ -204,8 +214,9 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 		"Name": "%s",
 		"Ids": %s,
 		"MediaType": "Audio",
-		"UserId": "%s"
-		}`, c.Cfg.PlaylistName, songs, c.Cfg.Creds.APIKey)
+		"UserId": "%s",
+		"IsPublic": %t
+		}`, c.Cfg.PlaylistName, songs, userID, isPublic)
 
 	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewReader(payload), c.Cfg.Creds.Headers)
 	if err != nil {
@@ -220,16 +231,18 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 }
 
 func (c *Jellyfin) UpdatePlaylist() error {
+	isPublic := c.Cfg.Subsonic.PublicPlaylist
 	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
 	payload := fmt.Appendf(nil, `
 		{
 		"Id":"%s",
 		"Name":"%s",
 		"Overview":"%s",
+		"IsPublic":%t,
 		"Genres":[],
 		"Tags":[],
 		"ProviderIds":{}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr) // the additional fields have to be added, otherwise JF returns code 400
+		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr, isPublic) // the additional fields have to be added, otherwise JF returns code 400
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
@@ -258,4 +271,22 @@ func formatJFSongs(tracks []*models.Track) ([]byte, error) { // marshal track ID
 		return nil, err
 	}
 	return songs, nil
+}
+
+func (c *Jellyfin) ResolveUserID() (string, error) {
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+"/Users", nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return "", err
+	}
+	var users []JFUser
+	if err = util.ParseResp(body, &users); err != nil {
+		return "", err
+	}
+	for _, user := range users {
+		if strings.EqualFold(user.Name, c.Cfg.Creds.User) {
+			return user.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to find Jellyfin user %q", c.Cfg.Creds.User)
 }

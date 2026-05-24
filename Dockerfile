@@ -1,9 +1,10 @@
 FROM --platform=$BUILDPLATFORM node:20-alpine AS ui-builder
+ARG VERSION=dev
 WORKDIR /app/src/web/frontend
 COPY src/web/frontend/package*.json ./
 RUN npm ci
 COPY src/web/frontend/ ./
-RUN npm run build
+RUN VITE_VERSION=${VERSION} npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 

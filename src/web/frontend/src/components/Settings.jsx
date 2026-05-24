@@ -23,6 +23,7 @@ import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
 import { ImportModal } from './ui/ImportModal'
+import { UpdateNotification } from './ui/UpdateNotification'
 
 const tabBtnCls = active =>
   `bg-transparent border-none border-b-2 pb-2 px-3.5 text-[13px] leading-none cursor-pointer transition-colors
@@ -647,6 +648,7 @@ export default function Settings({ onWizard, onLogout }) {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
+      <UpdateNotification />
       {/* Page background art */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#121212', overflow: 'hidden', willChange: 'transform' }}>
         <AnimatePresence>

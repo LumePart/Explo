@@ -120,7 +120,49 @@ func (s *Server) Start() error {
 		s.PrefetchCovers()
 	}
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
+	go checkForUpdate()
 	return s.server.ListenAndServe()
+}
+
+func checkForUpdate() {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://api.github.com/repos/LumePart/Explo/releases/latest")
+	if err != nil {
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return
+	}
+	l := parseVer(release.TagName)
+	c := parseVer(config.Version)
+	newer := false
+	for i := range 3 {
+		if l[i] > c[i] { newer = true; break }
+		if l[i] < c[i] { break }
+	}
+	if newer {
+		slog.Info("new version available!", "latest", release.TagName, "current", config.Version)
+	}
+}
+
+func parseVer(v string) [3]int {
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.SplitN(v, ".", 3)
+	var out [3]int
+	for i, p := range parts {
+		if i >= 3 {
+			break
+		}
+		_, _ = fmt.Sscanf(p, "%d", &out[i])
+	}
+	return out
 }
 
 // Jobs to register on startup
