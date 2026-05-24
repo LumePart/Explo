@@ -227,6 +227,14 @@ func (c *Emby) DeletePlaylist() error { // Doesn't currently work due to a bug i
 	return nil
 }
 
+// SetPlaylistArtwork uploads a JPEG as the playlist's primary image.
+func (c *Emby) SetPlaylistArtwork(localPath string) error {
+	if c.Cfg.PlaylistID == "" {
+		return fmt.Errorf("emby: no PlaylistID set")
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/emby/Items/"+c.Cfg.PlaylistID+"/Images/Primary", localPath, c.Cfg.Creds.Headers)
+}
+
 func formatEmbySongs(tracks []*models.Track) string {
 	songIDs := make([]string, 0, len(tracks))
 	for _, track := range tracks {

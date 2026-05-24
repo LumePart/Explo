@@ -1,14 +1,47 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"os"
 	"time"
 
 	"explo/src/config"
 	"explo/src/models"
 	"explo/src/util"
 )
+
+// uploadPlaylistArtwork POSTs raw image bytes to a music app's artwork endpoint.
+// Plex, Jellyfin, and Emby all accept the same format — POST + Content-Type: image/jpeg + raw body.
+// The only per-client difference is the URL path, which each caller builds before invoking.
+func uploadPlaylistArtwork(hc *util.HttpClient, endpoint, localPath string, headers map[string]string) error {
+	data, err := os.ReadFile(localPath)
+	if err != nil {
+		return fmt.Errorf("read artwork: %w", err)
+	}
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "image/jpeg")
+	req.ContentLength = int64(len(data))
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := hc.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("post: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload artwork: status %d, body: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
 
 // Client manages interactions with the selected music system
 type Client struct {
@@ -29,6 +62,12 @@ type APIClient interface {
 	SearchPlaylist() error
 	UpdatePlaylist() error
 	DeletePlaylist() error
+}
+
+// ArtworkUploader is an optional capability for clients that support setting
+// playlist artwork. Use a type assertion: if u, ok := c.API.(client.ArtworkUploader); ok {...}.
+type ArtworkUploader interface {
+	SetPlaylistArtwork(localPath string) error
 }
 
 // NewClient initializes a client and sets up authentication

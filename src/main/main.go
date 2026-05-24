@@ -189,5 +189,37 @@ func main() {
 		slog.Warn(err.Error())
 	} else {
 		slog.Info("playlist created successfully", "system", cfg.System, "playlistName", cfg.ClientCfg.PlaylistName, "notify", true)
+		uploadCustomPlaylistArtwork(&cfg, client)
 	}
+}
+
+// uploadCustomPlaylistArtwork pushes a custom playlist's cached artwork to the music app
+// after first successful creation. No-op for non-custom playlists, playlists without
+// artwork, or clients that don't support artwork upload (Subsonic, MPD).
+func uploadCustomPlaylistArtwork(cfg *config.Config, c *client.Client) {
+	if !strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
+		return
+	}
+	cp := backend.GetCustomPlaylist(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist)
+	if cp == nil || cp.ArtworkURL == "" || cp.ArtworkUploaded {
+		return
+	}
+	uploader, ok := c.API.(client.ArtworkUploader)
+	if !ok {
+		return
+	}
+	path := backend.CustomPlaylistArtworkPath(cfg.ServerCfg.WebDataDir, cp.ID)
+	if _, err := os.Stat(path); err != nil {
+		slog.Warn("custom-playlists: artwork not cached locally, skipping upload", "id", cp.ID, "path", path)
+		return
+	}
+	if err := uploader.SetPlaylistArtwork(path); err != nil {
+		slog.Warn("custom-playlists: failed to upload playlist artwork", "id", cp.ID, "err", err.Error())
+		return
+	}
+	if err := backend.MarkCustomPlaylistArtworkUploaded(cfg.ServerCfg.WebDataDir, cp.ID); err != nil {
+		slog.Warn("custom-playlists: artwork upload succeeded but flag not persisted", "id", cp.ID, "err", err.Error())
+		return
+	}
+	slog.Info("custom-playlists: playlist artwork uploaded", "id", cp.ID, "system", cfg.System)
 }

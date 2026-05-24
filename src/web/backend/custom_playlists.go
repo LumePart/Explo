@@ -22,15 +22,48 @@ import (
 
 // CustomPlaylist holds the metadata for a user-imported playlist.
 type CustomPlaylist struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Source      string    `json:"source"`                // "listenbrainz" | "apple_music"
-	SourceURL   string    `json:"source_url,omitempty"`  // original URL for dedup + refresh
-	LBMBID      string    `json:"lb_mbid,omitempty"`     // ListenBrainz MBID (backward compat)
-	ArtworkURL  string    `json:"artwork_url,omitempty"` // playlist cover image (Apple Music)
-	RefreshDays int       `json:"refresh_days"`
-	ColorIndex  int       `json:"color_index"`
-	LastFetched time.Time `json:"last_fetched"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Source          string    `json:"source"`                    // "listenbrainz" | "apple_music"
+	SourceURL       string    `json:"source_url,omitempty"`      // original URL for dedup + refresh
+	LBMBID          string    `json:"lb_mbid,omitempty"`         // ListenBrainz MBID (backward compat)
+	ArtworkURL      string    `json:"artwork_url,omitempty"`     // playlist cover image (Apple Music)
+	ArtworkUploaded bool      `json:"artwork_uploaded,omitempty"` // true after artwork has been pushed to the music app
+	RefreshDays     int       `json:"refresh_days"`
+	ColorIndex      int       `json:"color_index"`
+	LastFetched     time.Time `json:"last_fetched"`
+}
+
+// CustomPlaylistArtworkPath returns the local file path where a playlist's
+// artwork is cached (regardless of whether the file exists).
+func CustomPlaylistArtworkPath(cfgDir, id string) string {
+	return filepath.Join(cfgDir, "cache", "playlist_artwork", id+".jpg")
+}
+
+// GetCustomPlaylist looks up a custom playlist by ID. Returns nil if not found.
+func GetCustomPlaylist(cfgDir, id string) *CustomPlaylist {
+	for _, p := range loadCustomPlaylists(cfgDir) {
+		if p.ID == id {
+			cp := p
+			return &cp
+		}
+	}
+	return nil
+}
+
+// MarkCustomPlaylistArtworkUploaded sets ArtworkUploaded=true and persists.
+func MarkCustomPlaylistArtworkUploaded(cfgDir, id string) error {
+	playlists := loadCustomPlaylists(cfgDir)
+	for i := range playlists {
+		if playlists[i].ID == id {
+			if playlists[i].ArtworkUploaded {
+				return nil
+			}
+			playlists[i].ArtworkUploaded = true
+			return saveCustomPlaylists(cfgDir, playlists)
+		}
+	}
+	return nil
 }
 
 var lbMBIDRe = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
@@ -258,6 +291,17 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	go downloadAndCacheCovers(s.cfg.WebDataDir, id, tracks)
+
+	// Cache the playlist's own artwork locally so we can later push it to the
+	// music app on first playlist creation. Apple Music imports have artwork;
+	// ListenBrainz don't.
+	if artworkURL != "" {
+		go func() {
+			if _, err := util.DownloadFile(artworkURL, CustomPlaylistArtworkPath(s.cfg.WebDataDir, id)); err != nil {
+				slog.Warn("custom-playlists: artwork download failed", "id", id, "err", err.Error())
+			}
+		}()
+	}
 
 	// Save metadata
 	// Derive LBMBID for backward compatibility (LB playlists only)

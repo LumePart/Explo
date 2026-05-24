@@ -524,6 +524,14 @@ func (c *Plex) DeletePlaylist() error {
 	return nil
 }
 
+// SetPlaylistArtwork uploads an image as the playlist's poster.
+func (c *Plex) SetPlaylistArtwork(localPath string) error {
+	if c.Cfg.PlaylistID == "" {
+		return fmt.Errorf("plex: no PlaylistID set")
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/library/metadata/"+c.Cfg.PlaylistID+"/posters", localPath, c.Cfg.Creds.Headers)
+}
+
 func (c *Plex) getServer() error {
 	params := "/identity"
 

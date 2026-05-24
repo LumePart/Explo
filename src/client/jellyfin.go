@@ -259,6 +259,14 @@ func (c *Jellyfin) DeletePlaylist() error {
 	return nil
 }
 
+// SetPlaylistArtwork uploads a JPEG as the playlist's primary image.
+func (c *Jellyfin) SetPlaylistArtwork(localPath string) error {
+	if c.Cfg.PlaylistID == "" {
+		return fmt.Errorf("jellyfin: no PlaylistID set")
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/Items/"+c.Cfg.PlaylistID+"/Images/Primary", localPath, c.Cfg.Creds.Headers)
+}
+
 func formatJFSongs(tracks []*models.Track) ([]byte, error) { // marshal track IDs
 	songIDs := make([]string, 0, len(tracks))
 	for _, track := range tracks {
