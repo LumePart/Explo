@@ -486,11 +486,15 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updates := map[string]string{}
-	if body.Day == -2 {
+	if !body.Enabled {
+		// Toggle off — truly disable, regardless of day value carried over from state
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = ""
+	} else if body.Day == -2 {
 		// "Never" — keep playlist active for manual runs but remove auto-schedule
 		updates[envPrefix+"_SCHEDULE"] = ""
 		updates[envPrefix+"_FLAGS"] = defaultFlags
-	} else if body.Enabled {
+	} else {
 		dom := "*"
 		dow := "*"
 		if body.Day == 100 {
@@ -500,9 +504,6 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		}
 		updates[envPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
 		updates[envPrefix+"_FLAGS"] = defaultFlags
-	} else {
-		updates[envPrefix+"_SCHEDULE"] = ""
-		updates[envPrefix+"_FLAGS"] = ""
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {

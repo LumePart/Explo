@@ -66,10 +66,15 @@ func (j *Jobs) RegisterCustomPlaylistRefresh(cfgDir, envPath string) error {
 
 	for _, p := range playlists {
 		p := p
-		if p.RefreshDays <= 0 {
+		prefix := customEnvPrefix(p.ID)
+		flags := envValues[prefix+"_FLAGS"]
+		if flags == "" {
+			continue // disabled
+		}
+		schedule := envValues[prefix+"_SCHEDULE"]
+		if p.RefreshDays <= 0 && schedule == "" {
 			continue
 		}
-		schedule := envValues[customEnvPrefix(p.ID)+"_SCHEDULE"]
 		if schedule == "" {
 			schedule = "0 4 * * *"
 		}

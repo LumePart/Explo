@@ -284,15 +284,18 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// If the user picked "Never" for auto-refresh, mark the playlist as active
-	// without a download schedule (FLAGS set, SCHEDULE empty) so the card is
-	// immediately usable for manual runs and the schedule editor pre-selects "Never".
-	if body.RefreshDays == 0 {
-		prefix := customEnvPrefix(id)
-		_ = updateEnvKeys(s.cfg.WebEnvPath, map[string]string{
-			prefix + "_FLAGS": "--playlist " + id,
-		}, web.SampleEnv)
+	// Mark the playlist as active by writing FLAGS. For non-Never cadence, also write
+	// a daily poll SCHEDULE — RefreshDays in the JSON gates the actual refresh interval
+	// inside the cron task body. "Never" imports get FLAGS only so the card is usable
+	// for manual runs while the schedule editor pre-selects "Never".
+	prefix := customEnvPrefix(id)
+	envUpdates := map[string]string{
+		prefix + "_FLAGS": "--playlist " + id,
 	}
+	if body.RefreshDays > 0 {
+		envUpdates[prefix+"_SCHEDULE"] = "0 4 * * *"
+	}
+	_ = updateEnvKeys(s.cfg.WebEnvPath, envUpdates, web.SampleEnv)
 
 	slog.Info("custom-playlists: import complete", "id", id, "name", name)
 
