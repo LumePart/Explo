@@ -443,6 +443,7 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		discNumber := 0
 		discTotal := 0
 		mbReleaseTrackID := ""
+		releaseType := ""
 
 		var mbData *MBRecording
 		var mbErr error
@@ -478,6 +479,9 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 				}
 				if bestRelease.ReleaseGroup.ID != "" {
 					mbReleaseGroupID = bestRelease.ReleaseGroup.ID
+				}
+				if bestRelease.ReleaseGroup.PrimaryType != "" {
+					releaseType = bestRelease.ReleaseGroup.PrimaryType
 				}
 				if len(bestRelease.ArtistCredit) > 0 {
 					mbAlbumArtistID = bestRelease.ArtistCredit[0].Artist.ID
@@ -519,7 +523,7 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 			Duration:                  rec.Length,
 			ReleaseCountry:            releaseCountry,
 			ReleaseStatus:             releaseStatus,
-			ReleaseType:               recording.Release.ReleaseGroup.PrimaryType,
+			ReleaseType:               releaseType,
 			OriginalDate:              originalDate,
 			OriginalYear:              originalYear,
 			CoverURL:                  track.CoverURL,
