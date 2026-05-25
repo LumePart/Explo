@@ -203,69 +203,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
-	metadata := []string{"ARTIST=" + track.Artist, "TITLE=" + track.Title, "ALBUM=" + track.Album}
-	if track.AlbumArtist != "" {
-		metadata = append(metadata, "ALBUMARTIST="+track.AlbumArtist)
-	}
-	if track.ArtistSort != "" {
-		metadata = append(metadata, "ARTISTSORT="+track.ArtistSort)
-	}
-	if track.OriginalDate != "" {
-		metadata = append(metadata, "ORIGINALDATE="+track.OriginalDate)
-	}
-	if track.OriginalYear != 0 {
-		metadata = append(metadata, fmt.Sprintf("ORIGINALYEAR=%d", track.OriginalYear))
-	}
-	if track.ReleaseCountry != "" {
-		metadata = append(metadata, "RELEASECOUNTRY="+track.ReleaseCountry)
-	}
-	if track.ReleaseStatus != "" {
-		metadata = append(metadata, "RELEASESTATUS="+track.ReleaseStatus)
-	}
-	if track.ReleaseType != "" {
-		metadata = append(metadata, "RELEASETYPE="+track.ReleaseType)
-	}
-	if track.Genres != "" {
-		metadata = append(metadata, "GENRE="+track.Genres)
-	}
-	if track.Media != "" {
-		metadata = append(metadata, "MEDIA="+track.Media)
-	}
-	if track.TrackNumber != 0 {
-		metadata = append(metadata, fmt.Sprintf("TRACKNUMBER=%d", track.TrackNumber))
-	}
-	if track.TrackTotal != 0 {
-		metadata = append(metadata, fmt.Sprintf("TRACKTOTAL=%d", track.TrackTotal))
-	}
-	if track.DiscNumber != 0 {
-		metadata = append(metadata, fmt.Sprintf("DISCNUMBER=%d", track.DiscNumber))
-	}
-	if track.DiscTotal != 0 {
-		metadata = append(metadata, fmt.Sprintf("DISCTOTAL=%d", track.DiscTotal))
-	}
-	for _, isrc := range track.ISRCs {
-		if isrc != "" {
-			metadata = append(metadata, "ISRC="+isrc)
-		}
-	}
-	if track.MusicBrainzReleaseGroupID != "" {
-		metadata = append(metadata, "MUSICBRAINZ_RELEASEGROUPID="+track.MusicBrainzReleaseGroupID)
-	}
-	if track.MusicBrainzAlbumArtistID != "" {
-		metadata = append(metadata, "MUSICBRAINZ_ALBUMARTISTID="+track.MusicBrainzAlbumArtistID)
-	}
-	if track.MusicBrainzTrackID != "" {
-		metadata = append(metadata, "MUSICBRAINZ_TRACKID="+track.MusicBrainzTrackID)
-	}
-	if track.MusicBrainzAlbumID != "" {
-		metadata = append(metadata, "MUSICBRAINZ_ALBUMID="+track.MusicBrainzAlbumID)
-	}
-	if track.MusicBrainzReleaseTrackID != "" {
-		metadata = append(metadata, "MUSICBRAINZ_RELEASETRACKID="+track.MusicBrainzReleaseTrackID)
-	}
-	if track.MusicBrainzArtistID != "" {
-		metadata = append(metadata, "MUSICBRAINZ_ARTISTID="+track.MusicBrainzArtistID)
-	}
+	metadata := util.BuildffmpegMetadata(track)
 
 	var cmd *ffmpeg.Stream
 
