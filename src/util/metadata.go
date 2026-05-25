@@ -43,7 +43,7 @@ func BuildffmpegMetadata(track models.Track) []string {
 	metadata = addStringTag(metadata, "artist-sort", track.ArtistSort)
 	metadata = addStringTag(metadata, "date", track.OriginalDate)
 	metadata = addStringTag(metadata, "genre", track.Genres)
-	metadata = addStringTag(metadata, "media", track.Media)
+	metadata = addStringTag(metadata, "TMED", track.Media)
 	metadata = addStringTag(metadata, "MusicBrainz Album Type", track.ReleaseType)
 	metadata = addStringTag(metadata, "MusicBrainz Album Status", track.ReleaseStatus)
 	metadata = addStringTag(metadata, "MusicBrainz Release Group Id", track.MusicBrainzReleaseGroupID)
