@@ -438,7 +438,21 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		discTotal := 0
 		mbReleaseTrackID := ""
 
-		if mbData, err := c.mbRequest(fmt.Sprintf("recording/%s?inc=media+releases+artist-credits+release-groups&fmt=json", track.MusicBrainzTrackID)); err == nil && mbData != nil {
+		var mbData *MBRecording
+		var mbErr error
+		for attempt := 1; attempt <= 3; attempt++ {
+			mbData, mbErr = c.mbRequest(fmt.Sprintf("recording/%s?inc=media+releases+artist-credits+release-groups&fmt=json", track.MusicBrainzTrackID))
+			if mbErr == nil && mbData != nil {
+				break
+			}
+
+			if attempt < 3 {
+				slog.Warn("retrying MusicBrainz enrichment request", "track", track.Title, "mbid", track.MusicBrainzTrackID, "attempt", attempt, "error", mbErr)
+				time.Sleep(1500 * time.Millisecond)
+			}
+		}
+
+		if mbData != nil {
 			if len(mbData.Releases) > 0 {
 				// Find best matching release
 				bestRelease := mbData.Releases[0]
@@ -479,8 +493,8 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 					}
 				}
 			}
-		} else if err != nil {
-			slog.Debug("failed to enrich from MusicBrainz", "mbid", track.MusicBrainzTrackID, "error", err)
+		} else {
+			slog.Debug("failed to enrich from MusicBrainz after retries", "mbid", track.MusicBrainzTrackID, "error", mbErr)
 		}
 
 		tracks[i] = &models.Track{
