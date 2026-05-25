@@ -402,7 +402,7 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		}
 		originalDate := rec.FirstReleaseDate
 		originalYear := recording.Release.Year
-		if originalYear == 0 && originalDate != "" && len(originalDate) >= 4 {
+		if originalYear == 0 && len(originalDate) >= 4 {
 			if year, err := strconv.Atoi(originalDate[:4]); err == nil {
 				originalYear = year
 			}
