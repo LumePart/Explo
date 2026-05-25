@@ -43,6 +43,21 @@
   animation-delay: var(--delay, 0ms);
 }
 
+/* Markdown rendered release notes */
+.markdown { color: var(--color-muted); font-size: 13px; line-height: 1.6; }
+.markdown h1, .markdown h2, .markdown h3 { color: white; font-weight: 600; margin: 1em 0 0.4em; }
+.markdown h1 { font-size: 15px; }
+.markdown h2 { font-size: 14px; }
+.markdown h3 { font-size: 13px; }
+.markdown p { margin: 0.5em 0; }
+.markdown ul, .markdown ol { padding-left: 1.4em; margin: 0.4em 0; }
+.markdown li { margin: 0.2em 0; }
+.markdown a { color: var(--color-accent); text-decoration: none; }
+.markdown a:hover { text-decoration: underline; }
+.markdown code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--color-well); padding: 0.1em 0.3em; border-radius: 3px; }
+.markdown strong { color: white; font-weight: 600; }
+.markdown hr { border: none; border-top: 1px solid var(--color-ui-border); margin: 1em 0; }
+
 /* Syntax highlight classes used in the config editor */
 .env-comment, .env-unset, .env-eq { color: var(--color-muted); }
 .env-key, .env-val { color: white; }
