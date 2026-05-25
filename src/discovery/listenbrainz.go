@@ -393,6 +393,8 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		}
 
 		recArtists := recording.Artist.Artists
+		artists := make([]string, 0, len(recArtists))
+
 		genres := topTags(recording.Tag.Recording, 3)
 		if len(genres) == 0 {
 			genres = topTags(recording.Tag.ReleaseGroup, 3)
@@ -423,6 +425,10 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 
 				title = b.String()
 				artist = mainArtist
+			} else {
+				for _, recArtist := range recArtists {
+					artists = append(artists, recArtist.Name)
+				}
 			}
 		}
 
@@ -447,7 +453,6 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 			}
 
 			if attempt < 3 {
-				slog.Warn("retrying MusicBrainz enrichment request", "track", track.Title, "mbid", track.MusicBrainzTrackID, "attempt", attempt, "error", mbErr)
 				time.Sleep(1500 * time.Millisecond)
 			}
 		}
@@ -505,6 +510,7 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 			Album:                     recording.Release.Name,
 			AlbumArtist:               recording.Release.AlbumArtistName,
 			Artist:                    artist,
+			Artists:                   artists,
 			MainArtist:                mainArtist,
 			MainArtistID:              mainArtistID,
 			ArtistSort:                artistSort,

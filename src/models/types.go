@@ -7,6 +7,7 @@ type Track struct {
 	AlbumArtist               string
 	ID                        string
 	Artist                    string // All artists as returned by LB
+	Artists                   []string
 	MainArtist                string
 	MainArtistID              string
 	ArtistSort                string
