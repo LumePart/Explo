@@ -390,13 +390,13 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 		}
 
 		if err != nil {
-			slog.Warn("search request failed for '%s': %s", track.Title, err.Error())
+			slog.Warn("search request failed", "title", track.Title, "err", err)
 			continue
 		}
 
 		var hubResults PlexHubSearch
 		if err := util.ParseResp(body, &hubResults); err != nil {
-			slog.Warn("failed to parse hub response for '%s': %s", track.Title, err.Error())
+			slog.Warn("failed to parse hub response", "title", track.Title, "err", err)
 			continue
 		}
 
@@ -412,7 +412,7 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 
 		key, err := getPlexSong(track, all)
 		if err != nil {
-			slog.Warn("failed to find match for '%s': %s", track.Title, err.Error())
+			slog.Warn("failed to find match", "title", track.Title, "err", err)
 			continue
 		}
 		if key != "" {
@@ -549,7 +549,7 @@ func getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
 			continue
 		}
 
-		titleMatch := strings.EqualFold(md.Title, track.Title) || strings.EqualFold(md.Title, track.CleanTitle)
+		titleMatch := util.NormalizeTitle(md.Title) == util.NormalizeTitle(track.Title)
 		albumMatch := strings.EqualFold(md.ParentTitle, track.Album)
 		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
 
@@ -582,7 +582,7 @@ func (c *Plex) addtoPlaylist(tracks []*models.Track) {
 			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
 
 			if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
-				slog.Warn("failed to add %s to playlist: %s", track.Title, err.Error())
+				slog.Warn("failed to add to playlist", "title", track.Title, "err", err)
 			}
 		}
 	}

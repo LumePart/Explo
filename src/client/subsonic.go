@@ -146,7 +146,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 
 		for _, song := range songs {
 			artistMatch := strings.Contains(strings.ToLower(song.Artist), strings.ToLower(track.MainArtist))
-			titleMatch := strings.EqualFold(song.Title, track.Title) || strings.EqualFold(song.Title, track.CleanTitle)
+			titleMatch := util.NormalizeTitle(song.Title) == util.NormalizeTitle(track.Title)
 			durationMatch := util.Abs(song.Duration - (track.Duration / 1000)) < 10
 			pathMatch := strings.Contains(strings.ToLower(song.Path), strings.ToLower(track.File))
 
