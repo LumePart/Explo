@@ -45,8 +45,12 @@ func main() {
 	setup(&cfg)
 	slog.Info("Starting Explo...")
 
+	if err := os.MkdirAll(cfg.DownloadCfg.Youtube.CoversDir, 0755); err != nil {
+		slog.Error("failed making directory", "msg", err.Error())
+	}
+
 	if cfg.ServerCfg.Enabled {
-		
+
 		exploPath, err := os.Executable()
 		if err != nil {
 			log.Fatal("could not determine executable path: ", err)

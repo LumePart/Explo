@@ -21,7 +21,7 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg    ClientConfig
 	NotifyCfg    NotifyConfig
-	ServerCfg	 ServerConfig
+	ServerCfg    ServerConfig
 	Flags        Flags
 	PersistENV   bool `env:"PERSIST" env-default:"true"`
 	Persist      bool
@@ -32,7 +32,7 @@ type Config struct {
 
 type Flags struct {
 	CfgPath      string
-	CfgSet		 bool
+	CfgSet       bool
 	Playlist     string
 	DownloadMode string
 	ExcludeLocal bool
@@ -41,14 +41,14 @@ type Flags struct {
 }
 
 type ServerConfig struct {
-	Enabled bool `env:"WEB_UI" env-default:"false"`
-	Port string `env:"WEB_ADDR" env-default:":7288"`
-	Username string `env:"UI_USERNAME"`
-	Password string `env:"UI_PASSWORD"`
-	WebDataDir string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
-	WebEnvPath string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
+	Enabled     bool   `env:"WEB_UI" env-default:"false"`
+	Port        string `env:"WEB_ADDR" env-default:":7288"`
+	Username    string `env:"UI_USERNAME"`
+	Password    string `env:"UI_PASSWORD"`
+	WebDataDir  string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
+	WebEnvPath  string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
 	CacheSizeMB int64  `env:"WEB_CACHE_MB" env-default:"500"`
-	ExploPath string
+	ExploPath   string
 }
 
 type ClientConfig struct {
@@ -114,8 +114,10 @@ type Youtube struct {
 	FfmpegPath    string `env:"FFMPEG_PATH"`
 	YtdlpPath     string `env:"YTDLP_PATH"`
 	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"` // yt-dlp
+	EmbedCoverArt bool   `env:"EMBED_COVER_ART" env-default:"false"`
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
+	CoversDir     string
 }
 
 type YoutubeMusic struct {
@@ -146,10 +148,12 @@ type DiscoveryConfig struct {
 	Listenbrainz Listenbrainz
 }
 type Listenbrainz struct {
-	Discovery      string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	User           string `env:"LISTENBRAINZ_USER"`
-	ImportPlaylist string
-	SingleArtist   bool `env:"SINGLE_ARTIST" env-default:"true"`
+	Discovery              string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	User                   string `env:"LISTENBRAINZ_USER"`
+	ImportPlaylist         string
+	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
+	CoverArtSize           string `env:"COVERART_SIZE" env-default:"250"`
+	EnrichPlaylistMetadata bool   `env:"ENRICH_PLAYLIST_METADATA" env-default:"false"`
 }
 
 type NotifyConfig struct {
@@ -207,6 +211,7 @@ func (cfg *Config) ReadEnv() {
 
 func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
+	cfg.DownloadCfg.Youtube.CoversDir = filepath.Join(filepath.Dir(cfg.Flags.CfgPath), "cache", "covers")
 	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
 	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
 	cfg.NormalizeDir()

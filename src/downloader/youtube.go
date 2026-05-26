@@ -131,7 +131,7 @@ func queryYTMusic(track *models.Track, query string) error {
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 
-	track.File = fmt.Sprintf("%s.%s",getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
+	track.File = fmt.Sprintf("%s.%s", getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
 	track.Present = fetchAndSaveVideo(ctx, *c, *track)
 
 	if track.Present {
@@ -203,11 +203,25 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
-	cmd := ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
-		"map":      "0:a",
-		"metadata": []string{"artist=" + track.Artist, "title=" + track.Title, "album=" + track.Album},
-		"loglevel": "error",
-	}).OverWriteOutput().ErrorToStdOut()
+	metadata := util.BuildffmpegMetadata(track)
+
+	var cmd *ffmpeg.Stream
+
+	if c.Cfg.EmbedCoverArt {
+		coversDir := c.Cfg.CoversDir
+		util.DownloadCover(track.CoverURL, coversDir)
+		coverPath := filepath.Join(coversDir, track.MusicBrainzAlbumID+".jpg")
+		cmd = ffmpeg.Output([]*ffmpeg.Stream{ffmpeg.Input(input), ffmpeg.Input(coverPath)}, filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+			"metadata": metadata,
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut()
+	} else {
+		cmd = ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+			"map":      "0:a",
+			"metadata": metadata,
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut()
+	}
 
 	if c.Cfg.FfmpegPath != "" {
 		cmd.SetFfmpegPath(c.Cfg.FfmpegPath)
@@ -247,7 +261,7 @@ func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track
 func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
-		slog.Error("failed getting stream for video", "trackID",track.ID, "context", err.Error())
+		slog.Error("failed getting stream for video", "trackID", track.ID, "context", err.Error())
 		return false
 	}
 
