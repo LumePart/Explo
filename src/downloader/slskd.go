@@ -130,7 +130,7 @@ func (c *Slskd) GetConf() (MonitorConfig, error) {
 	}, nil
 }
 
-var noResults = errors.New("no results found for query")
+var errNoRes = errors.New("no results found for query")
 
 func (c *Slskd) QueryTrack(track *models.Track) error {
 
@@ -151,7 +151,7 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 		}
 
 		completed, err := c.searchStatus(ID, trackDetails, 0)
-		if errors.Is(err, noResults) && !wildcardSearch {
+		if errors.Is(err, errNoRes) && !wildcardSearch {
 			cleanup()
 			wildcardSearch = true
 			trackDetails = fmt.Sprintf("%s - %s", track.CleanTitle, wildcardArtist(track.Artist))
@@ -229,7 +229,7 @@ func (c Slskd) searchStatus(ID, trackDetails string, count int) (bool, error) { 
 	if queryResult.IsComplete && queryResult.FileCount > 0 {
 		return true, nil
 	} else if queryResult.IsComplete && queryResult.FileCount == 0 {
-		return false, noResults
+		return false, errNoRes
 	} else if queryResult.IsComplete && queryResult.FileCount == queryResult.LockedFileCount {
 		return false, fmt.Errorf("search complete, did not find any downloadable files for %s", trackDetails)
 	} else if count >= c.Cfg.Retry {
@@ -396,7 +396,7 @@ func (c *Slskd) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus
 						fileStatuses[track.File] = FileStatus{
 							ID: file.ID,
 							Size: file.Size,
-							State: file.State,
+							State: normalize(file.State),
 							BytesTransferred: file.BytesTransferred,
 							BytesRemaining: file.BytesRemaining,
 							PercentComplete: file.PercentComplete,
@@ -456,7 +456,7 @@ func wildcardArtist(artist string) string {
 }
 
 // different failure states slskd has (format is "Completed,Rejected", "Errored,Cancelled" etc..)
-var failureStates = map[string]struct{}{
+var failureStates = map[string]struct{} {
 	"TimedOut": {},
 	"Rejected": {},
 	"Errored":  {},

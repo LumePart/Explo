@@ -107,7 +107,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				slog.Info("[monitor] progress updated", "service", monCfg.Service, "file", track.File, "bytes transferred", fileStatus.BytesTransferred)
 				continue
 
-			} else if currentTime.Sub(tracker.LastUpdated) > monCfg.MonitorDuration || strings.Contains(fileStatus.State, "Errored") || strings.Contains(fileStatus.State, "Cancelled") {
+			} else if currentTime.Sub(tracker.LastUpdated) > monCfg.MonitorDuration || fileStatus.State == "Errored" {
 				slog.Info("[monitor] no download progress for file, skipping", "service", monCfg.Service, "file", track.File, "duration", monCfg.MonitorDuration)
 				tracker.Skipped = true
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
