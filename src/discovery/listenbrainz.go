@@ -709,9 +709,7 @@ func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 
 func (c *ListenBrainz) mbRequest(path string) (*MBRecording, error) {
 	reqURL := fmt.Sprintf("https://musicbrainz.org/ws/2/%s", path)
-	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, map[string]string{
-		"User-Agent": "Explo/1.0",
-	})
+	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to MusicBrainz API: %s", err)
 	}
