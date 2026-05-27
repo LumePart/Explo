@@ -121,8 +121,8 @@ func (c *Slskd) AddHeader() {
 
 func (c *Slskd) GetConf() (MonitorConfig, error) {
 	return  MonitorConfig{
-		CheckInterval: c.Cfg.MonitorConfig.Interval,
-		MonitorDuration: c.Cfg.MonitorConfig.Duration,
+		CheckInterval: time.Duration(c.Cfg.MonitorConfig.Interval) * time.Minute,
+		MonitorDuration: time.Duration(c.Cfg.MonitorConfig.Duration) * time.Minute,
 		MigrateDownload: c.Cfg.MigrateDL,
 		ToDir: c.DownloadDir,
 		FromDir: c.Cfg.SlskdDir,
