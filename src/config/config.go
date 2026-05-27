@@ -144,6 +144,7 @@ type SlskdMon struct {
 
 type DiscoveryConfig struct {
 	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	ArtistBlacklist []string `env:"ARTIST_BLACKLIST"`
 	Listenbrainz Listenbrainz
 }
 type Listenbrainz struct {
