@@ -210,7 +210,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
 		if err != nil {
 			return nil, err
 		}
-		if c.cfg.EnrichPlaylistMetadata && len(tracks) > 0 {
+		if c.cfg.EnrichTrackMetadata && len(tracks) > 0 {
 			enrichedTracks, err := c.enrichTracks(tracks, c.cfg.SingleArtist)
 			if err != nil {
 				slog.Warn("failed to enrich playlist metadata", "error", err)
@@ -310,6 +310,7 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 	tracks := make([]*models.Track, 0, len(recordings))
 	for mbTrackID, recording := range recordings {
 		rec := recording.Recording
+		rel := recording.Release
 
 		title := rec.Name
 		artist := recording.Artist.Name
@@ -338,13 +339,14 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 		tracks = append(tracks, &models.Track{
 			Album:                     recording.Release.Name,
 			Artist:                    artist,
+			AlbumArtist:               rel.AlbumArtistName,
 			MainArtist:                mainArtist,
 			CleanTitle:                rec.Name,
 			Title:                     title,
 			Duration:                  rec.Length,
 			MusicBrainzTrackID:        mbTrackID,
-			MusicBrainzAlbumID:        recording.Release.CaaReleaseMbid,
-			MusicBrainzReleaseGroupID: recording.Release.ReleaseGroupMbid,
+			MusicBrainzAlbumID:        rel.CaaReleaseMbid,
+			MusicBrainzReleaseGroupID: rel.ReleaseGroupMbid,
 			MusicBrainzArtistID:       recArtists[0].ArtistMbid,
 		})
 	}
@@ -355,6 +357,11 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) ([]*models.Track, error) {
 	mbids := make([]string, 0, len(tracks))
+	// wait time in s between MusicBrainz requests
+	waitTime := 2
+	totalWait := waitTime * len(tracks)
+	slog.Info("enriching tracks with metadata. This may take a moment", "estimated_seconds", totalWait)
+
 	for _, track := range tracks {
 		if track.MusicBrainzTrackID != "" {
 			mbids = append(mbids, track.MusicBrainzTrackID)
@@ -454,7 +461,7 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 			}
 
 			if attempt < 3 {
-				time.Sleep(1500 * time.Millisecond)
+				time.Sleep(time.Duration(waitTime) * time.Second)
 			}
 		}
 
@@ -702,9 +709,7 @@ func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 
 func (c *ListenBrainz) mbRequest(path string) (*MBRecording, error) {
 	reqURL := fmt.Sprintf("https://musicbrainz.org/ws/2/%s", path)
-	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, map[string]string{
-		"User-Agent": "Explo/1.0",
-	})
+	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to MusicBrainz API: %s", err)
 	}

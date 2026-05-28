@@ -63,7 +63,6 @@ type ClientConfig struct {
 	PlaylistID      string
 	Sleep           int `env:"SLEEP" env-default:"2"`
 	HTTPTimeout     int `env:"CLIENT_HTTP_TIMEOUT" env-default:"10"`
-	MultiLib		bool `env:"MULTI_LIB" env-default:"false"`
 	Creds           Credentials
 	AdminCreds      AdminCredentials
 	Subsonic        SubsonicConfig
@@ -113,7 +112,7 @@ type Youtube struct {
 	APIKey        string `env:"YOUTUBE_API_KEY"`
 	FfmpegPath    string `env:"FFMPEG_PATH"`
 	YtdlpPath     string `env:"YTDLP_PATH"`
-	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"` // yt-dlp
+	FileExtension string `env:"TRACK_EXTENSION" env-default:"mp3"` // yt-dlp
 	EmbedCoverArt bool   `env:"EMBED_COVER_ART" env-default:"false"`
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
@@ -139,12 +138,13 @@ type Slskd struct {
 }
 
 type SlskdMon struct {
-	Interval time.Duration `env:"SLSKD_MONITOR_INTERVAL" env-default:"1m"`
-	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
+	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"`
+	Duration int `env:"SLSKD_MONITOR_DURATION" env-default:"15"`
 }
 
 type DiscoveryConfig struct {
 	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	ArtistBlacklist []string `env:"ARTIST_BLACKLIST"`
 	Listenbrainz Listenbrainz
 }
 type Listenbrainz struct {
@@ -152,8 +152,8 @@ type Listenbrainz struct {
 	User                   string `env:"LISTENBRAINZ_USER"`
 	ImportPlaylist         string
 	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
-	CoverArtSize           string `env:"COVERART_SIZE" env-default:"250"`
-	EnrichPlaylistMetadata bool   `env:"ENRICH_PLAYLIST_METADATA" env-default:"false"`
+	CoverArtSize           string `env:"COVER_ART_SIZE" env-default:"250"`
+	EnrichTrackMetadata	   bool   `env:"ENRICH_TRACK_METADATA" env-default:"false"`
 }
 
 type NotifyConfig struct {

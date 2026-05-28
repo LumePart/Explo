@@ -3,6 +3,7 @@ package downloader
 import (
 	"bytes" // Could be moved to util for all clients
 	"encoding/json"
+	"errors"
 	"explo/src/config"
 	"explo/src/logging"
 	"explo/src/models"
@@ -100,6 +101,10 @@ type Slskd struct {
 	Cfg         config.Slskd
 }
 
+type SearchPayload struct {
+	SearchText string `json:"searchText"`
+}
+
 func NewSlskd(cfg config.Slskd, downloadDir string) *Slskd {
 	return &Slskd{Cfg: cfg,
 		HttpClient:  util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
@@ -116,8 +121,8 @@ func (c *Slskd) AddHeader() {
 
 func (c *Slskd) GetConf() (MonitorConfig, error) {
 	return  MonitorConfig{
-		CheckInterval: c.Cfg.MonitorConfig.Interval,
-		MonitorDuration: c.Cfg.MonitorConfig.Duration,
+		CheckInterval: time.Duration(c.Cfg.MonitorConfig.Interval) * time.Minute,
+		MonitorDuration: time.Duration(c.Cfg.MonitorConfig.Duration) * time.Minute,
 		MigrateDownload: c.Cfg.MigrateDL,
 		ToDir: c.DownloadDir,
 		FromDir: c.Cfg.SlskdDir,
@@ -125,32 +130,48 @@ func (c *Slskd) GetConf() (MonitorConfig, error) {
 	}, nil
 }
 
+var errNoRes = errors.New("no results found for query")
+
 func (c *Slskd) QueryTrack(track *models.Track) error {
-	ID, err := c.searchTrack(track)
-	if err != nil {
-		return err
-	}
+
+	wildcardSearch := false
 	trackDetails := fmt.Sprintf("%s - %s", track.CleanTitle, track.Artist)
-	slog.Info("initiating search", "track", trackDetails)
 
-	defer func() { // Delete search if ID is empty
-		if track.ID == "" {
-			if delErr := c.deleteSearch(ID); delErr != nil {
-				slog.Warn("failed to delete search", "service", "slskd", "context", delErr.Error())
-			}
+	retry:
+		ID, err := c.searchTrack(trackDetails)
+		if err != nil {
+			return err
 		}
-	}()
+		slog.Info("initiating search", "track", trackDetails)
 
-	completed, err := c.searchStatus(ID, trackDetails, 0)
-	if err != nil {
-		return err
-	}
-	if !completed {
-		return fmt.Errorf("search not completed for %s, skipping track", trackDetails)
-	}
+		cleanup := func() {
+    		if err := c.deleteSearch(ID); err != nil {
+        		slog.Warn("failed to delete search", "context", err.Error())
+    		}
+		}
 
-	track.ID = ID
-	return nil
+		completed, err := c.searchStatus(ID, trackDetails, 0)
+		if errors.Is(err, errNoRes) && !wildcardSearch {
+			cleanup()
+			wildcardSearch = true
+			trackDetails = fmt.Sprintf("%s - %s", track.CleanTitle, wildcardArtist(track.Artist))
+			slog.Debug("no result found with artist full name, trying with wildcard", "query", trackDetails)
+			goto retry
+		}
+
+		if err != nil {
+			cleanup()
+   	 		return err
+		}
+
+		if !completed {
+			cleanup()
+			return fmt.Errorf("search not completed for %s, skipping track", trackDetails)
+		}
+
+
+		track.ID = ID
+		return nil
 }
 
 func (c *Slskd) GetTrack(track *models.Track) error {
@@ -172,10 +193,16 @@ func (c *Slskd) GetTrack(track *models.Track) error {
 	return nil
 }
 
-func (c Slskd) searchTrack(track *models.Track) (string, error) {
+func (c Slskd) searchTrack(trackDetails string) (string, error) {
 	reqParams := "/api/v0/searches"
 
-	payload := fmt.Appendf(nil, `{"searchText": "%s - %s"}`, track.CleanTitle, track.Artist)
+	payloadStr := SearchPayload{
+		SearchText: trackDetails,
+	}
+	payload, err := json.Marshal(payloadStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal search payload %w", err)
+	}
 
 	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParams, bytes.NewReader(payload), c.Headers)
 	if err != nil {
@@ -201,8 +228,10 @@ func (c Slskd) searchStatus(ID, trackDetails string, count int) (bool, error) { 
 	}
 	if queryResult.IsComplete && queryResult.FileCount > 0 {
 		return true, nil
-	} else if queryResult.IsComplete && (queryResult.FileCount == 0 || queryResult.FileCount == queryResult.LockedFileCount) {
-		return false, fmt.Errorf("search complete, did not find any available files for %s", trackDetails)
+	} else if queryResult.IsComplete && queryResult.FileCount == 0 {
+		return false, errNoRes
+	} else if queryResult.IsComplete && queryResult.FileCount == queryResult.LockedFileCount {
+		return false, fmt.Errorf("search complete, did not find any downloadable files for %s", trackDetails)
 	} else if count >= c.Cfg.Retry {
 		slog.Debug(fmt.Sprintf("failed to remove %s", ID), logging.RuntimeAttr(""))
 		return false, fmt.Errorf("search wasn't completed after %d retries, skipping %s", count, trackDetails)
@@ -367,7 +396,7 @@ func (c *Slskd) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus
 						fileStatuses[track.File] = FileStatus{
 							ID: file.ID,
 							Size: file.Size,
-							State: file.State,
+							State: normalize(file.State),
 							BytesTransferred: file.BytesTransferred,
 							BytesRemaining: file.BytesRemaining,
 							PercentComplete: file.PercentComplete,
@@ -413,4 +442,37 @@ func parsePath(p string) (string, string) { // parse filepath to downloaded form
 	p = strings.ReplaceAll(p, `\`, `/`)
 	return filepath.Base(p), filepath.Base(filepath.Dir(p))
 
+}
+
+func wildcardArtist(artist string) string {
+    r := []rune(strings.TrimSpace(artist))
+
+    if len(r) < 3 {
+        return artist
+    }
+
+    r[0] = '*'
+    return string(r)
+}
+
+// different failure states slskd has (format is "Completed,Rejected", "Errored,Cancelled" etc..)
+var failureStates = map[string]struct{} {
+	"TimedOut": {},
+	"Rejected": {},
+	"Errored":  {},
+	"Cancelled": {},
+}
+
+// return a single error state for failed downloads
+func normalize(state string) string{
+	parts := strings.SplitSeq(state, ",")
+
+	for p := range parts {
+		p = strings.TrimSpace(p)
+		if _, ok := failureStates[p]; ok {
+			slog.Debug("[slskd] download failed", "status", state)
+			return "Errored"
+		}
+	}
+	return state
 }

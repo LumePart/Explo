@@ -291,9 +291,9 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                   autoComplete="off" spellCheck={false} placeholder="AIza…" disabled={isLocked('YOUTUBE_API_KEY')} />
               </TextField>
               <TextField label="Track format"
-                hint={<>File format yt-dlp converts to. Default is <strong>opus</strong> — use <strong>mp3</strong> for broader device compatibility.</>}>
+                hint={<>File format yt-dlp converts to. Default is <strong>mp3</strong></>}>
                 <input type="text" className={inputCls} value={trackExtension} onChange={e => setField('trackExtension', e.target.value)}
-                  placeholder="opus" autoComplete="off" spellCheck={false} disabled={isLocked('TRACK_EXTENSION')} />
+                  placeholder="mp3" autoComplete="off" spellCheck={false} disabled={isLocked('TRACK_EXTENSION')} />
               </TextField>
               <TextField label="Exclude keywords"
                 hint="Comma-separated keywords to skip in YouTube results. Leave blank to use the defaults shown.">
