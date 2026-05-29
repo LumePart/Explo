@@ -6,7 +6,7 @@ RUN npm ci
 COPY src/web/frontend/ ./
 RUN VITE_VERSION=${VERSION} npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -31,7 +31,7 @@ RUN apk add --no-cache \
     yt-dlp \
     tzdata \
     shadow \
-    su-exec 
+    su-exec
 
 # Install ytmusicapi in the container
 RUN pip install --no-cache-dir ytmusicapi

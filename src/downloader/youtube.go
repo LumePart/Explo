@@ -49,6 +49,7 @@ type Youtube struct {
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Youtube
 	gouTubeOpts goutubedl.Options
+	Sleep 		int
 }
 
 func NewYoutube(cfg cfg.Youtube, discovery, downloadDir string, httpClient *util.HttpClient) *Youtube { // init downloader cfg for youtube
@@ -205,22 +206,51 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 
 	metadata := util.BuildffmpegMetadata(track)
 
+	outputPath := filepath.Join(c.DownloadDir, track.File)
+
+	if c.Cfg.PathTemplate != "" {
+			outputPath = filepath.Join(
+				c.DownloadDir,
+				buildTrackPath(c.Cfg.PathTemplate, &track),
+			)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			slog.Error("failed to create output directory", "context", err.Error())
+			return false
+	}
+
 	var cmd *ffmpeg.Stream
 
 	if c.Cfg.EmbedCoverArt {
-		coversDir := c.Cfg.CoversDir
-		util.DownloadCover(track.CoverURL, coversDir)
-		coverPath := filepath.Join(coversDir, track.MusicBrainzAlbumID+".jpg")
-		cmd = ffmpeg.Output([]*ffmpeg.Stream{ffmpeg.Input(input), ffmpeg.Input(coverPath)}, filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
-			"metadata": metadata,
-			"loglevel": "error",
-		}).OverWriteOutput().ErrorToStdOut()
+			coversDir := c.Cfg.CoversDir
+			util.DownloadCover(track.CoverURL, coversDir)
+
+			coverPath := filepath.Join(
+				coversDir,
+				track.MusicBrainzAlbumID+".jpg",
+			)
+
+			cmd = ffmpeg.Output(
+				[]*ffmpeg.Stream{
+					ffmpeg.Input(input),
+					ffmpeg.Input(coverPath),
+				},
+				outputPath,
+				ffmpeg.KwArgs{
+					"metadata": metadata,
+					"loglevel": "error",
+				},
+			).OverWriteOutput().ErrorToStdOut()
 	} else {
-		cmd = ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
-			"map":      "0:a",
-			"metadata": metadata,
-			"loglevel": "error",
-		}).OverWriteOutput().ErrorToStdOut()
+			cmd = ffmpeg.Input(input).Output(
+				outputPath,
+				ffmpeg.KwArgs{
+					"map":      "0:a",
+					"metadata": metadata,
+					"loglevel": "error",
+				},
+			).OverWriteOutput().ErrorToStdOut()
 	}
 
 	if c.Cfg.FfmpegPath != "" {
