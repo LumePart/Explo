@@ -69,11 +69,11 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	cfg			   config.ServerConfig
+	cfg            config.ServerConfig
 	mux            *http.ServeMux
 	server         *http.Server
 	authStore      *AuthStore
-	cronJobs	   *Jobs
+	cronJobs       *Jobs
 	sessionManager *SessionManager
 	manualRun      manualRunState
 }
@@ -87,25 +87,25 @@ func NewServer(cfg config.ServerConfig) *Server {
 	)
 
 	authStore := NewAuthStore(
-	cfg.Username,
-	cfg.Password,
-	sessionManager,
-)
+		cfg.Username,
+		cfg.Password,
+		sessionManager,
+	)
 
 	cronJobs := NewJobs()
 
 	mux := http.NewServeMux()
 	s := &Server{
 		cfg: cfg,
-		mux:        mux,
+		mux: mux,
 		server: &http.Server{
 			Addr:    cfg.Port,
 			Handler: sessionManager.Handle(mux),
 		},
-		authStore: authStore,
-		cronJobs: cronJobs,
+		authStore:      authStore,
+		cronJobs:       cronJobs,
 		sessionManager: sessionManager,
-		manualRun: newManualRunState(),
+		manualRun:      newManualRunState(),
 	}
 
 	s.registerRoutes()
@@ -144,8 +144,13 @@ func checkForUpdate() {
 	c := parseVer(config.Version)
 	newer := false
 	for i := range 3 {
-		if l[i] > c[i] { newer = true; break }
-		if l[i] < c[i] { break }
+		if l[i] > c[i] {
+			newer = true
+			break
+		}
+		if l[i] < c[i] {
+			break
+		}
 	}
 	if newer {
 		slog.Info("new version available!", "latest", release.TagName, "current", config.Version)
@@ -171,14 +176,17 @@ func (s *Server) startJobs() {
 	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 	if err := s.cronJobs.RegisterCoverCleanup(
 		"0 3 * * *", coversDir, s.cfg.CacheSizeMB<<20); err != nil {
-			slog.Warn("failed to register cover cleanup job", "err", err.Error())
-		}
-
+		slog.Warn("failed to register cover cleanup job", "err", err.Error())
+	}
+	// TODO: Uncomment when jeffs branch is in
+	// if err := s.cronJobs.RegisterCustomPlaylistRefresh(s.cfg.WebDataDir, s.cfg.WebEnvPath); err != nil {
+	// 	slog.Warn("failed to register custom playlist refresh job", "err", err.Error())
+	// }
 
 	s.cronJobs.Start()
 }
 
-func(s *Server) PrefetchCovers() {
+func (s *Server) PrefetchCovers() {
 
 	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 
@@ -220,28 +228,70 @@ func (s *Server) registerRoutes() {
 			slog.Error("failed writing to http", "msg", err.Error())
 		}
 	})
-	s.mux.Handle("GET /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)))
-	s.mux.Handle("GET /api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
-	s.mux.Handle("POST /api/ui/config", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)))
-	s.mux.Handle("POST /api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
-	s.mux.Handle("POST /api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
-	s.mux.Handle("POST /api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
-	s.mux.Handle("POST /api/ui/wizard/step2", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep2)))
-	s.mux.Handle("POST /api/ui/wizard/step3", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep3)))
-	s.mux.Handle("GET /api/ui/browse", s.authStore.RequireAuth(http.HandlerFunc(s.handleBrowse)))
-	s.mux.Handle("POST /api/ui/run", s.authStore.RequireAuth(http.HandlerFunc(s.handleRun)))
-	s.mux.Handle("GET /api/ui/run/events", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunEvents)))
-	s.mux.Handle("POST /api/ui/run/stop", s.authStore.RequireAuth(http.HandlerFunc(s.handleStopRun)))
-	s.mux.Handle("GET /api/ui/run/status", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunStatus)))
-	s.mux.Handle("GET /api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
-	s.mux.Handle("GET /api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
-	s.mux.Handle("POST /api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
-	s.mux.Handle("POST /api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
-	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
-	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
-	s.mux.HandleFunc("GET /api/ui/auth/status", s.handleAuthStatus)
-	s.mux.HandleFunc("GET /api/ui/background-art", s.handleBackgroundArt)
-	s.mux.HandleFunc("GET /api/ui/setup-status", s.handleSetupStatus)
+
+	// /api/ui/config — GET = read, POST = save (both require auth)
+	s.mux.HandleFunc("/api/ui/config", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)).ServeHTTP(w, r)
+		case http.MethodPost:
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)).ServeHTTP(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	s.mux.Handle("/api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
+	s.mux.Handle("/api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
+	s.mux.Handle("/api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
+
+	// Wizard steps (POST) — require auth
+	s.mux.Handle("/api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
+	s.mux.Handle("/api/ui/wizard/step2", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep2)))
+	s.mux.Handle("/api/ui/wizard/step3", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep3)))
+
+	s.mux.Handle("/api/ui/browse", s.authStore.RequireAuth(http.HandlerFunc(s.handleBrowse)))
+	s.mux.Handle("/api/ui/run", s.authStore.RequireAuth(http.HandlerFunc(s.handleRun)))
+	s.mux.Handle("/api/ui/run/events", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunEvents)))
+	s.mux.Handle("/api/ui/run/stop", s.authStore.RequireAuth(http.HandlerFunc(s.handleStopRun)))
+	s.mux.Handle("/api/ui/run/status", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunStatus)))
+
+	s.mux.Handle("/api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
+	s.mux.Handle("/api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
+	s.mux.Handle("/api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
+
+	// TODO: Uncomment when jeffs branch is in
+	// custom playlists: GET list, POST import (same path); per-ID actions under prefix
+	// s.mux.HandleFunc("/api/ui/custom-playlists", func(w http.ResponseWriter, r *http.Request) {
+	// 	switch r.Method {
+	// 	case http.MethodGet:
+	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleGetCustomPlaylists)).ServeHTTP(w, r)
+	// 	case http.MethodPost:
+	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleImportCustomPlaylist)).ServeHTTP(w, r)
+	// 	default:
+	// 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	// 	}
+	// })
+	// // ID-specific routes: DELETE /api/ui/custom-playlists/{id} and POST .../{id}/refresh
+	// s.mux.HandleFunc("/api/ui/custom-playlists/", func(w http.ResponseWriter, r *http.Request) {
+	// 	if r.Method == http.MethodDelete {
+	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)).ServeHTTP(w, r)
+	// 		return
+	// 	}
+	// 	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/refresh") {
+	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)).ServeHTTP(w, r)
+	// 		return
+	// 	}
+	// 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	// })
+
+	s.mux.Handle("/api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
+
+	// public/special routes
+	s.mux.HandleFunc("/api/ui/csrf", s.csrfHandler)
+	s.mux.HandleFunc("/api/ui/login", s.handleLogin)
+	s.mux.HandleFunc("/api/ui/auth/status", s.handleAuthStatus)
+	s.mux.HandleFunc("/api/ui/background-art", s.handleBackgroundArt)
+	s.mux.HandleFunc("/api/ui/setup-status", s.handleSetupStatus)
 
 	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
@@ -378,7 +428,7 @@ func parseEnvText(text string) map[string]string {
 			if len(v) >= 2 {
 				if (v[0] == '\'' && v[len(v)-1] == '\'') ||
 					(v[0] == '"' && v[len(v)-1] == '"') {
-						v = v[1 : len(v)-1]
+					v = v[1 : len(v)-1]
 				}
 			}
 			out[k] = v
@@ -474,14 +524,31 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	def, ok := playlistDefs[body.Name]
-	if !ok {
+	var envPrefix string
+	var defaultFlags string
+
+	if def, ok := playlistDefs[body.Name]; ok {
+		envPrefix = def.EnvPrefix
+		defaultFlags = def.DefaultFlags
+		// TODO: Uncomment when jeffs branch is in
+		// } else if customIDRe.MatchString(body.Name) {
+		// 	envPrefix = customEnvPrefix(body.Name)
+		// 	defaultFlags = "--playlist " + body.Name
+	} else {
 		http.Error(w, "unknown playlist name", http.StatusBadRequest)
 		return
 	}
 
 	updates := map[string]string{}
-	if body.Enabled {
+	if !body.Enabled {
+		// Toggle off — truly disable, regardless of day value carried over from state
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = ""
+	} else if body.Day == -2 {
+		// "Never" — keep playlist active for manual runs but remove auto-schedule
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = defaultFlags
+	} else {
 		dom := "*"
 		dow := "*"
 		if body.Day == 100 {
@@ -489,11 +556,8 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		} else if body.Day >= 0 {
 			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
-		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
-	} else {
-		updates[def.EnvPrefix+"_SCHEDULE"] = ""
-		updates[def.EnvPrefix+"_FLAGS"] = ""
+		updates[envPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
+		updates[envPrefix+"_FLAGS"] = defaultFlags
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
@@ -539,7 +603,7 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 	// Append any keys that weren't already in the file
 	for k, v := range updates {
 		if !touched[k] && v != "" {
-			lines = append(lines, k + "=" + formatEnvValue(v))
+			lines = append(lines, k+"="+formatEnvValue(v))
 		}
 	}
 
@@ -675,7 +739,7 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		FilterList       string   `json:"filter_list"`
 		SlskdURL         string   `json:"slskd_url"`
 		SlskdAPIKey      string   `json:"slskd_api_key"`
-		Extensions       string   `json:"extensions"`      // slskd
+		Extensions       string   `json:"extensions"` // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -705,8 +769,8 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
-		"EXTENSIONS":        body.Extensions,        // slskd
-		"WIZARD_COMPLETE":	 "true",
+		"EXTENSIONS":        body.Extensions, // slskd
+		"WIZARD_COMPLETE":   "true",
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
@@ -777,6 +841,28 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(s.currentRunStatus()); err != nil {
 		slog.Warn("failed to encode current run status", "msg", err.Error())
 	}
+}
+
+// triggerLibraryRefresh spawns the CLI with --refresh-only in the background to
+// nudge the configured media server's library scan. Fire-and-forget: errors are
+// logged but do not block the caller.
+func (s *Server) triggerLibraryRefresh() {
+	go func() {
+		cmd := exec.Command(s.cfg.ExploPath, "--refresh-only", "--config", s.cfg.WebEnvPath)
+		env := make([]string, 0, len(os.Environ()))
+		for _, e := range os.Environ() {
+			if !strings.HasPrefix(e, "WEB_UI=") {
+				env = append(env, e)
+			}
+		}
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			slog.Warn("library refresh failed", "err", err.Error(), "output", string(out))
+			return
+		}
+		slog.Info("library refresh complete")
+	}()
 }
 
 func (s *Server) startRun(args []string) error {

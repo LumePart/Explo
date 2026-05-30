@@ -1,10 +1,11 @@
 package backend
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
-	"fmt"
 )
 
 type sessionResponseWriter struct {
@@ -28,7 +29,7 @@ func (w *sessionResponseWriter) Write(b []byte) (int, error) {
 func (w *sessionResponseWriter) WriteHeader(code int) {
 	// write essential headers
 	w.Header().Add("Vary", "Cookie")
- 	w.Header().Add("Cache-Control", `no-cache="Set-Cookie"`)
+	w.Header().Add("Cache-Control", `no-cache="Set-Cookie"`)
 
 	writeCookieIfNecessary(w)
 
@@ -37,6 +38,15 @@ func (w *sessionResponseWriter) WriteHeader(code int) {
 
 func (w *sessionResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
+}
+
+// Flush forwards to the wrapped ResponseWriter so SSE handlers can do
+// w.(http.Flusher) — without this, the auth middleware breaks streaming.
+func (w *sessionResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		writeCookieIfNecessary(w)
+		f.Flush()
+	}
 }
 
 func NewInMemorySessionStore() *InMemorySessionStore {
@@ -51,10 +61,10 @@ func (s *InMemorySessionStore) read(id string) (*Session, error) {
 
 	session, ok := s.sessions[id]
 	if !ok {
-	return nil, fmt.Errorf("session not found")
+		return nil, fmt.Errorf("session not found")
 	}
-	
-	return session, nil	
+
+	return session, nil
 }
 
 func (s *InMemorySessionStore) write(session *Session) error {
@@ -87,7 +97,6 @@ func (s *InMemorySessionStore) gc(absoluteExpiration time.Duration) error {
 
 	return nil
 }
-
 func (m *SessionManager) Handle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Start the session
@@ -102,17 +111,16 @@ func (m *SessionManager) Handle(next http.Handler) http.Handler {
 
 		isMutating :=
 			r.Method == http.MethodPost ||
-			r.Method == http.MethodPut ||
-			r.Method == http.MethodPatch ||
-			r.Method == http.MethodDelete
+				r.Method == http.MethodPut ||
+				r.Method == http.MethodPatch ||
+				r.Method == http.MethodDelete
 
-		if isMutating && r.URL.Path != "/login" {
+		if isMutating && rws.URL.Path != "/api/ui/login" {
 			if !m.verifyCSRFToken(rws, session) {
 				http.Error(sw, "CSRF token mismatch", http.StatusForbidden)
 				return
 			}
 		}
-		
 
 		// Call the next handler and pass the new response writer and new request
 		next.ServeHTTP(sw, rws)
@@ -132,6 +140,10 @@ func writeCookieIfNecessary(w *sessionResponseWriter) {
 		panic("session not found in request context")
 	}
 
+	if w.request.TLS != nil || strings.EqualFold(w.request.Header.Get("X-Forwarded-Proto"), "https") {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+	}
+
 	cookie := &http.Cookie{
 		Name:     w.sessionManager.cookieName,
 		Value:    session.id,
@@ -141,7 +153,9 @@ func writeCookieIfNecessary(w *sessionResponseWriter) {
 		Expires:  time.Now().Add(w.sessionManager.absoluteExpiration),
 		MaxAge:   int(w.sessionManager.absoluteExpiration / time.Second),
 	}
-
+	if w.request.TLS != nil || strings.EqualFold(w.request.Header.Get("X-Forwarded-Proto"), "https") {
+		cookie.Secure = true
+	}
 	http.SetCookie(w.ResponseWriter, cookie)
 
 	w.done = true
