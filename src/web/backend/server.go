@@ -843,27 +843,28 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Uncomment when jeffs branch is in
 // triggerLibraryRefresh spawns the CLI with --refresh-only in the background to
 // nudge the configured media server's library scan. Fire-and-forget: errors are
 // logged but do not block the caller.
-func (s *Server) triggerLibraryRefresh() {
-	go func() {
-		cmd := exec.Command(s.cfg.ExploPath, "--refresh-only", "--config", s.cfg.WebEnvPath)
-		env := make([]string, 0, len(os.Environ()))
-		for _, e := range os.Environ() {
-			if !strings.HasPrefix(e, "WEB_UI=") {
-				env = append(env, e)
-			}
-		}
-		cmd.Env = env
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			slog.Warn("library refresh failed", "err", err.Error(), "output", string(out))
-			return
-		}
-		slog.Info("library refresh complete")
-	}()
-}
+// func (s *Server) triggerLibraryRefresh() {
+// 	go func() {
+// 		cmd := exec.Command(s.cfg.ExploPath, "--refresh-only", "--config", s.cfg.WebEnvPath)
+// 		env := make([]string, 0, len(os.Environ()))
+// 		for _, e := range os.Environ() {
+// 			if !strings.HasPrefix(e, "WEB_UI=") {
+// 				env = append(env, e)
+// 			}
+// 		}
+// 		cmd.Env = env
+// 		out, err := cmd.CombinedOutput()
+// 		if err != nil {
+// 			slog.Warn("library refresh failed", "err", err.Error(), "output", string(out))
+// 			return
+// 		}
+// 		slog.Info("library refresh complete")
+// 	}()
+// }
 
 func (s *Server) startRun(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
