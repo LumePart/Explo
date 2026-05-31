@@ -24,10 +24,10 @@ import (
 type CustomPlaylist struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
-	Source          string    `json:"source"`                    // "listenbrainz" | "apple_music"
-	SourceURL       string    `json:"source_url,omitempty"`      // original URL for dedup + refresh
-	LBMBID          string    `json:"lb_mbid,omitempty"`         // ListenBrainz MBID (backward compat)
-	ArtworkURL      string    `json:"artwork_url,omitempty"`     // playlist cover image (Apple Music)
+	Source          string    `json:"source"`                     // "listenbrainz" | "apple_music" | "spotify"
+	SourceURL       string    `json:"source_url,omitempty"`       // original URL for dedup + refresh
+	LBMBID          string    `json:"lb_mbid,omitempty"`          // ListenBrainz MBID (backward compat)
+	ArtworkURL      string    `json:"artwork_url,omitempty"`      // playlist cover image (Apple Music)
 	ArtworkUploaded bool      `json:"artwork_uploaded,omitempty"` // true after artwork has been pushed to the music app
 	RefreshDays     int       `json:"refresh_days"`
 	ColorIndex      int       `json:"color_index"`
@@ -127,7 +127,7 @@ func saveCustomPlaylists(cfgDir string, playlists []CustomPlaylist) error {
 type FetchResult struct {
 	Name       string
 	ArtworkURL string
-	Tracks     [][4]string
+	Tracks     []PlaylistTrack
 }
 
 // fetchCustomPlaylistTracks dispatches to the appropriate source fetcher.
@@ -136,6 +136,9 @@ func fetchCustomPlaylistTracks(p CustomPlaylist) (FetchResult, error) {
 	switch p.Source {
 	case "apple_music":
 		name, art, tracks, err := fetchAppleMusicPlaylist(p.SourceURL)
+		return FetchResult{name, art, tracks}, err
+	case "spotify":
+		name, art, tracks, err := fetchSpotifyPlaylist(p.SourceURL)
 		return FetchResult{name, art, tracks}, err
 	default: // "listenbrainz" or legacy empty
 		mbid := p.LBMBID
@@ -154,10 +157,7 @@ func fetchCustomPlaylistTracks(p CustomPlaylist) (FetchResult, error) {
 		if err != nil {
 			return FetchResult{}, err
 		}
-		tracks := make([][4]string, len(modelTracks))
-		for i, t := range modelTracks {
-			tracks[i] = [4]string{t.CleanTitle, t.Artist, t.Album, t.CoverURL}
-		}
+		tracks := modelTracksToPlaylistTracks(modelTracks)
 		return FetchResult{Name: name, Tracks: tracks}, nil
 	}
 }
@@ -167,6 +167,8 @@ func extractSourceID(source, url string) (string, error) {
 	switch source {
 	case "apple_music":
 		return extractAppleMusicID(url)
+	case "spotify":
+		return extractSpotifyID(url)
 	default:
 		return extractLBMBID(url)
 	}
@@ -306,7 +308,7 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	// Save metadata
 	// Derive LBMBID for backward compatibility (LB playlists only)
 	var lbMBID string
-	if body.Source != "apple_music" {
+	if body.Source != "apple_music" && body.Source != "spotify" {
 		lbMBID = sourceID
 	}
 
@@ -347,9 +349,9 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	seen := make(map[string]bool)
 	covers := make([]string, 0, 6)
 	for _, t := range tracks {
-		if t[3] != "" && !seen[t[3]] {
-			seen[t[3]] = true
-			covers = append(covers, t[3])
+		if t.CoverURL != "" && !seen[t.CoverURL] {
+			seen[t.CoverURL] = true
+			covers = append(covers, t.CoverURL)
 		}
 		if len(covers) >= 6 {
 			break

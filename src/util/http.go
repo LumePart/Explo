@@ -112,15 +112,22 @@ func DownloadFile(url, destPath string) (string, error) {
 	return destPath, nil
 }
 
-// DownloadCover downloads coverURL into coversDir and returns "/api/covers/<mbid>.jpg".
-// Returns "" if url is empty.
+// DownloadCover downloads coverURL into coversDir and returns "/api/covers/<id>.jpg".
+// For CoverArtArchive URLs the id is the MusicBrainz release MBID (second-to-last
+// path segment). For Spotify CDN URLs (i.scdn.co) the id is the image hash (last
+// path segment). Returns "" if url is empty.
 func DownloadCover(url, coversDir string) string {
 	if url == "" {
 		return ""
 	}
 	parts := strings.Split(strings.TrimRight(url, "/"), "/")
-	mbid := parts[len(parts)-2]
-	destPath := filepath.Join(coversDir, mbid+".jpg")
+	// Spotify CDN: https://i.scdn.co/image/<hash>  → use last segment
+	// CAA:         https://coverartarchive.org/release/<mbid>/front-250 → use second-to-last
+	id := parts[len(parts)-2]
+	if strings.Contains(url, "scdn.co") || strings.Contains(url, "spotifycdn.com") {
+		id = parts[len(parts)-1]
+	}
+	destPath := filepath.Join(coversDir, id+".jpg")
 	if _, err := os.Stat(destPath); os.IsNotExist(err) {
 		resp, err := http.Get(url) //nolint:noctx
 		if err == nil {
@@ -140,5 +147,5 @@ func DownloadCover(url, coversDir string) string {
 			}()
 		}
 	}
-	return "/api/covers/" + mbid + ".jpg"
+	return "/api/covers/" + id + ".jpg"
 }

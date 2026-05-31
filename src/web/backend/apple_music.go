@@ -53,7 +53,7 @@ func resolveArtworkURL(tpl string) string {
 // fetchAppleMusicPlaylist scrapes a public Apple Music playlist page and extracts
 // track info from the embedded server data.
 // Returns (playlistName, artworkURL, tracks, error) where tracks are [title, artist, album, coverURL].
-func fetchAppleMusicPlaylist(pageURL string) (string, string, [][4]string, error) {
+func fetchAppleMusicPlaylist(pageURL string) (string, string, []PlaylistTrack, error) {
 	req, err := http.NewRequest("GET", pageURL, nil)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("apple music: invalid URL: %w", err)
@@ -104,7 +104,7 @@ func fetchAppleMusicPlaylist(pageURL string) (string, string, [][4]string, error
 
 // extractServerData parses the <script id="serialized-server-data"> blob for
 // the playlist name, playlist artwork URL (from the header section), and tracks with artwork.
-func extractServerData(htmlStr string) (string, string, [][4]string, error) {
+func extractServerData(htmlStr string) (string, string, []PlaylistTrack, error) {
 	scripts := extractScriptByID(htmlStr, "serialized-server-data")
 	if len(scripts) == 0 {
 		return "", "", nil, fmt.Errorf("apple music: no serialized-server-data found in page")
@@ -117,7 +117,7 @@ func extractServerData(htmlStr string) (string, string, [][4]string, error) {
 
 	var playlistName string
 	var artworkURL string
-	var tracks [][4]string
+	var tracks []PlaylistTrack
 
 	for _, outer := range ssd.Data {
 		for _, sec := range outer.Data.Sections {
@@ -144,7 +144,7 @@ func extractServerData(htmlStr string) (string, string, [][4]string, error) {
 			}
 
 			// Track section.
-			tracks = make([][4]string, 0, len(sec.Items))
+			tracks = make([]PlaylistTrack, 0, len(sec.Items))
 			for _, item := range sec.Items {
 				album := ""
 				if len(item.TertiaryLinks) > 0 {
@@ -154,7 +154,13 @@ func extractServerData(htmlStr string) (string, string, [][4]string, error) {
 				if item.Artwork != nil {
 					coverURL = resolveArtworkURL(item.Artwork.Dictionary.URL)
 				}
-				tracks = append(tracks, [4]string{item.Title, item.ArtistName, album, coverURL})
+				tracks = append(tracks, PlaylistTrack{
+					Title:      item.Title,
+					Artist:     item.ArtistName,
+					MainArtist: item.ArtistName,
+					Album:      album,
+					CoverURL:   coverURL,
+				})
 			}
 		}
 	}

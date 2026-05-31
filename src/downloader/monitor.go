@@ -131,7 +131,7 @@ func tracksProcessed(tracks []*models.Track, progressMap map[string]*DownloadMon
 		key := fmt.Sprintf("%s|%s", track.ID, track.File)
 		tracker, exists := progressMap[key]
 		if !track.Present && exists && !tracker.Skipped {
-			slog.Info("file still present", "file", track.File)
+			slog.Info("[monitor] track download still in progress", "title", track.CleanTitle, "artist", track.MainArtist, "file", track.File)
 			return false
 		}
 	}

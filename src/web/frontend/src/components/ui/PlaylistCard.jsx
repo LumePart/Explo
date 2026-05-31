@@ -272,11 +272,12 @@ const FALLBACK = {
   label: 'PLAYLIST',
 }
 
-// Color pool for user-imported custom playlists (cycled by colorIndex % 3)
+// Color pool for user-imported custom playlists (cycled by colorIndex % 4)
 const CUSTOM_PRESETS = [
   { background: cardGradient('#6366f1', '#8b5cf6', '#a78bfa'), accent: '#a78bfa' },
   { background: cardGradient('#0891b2', '#0e7490', '#67e8f9'), accent: '#67e8f9' },
   { background: cardGradient('#d97706', '#b45309', '#fcd34d'), accent: '#fcd34d' },
+  { background: cardGradient('#16a34a', '#15803d', '#4ade80'), accent: '#4ade80' },
 ]
 
 const SCHEDULE_DAYS = [

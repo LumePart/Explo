@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { importCustomPlaylist } from '../../lib/api'
 import listenbrainzIcon from '../../assets/listenbrainz.svg'
 import appleMusicIcon from '../../assets/apple-music.svg'
+import spotifyIcon from '../../assets/spotify.svg'
 
 const REFRESH_OPTIONS = [
   { value: 0,  label: 'Never' },
@@ -15,6 +16,7 @@ const REFRESH_OPTIONS = [
 const SOURCES = [
   { key: 'listenbrainz', label: 'ListenBrainz', icon: listenbrainzIcon, color: '#EB743B', placeholder: 'https://listenbrainz.org/playlist/\u2026' },
   { key: 'apple_music',  label: 'Apple Music',  icon: appleMusicIcon,  color: '#FA243C', placeholder: 'https://music.apple.com/us/playlist/\u2026' },
+  { key: 'spotify',      label: 'Spotify',      icon: spotifyIcon,     color: '#1ed760', placeholder: 'https://open.spotify.com/playlist/\u2026' },
 ]
 
 function CoverThumb({ src, index, onLoaded }) {
@@ -197,7 +199,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
               </div>
 
               {/* Source buttons */}
-              <div className="px-5 pt-5 pb-5 grid grid-cols-2 gap-3">
+              <div className="px-5 pt-5 pb-5 grid grid-cols-3 gap-3">
                 {SOURCES.map(s => (
                   <button
                     key={s.key}

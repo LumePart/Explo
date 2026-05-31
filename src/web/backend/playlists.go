@@ -21,6 +21,17 @@ import (
 
 const lbAPIBase = "https://api.listenbrainz.org/1"
 
+// PlaylistTrack represents a single track fetched from any playlist source.
+// Replaces the raw [][4]string{title, artist, album, coverURL} pattern
+// with named fields and adds MainArtist for accurate matching in music servers.
+type PlaylistTrack struct {
+	Title      string
+	Artist     string
+	MainArtist string
+	Album      string
+	CoverURL   string
+}
+
 // validPlaylistTypes is derived from playlistDefs — no manual sync needed.
 var validPlaylistTypes = func() map[string]bool {
 	m := make(map[string]bool, len(playlistDefs))
@@ -65,26 +76,32 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 
 // ── LB fallback ──────────────────────────────────────────────────────────────
 
-func fetchOnRepeatTracks(username string) ([][4]string, error) {
+func fetchOnRepeatTracks(username string) ([]PlaylistTrack, error) {
 	tracks, err := discovery.FetchTopRecordings(util.NewHttp(util.HttpClientConfig{Timeout: 30}), username)
 	if err != nil {
 		return nil, err
 	}
-	return modelTracksTo4Strings(tracks), nil
+	return modelTracksToPlaylistTracks(tracks), nil
 }
 
-func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, error) {
+func fetchMostRecentLBPlaylist(username, playlistType string) ([]PlaylistTrack, error) {
 	tracks, err := discovery.FetchMostRecentPlaylistByType(util.NewHttp(util.HttpClientConfig{Timeout: 30}), username, playlistType)
 	if err != nil {
 		return nil, err
 	}
-	return modelTracksTo4Strings(tracks), nil
+	return modelTracksToPlaylistTracks(tracks), nil
 }
 
-func modelTracksTo4Strings(tracks []*models.Track) [][4]string {
-	out := make([][4]string, len(tracks))
+func modelTracksToPlaylistTracks(tracks []*models.Track) []PlaylistTrack {
+	out := make([]PlaylistTrack, len(tracks))
 	for i, t := range tracks {
-		out[i] = [4]string{t.CleanTitle, t.Artist, t.Album, t.CoverURL}
+		out[i] = PlaylistTrack{
+			Title:      t.CleanTitle,
+			Artist:     t.Artist,
+			MainArtist: t.MainArtist,
+			Album:      t.Album,
+			CoverURL:   t.CoverURL,
+		}
 	}
 	return out
 }
@@ -191,7 +208,7 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
 			}
-			var tracks [][4]string
+			var tracks []PlaylistTrack
 			var err error
 			if pt == "on-repeat" {
 				tracks, err = fetchOnRepeatTracks(body.User)
@@ -209,19 +226,20 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 }
 
 type cachedPrefetchTrack struct {
-	Rank     int    `json:"rank"`
-	Title    string `json:"title"`
-	Artist   string `json:"artist"`
-	Release  string `json:"release"`
-	CoverURL string `json:"coverUrl,omitempty"`
+	Rank       int    `json:"rank"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	MainArtist string `json:"mainArtist,omitempty"`
+	Release    string `json:"release"`
+	CoverURL   string `json:"coverUrl,omitempty"`
 }
 
 // writePreliminaryCache writes the track cache with remote cover URLs immediately.
 // Returns false if the write fails.
-func writePreliminaryCache(cfgDir, playlistType string, tracks [][4]string) bool {
+func writePreliminaryCache(cfgDir, playlistType string, tracks []PlaylistTrack) bool {
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: t[3]}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: t.CoverURL}
 	}
 	if !writeTrackCache(cfgDir, playlistType, ct) {
 		return false
@@ -232,7 +250,7 @@ func writePreliminaryCache(cfgDir, playlistType string, tracks [][4]string) bool
 
 // downloadAndCacheCovers downloads cover art and rewrites the cache with local URLs.
 // Safe to call in a goroutine.
-func downloadAndCacheCovers(cfgDir, playlistType string, tracks [][4]string) {
+func downloadAndCacheCovers(cfgDir, playlistType string, tracks []PlaylistTrack) {
 	coversDir := filepath.Join(cfgDir, "cache", "covers")
 	if err := os.MkdirAll(coversDir, 0755); err != nil {
 		slog.Error("prefetch: failed to create covers dir", "err", err.Error())
@@ -240,14 +258,14 @@ func downloadAndCacheCovers(cfgDir, playlistType string, tracks [][4]string) {
 	}
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t[0], Artist: t[1], Release: t[2], CoverURL: util.DownloadCover(t[3], coversDir)}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: util.DownloadCover(t.CoverURL, coversDir)}
 	}
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
 	}
 }
 
-func writePrefetchCache(cfgDir, playlistType string, tracks [][4]string) {
+func writePrefetchCache(cfgDir, playlistType string, tracks []PlaylistTrack) {
 	if !writePreliminaryCache(cfgDir, playlistType, tracks) {
 		return
 	}

@@ -126,7 +126,7 @@ func (c *Emby) CheckRefreshState() bool {
 
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))
+		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -139,7 +139,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 		}
 
 		for _, item := range results.Items {
-			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && (strings.EqualFold(item.Name, track.CleanTitle) || (track.File != "" && strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)))) {
+			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && (util.NormalizeTitle(item.Name) == util.NormalizeTitle(track.Title) || (track.File != "" && strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)))) {
 				track.ID = item.ID
 				track.Present = true
 				break

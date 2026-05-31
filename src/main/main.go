@@ -29,10 +29,11 @@ type Song struct {
 // models.Track slices, bypassing the LB discovery step entirely.
 func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, error) {
 	type cachedTrack struct {
-		Title    string `json:"title"`
-		Artist   string `json:"artist"`
-		Release  string `json:"release"`
-		CoverURL string `json:"coverUrl"`
+		Title      string `json:"title"`
+		Artist     string `json:"artist"`
+		MainArtist string `json:"mainArtist"`
+		Release    string `json:"release"`
+		CoverURL   string `json:"coverUrl"`
 	}
 	type cacheFile struct {
 		Tracks []cachedTrack `json:"tracks"`
@@ -67,11 +68,15 @@ func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, erro
 
 	tracks := make([]*models.Track, len(c.Tracks))
 	for i, t := range c.Tracks {
+		mainArtist := t.MainArtist
+		if mainArtist == "" {
+			mainArtist = t.Artist
+		}
 		tracks[i] = &models.Track{
 			CleanTitle: t.Title,
 			Title:      t.Title,
 			Artist:     t.Artist,
-			MainArtist: t.Artist,
+			MainArtist: mainArtist,
 			Album:      t.Release,
 			CoverURL:   t.CoverURL,
 		}
