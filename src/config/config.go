@@ -21,7 +21,7 @@ type Config struct {
 	DiscoveryCfg DiscoveryConfig
 	ClientCfg    ClientConfig
 	NotifyCfg    NotifyConfig
-	ServerCfg	 ServerConfig
+	ServerCfg    ServerConfig
 	Flags        Flags
 	PersistENV   bool `env:"PERSIST" env-default:"true"`
 	Persist      bool
@@ -32,7 +32,7 @@ type Config struct {
 
 type Flags struct {
 	CfgPath      string
-	CfgSet		 bool
+	CfgSet       bool
 	Playlist     string
 	DownloadMode string
 	ExcludeLocal bool
@@ -42,14 +42,14 @@ type Flags struct {
 }
 
 type ServerConfig struct {
-	Enabled bool `env:"WEB_UI" env-default:"false"`
-	Port string `env:"WEB_ADDR" env-default:":7288"`
-	Username string `env:"UI_USERNAME"`
-	Password string `env:"UI_PASSWORD"`
-	WebDataDir string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
-	WebEnvPath string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
+	Enabled     bool   `env:"WEB_UI" env-default:"false"`
+	Port        string `env:"WEB_ADDR" env-default:":7288"`
+	Username    string `env:"UI_USERNAME"`
+	Password    string `env:"UI_PASSWORD"`
+	WebDataDir  string `env:"WEB_DATA_PATH" env-default:"/opt/explo/config/"`
+	WebEnvPath  string `env:"WEB_ENV_PATH" env-default:"/opt/explo/.env"`
 	CacheSizeMB int64  `env:"WEB_CACHE_MB" env-default:"500"`
-	ExploPath string
+	ExploPath   string
 }
 
 type ClientConfig struct {
@@ -64,7 +64,6 @@ type ClientConfig struct {
 	PlaylistID      string
 	Sleep           int `env:"SLEEP" env-default:"2"`
 	HTTPTimeout     int `env:"CLIENT_HTTP_TIMEOUT" env-default:"10"`
-	MultiLib		bool `env:"MULTI_LIB" env-default:"false"`
 	Creds           Credentials
 	AdminCreds      AdminCredentials
 	Subsonic        SubsonicConfig
@@ -114,9 +113,11 @@ type Youtube struct {
 	APIKey        string `env:"YOUTUBE_API_KEY"`
 	FfmpegPath    string `env:"FFMPEG_PATH"`
 	YtdlpPath     string `env:"YTDLP_PATH"`
-	FileExtension string `env:"TRACK_EXTENSION" env-default:"opus"` // yt-dlp
+	FileExtension string `env:"TRACK_EXTENSION" env-default:"mp3"` // yt-dlp
+	EmbedCoverArt bool   `env:"EMBED_COVER_ART" env-default:"false"`
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
+	CoversDir     string
 }
 
 type YoutubeMusic struct {
@@ -138,19 +139,22 @@ type Slskd struct {
 }
 
 type SlskdMon struct {
-	Interval time.Duration `env:"SLSKD_MONITOR_INTERVAL" env-default:"1m"`
-	Duration time.Duration `env:"SLSKD_MONITOR_DURATION" env-default:"15m"`
+	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"`
+	Duration int `env:"SLSKD_MONITOR_DURATION" env-default:"15"`
 }
 
 type DiscoveryConfig struct {
 	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	ArtistBlacklist []string `env:"ARTIST_BLACKLIST"`
 	Listenbrainz Listenbrainz
 }
 type Listenbrainz struct {
-	Discovery      string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	User           string `env:"LISTENBRAINZ_USER"`
-	ImportPlaylist string
-	SingleArtist   bool `env:"SINGLE_ARTIST" env-default:"true"`
+	Discovery              string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	User                   string `env:"LISTENBRAINZ_USER"`
+	ImportPlaylist         string
+	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
+	CoverArtSize           string `env:"COVER_ART_SIZE" env-default:"250"`
+	EnrichTrackMetadata	   bool   `env:"ENRICH_TRACK_METADATA" env-default:"false"`
 }
 
 type NotifyConfig struct {
@@ -208,6 +212,7 @@ func (cfg *Config) ReadEnv() {
 
 func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
+	cfg.DownloadCfg.Youtube.CoversDir = filepath.Join(filepath.Dir(cfg.Flags.CfgPath), "cache", "covers")
 	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
 	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
 	cfg.NormalizeDir()

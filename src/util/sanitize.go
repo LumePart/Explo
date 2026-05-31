@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	filenameRe    = regexp.MustCompile(`[^\p{L}\d._,\-]+`)
-	alnumRe       = regexp.MustCompile(`[^\p{L}\d]+`)
-	featTailRe    = regexp.MustCompile(`(?i)\s*[\(\[\{]\s*(feat\.?|featuring|ft\.?|with)\s[^\)\]\}]*[\)\]\}]\s*$`)
+	filenameRe     = regexp.MustCompile(`[^\p{L}\d._,\-]+`)
+	alnumRe        = regexp.MustCompile(`[^\p{L}\d]+`)
+	featTailRe     = regexp.MustCompile(`(?i)\s*[\(\[\{]\s*(feat\.?|featuring|ft\.?|with)\s[^\)\]\}]*[\)\]\}]\s*$`)
 	remasterTailRe = regexp.MustCompile(`(?i)\s*[-–—]\s*\d{4}\s*remaster(ed)?\s*$`)
 )
 

@@ -365,7 +365,8 @@ func (s *Server) csrfHandler(w http.ResponseWriter, r *http.Request) {
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
-// parseEnvText parses key=value lines, ignoring comments and blanks.
+// parseEnvText parses key=value lines, ignoring comments, blanks and unquotes variables
+// .
 func parseEnvText(text string) map[string]string {
 	out := map[string]string{}
 	for line := range strings.SplitSeq(text, "\n") {
@@ -378,7 +379,16 @@ func parseEnvText(text string) map[string]string {
 			continue
 		}
 		if k = strings.TrimSpace(k); k != "" {
-			out[k] = strings.TrimSpace(v)
+			v = strings.TrimSpace(v)
+
+			// unquote if quoted
+			if len(v) >= 2 {
+				if (v[0] == '\'' && v[len(v)-1] == '\'') ||
+					(v[0] == '"' && v[len(v)-1] == '"') {
+						v = v[1 : len(v)-1]
+				}
+			}
+			out[k] = v
 		}
 	}
 	return out
@@ -540,7 +550,7 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 			if val == "" {
 				lines[i] = "" // remove by blanking
 			} else {
-				lines[i] = key + "=" + val
+				lines[i] = key + "=" + formatEnvValue(val)
 			}
 			touched[key] = true
 		}
@@ -549,7 +559,7 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 	// Append any keys that weren't already in the file
 	for k, v := range updates {
 		if !touched[k] && v != "" {
-			lines = append(lines, k+"="+v)
+			lines = append(lines, k + "=" + formatEnvValue(v))
 		}
 	}
 
@@ -566,6 +576,22 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0600)
+}
+
+// Check for special chars in env vars that might need quoting
+func formatEnvValue(v string) string {
+	// preserve already quoted values
+	if strings.HasPrefix(v, "'") && strings.HasSuffix(v, "'") {
+		return v
+	}
+
+	if strings.ContainsAny(v, `"$#?' `) {
+		// escape single quotes inside value
+		v = strings.ReplaceAll(v, `'`, `'\''`)
+		return fmt.Sprintf(`'%s'`, v)
+	}
+
+	return v
 }
 
 // ── Wizard ─────────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ type HttpClientConfig struct {
 }
 
 type HttpClient struct {
-	Client *http.Client
+	Client    *http.Client
 	UserAgent string
 }
 
