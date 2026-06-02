@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	flag "github.com/spf13/pflag"
 	"slices"
 	"strings"
+
+	flag "github.com/spf13/pflag"
 )
 
 var (
@@ -21,6 +22,7 @@ func (cfg *Config) GetFlags() error {
 	var excludeLocal bool
 	var persist bool
 	var showVersion bool
+	var refreshOnly bool
 	// Long flags
 	flag.StringVarP(&configPath, "config", "c", ".env", "Path of the configuration file")
 	flag.StringVarP(&playlist, "playlist", "p", "weekly-exploration", "Playlist where to get tracks. Supported: weekly-exploration, weekly-jams, daily-jams, on-repeat")
@@ -28,6 +30,7 @@ func (cfg *Config) GetFlags() error {
 	flag.BoolVarP(&excludeLocal, "exclude-local", "e", false, "Exclude locally found tracks from the imported playlist")
 	flag.BoolVar(&persist, "persist", true, "Keep playlists between generations")
 	flag.BoolVarP(&showVersion, "version", "v", false, "Print version and exit")
+	flag.BoolVar(&refreshOnly, "refresh-only", false, "Trigger alibrary rescan and exit; skips discovery and downloads")
 
 	flag.Parse()
 
@@ -38,9 +41,9 @@ func (cfg *Config) GetFlags() error {
 	persistSet := flag.Lookup("persist").Changed
 	cfgSet := flag.Lookup("config").Changed
 
-	// Validation for playlist
-	if !contains(validPlaylists, playlist) {
-		return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s)",
+	// Validation for playlist — built-in types or user-imported custom-* IDs
+	if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
+		return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
 			playlist, strings.Join(validPlaylists, ", "))
 	}
 
@@ -56,6 +59,7 @@ func (cfg *Config) GetFlags() error {
 	cfg.Flags.DownloadMode = downloadMode
 	cfg.Flags.ExcludeLocal = excludeLocal
 	cfg.Flags.Persist = persist
+	cfg.Flags.RefreshOnly = refreshOnly
 
 	// for deprecation purposes (can be removed at a later date)
 	cfg.Flags.PersistSet = persistSet
@@ -68,7 +72,7 @@ func (cfg *Config) MergeFlags() {
 	cfg.DownloadCfg.ExcludeLocal = cfg.Flags.ExcludeLocal
 
 	if cfg.Flags.CfgSet {
-	cfg.ServerCfg.WebEnvPath = cfg.Flags.CfgPath
+		cfg.ServerCfg.WebEnvPath = cfg.Flags.CfgPath
 	}
 
 	if cfg.Flags.PersistSet {

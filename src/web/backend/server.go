@@ -178,10 +178,10 @@ func (s *Server) startJobs() {
 		"0 3 * * *", coversDir, s.cfg.CacheSizeMB<<20); err != nil {
 		slog.Warn("failed to register cover cleanup job", "err", err.Error())
 	}
-	// TODO: Uncomment when jeffs branch is in
-	// if err := s.cronJobs.RegisterCustomPlaylistRefresh(s.cfg.WebDataDir, s.cfg.WebEnvPath); err != nil {
-	// 	slog.Warn("failed to register custom playlist refresh job", "err", err.Error())
-	// }
+
+	if err := s.cronJobs.RegisterCustomPlaylistRefresh(s.cfg.WebDataDir, s.cfg.WebEnvPath); err != nil {
+		slog.Warn("failed to register custom playlist refresh job", "err", err.Error())
+	}
 
 	s.cronJobs.Start()
 }
@@ -261,28 +261,28 @@ func (s *Server) registerRoutes() {
 
 	// TODO: Uncomment when jeffs branch is in
 	// custom playlists: GET list, POST import (same path); per-ID actions under prefix
-	// s.mux.HandleFunc("/api/ui/custom-playlists", func(w http.ResponseWriter, r *http.Request) {
-	// 	switch r.Method {
-	// 	case http.MethodGet:
-	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleGetCustomPlaylists)).ServeHTTP(w, r)
-	// 	case http.MethodPost:
-	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleImportCustomPlaylist)).ServeHTTP(w, r)
-	// 	default:
-	// 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	// 	}
-	// })
-	// // ID-specific routes: DELETE /api/ui/custom-playlists/{id} and POST .../{id}/refresh
-	// s.mux.HandleFunc("/api/ui/custom-playlists/", func(w http.ResponseWriter, r *http.Request) {
-	// 	if r.Method == http.MethodDelete {
-	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)).ServeHTTP(w, r)
-	// 		return
-	// 	}
-	// 	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/refresh") {
-	// 		s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)).ServeHTTP(w, r)
-	// 		return
-	// 	}
-	// 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	// })
+	s.mux.HandleFunc("/api/ui/custom-playlists", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleGetCustomPlaylists)).ServeHTTP(w, r)
+		case http.MethodPost:
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleImportCustomPlaylist)).ServeHTTP(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	// ID-specific routes: DELETE /api/ui/custom-playlists/{id} and POST .../{id}/refresh
+	s.mux.HandleFunc("/api/ui/custom-playlists/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)).ServeHTTP(w, r)
+			return
+		}
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/refresh") {
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)).ServeHTTP(w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
 
 	s.mux.Handle("/api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
 
@@ -530,10 +530,9 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 	if def, ok := playlistDefs[body.Name]; ok {
 		envPrefix = def.EnvPrefix
 		defaultFlags = def.DefaultFlags
-		// TODO: Uncomment when jeffs branch is in
-		// } else if customIDRe.MatchString(body.Name) {
-		// 	envPrefix = customEnvPrefix(body.Name)
-		// 	defaultFlags = "--playlist " + body.Name
+	} else if customIDRe.MatchString(body.Name) {
+		envPrefix = customEnvPrefix(body.Name)
+		defaultFlags = "--playlist " + body.Name
 	} else {
 		http.Error(w, "unknown playlist name", http.StatusBadRequest)
 		return
@@ -843,28 +842,27 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Uncomment when jeffs branch is in
 // triggerLibraryRefresh spawns the CLI with --refresh-only in the background to
 // nudge the configured media server's library scan. Fire-and-forget: errors are
 // logged but do not block the caller.
-// func (s *Server) triggerLibraryRefresh() {
-// 	go func() {
-// 		cmd := exec.Command(s.cfg.ExploPath, "--refresh-only", "--config", s.cfg.WebEnvPath)
-// 		env := make([]string, 0, len(os.Environ()))
-// 		for _, e := range os.Environ() {
-// 			if !strings.HasPrefix(e, "WEB_UI=") {
-// 				env = append(env, e)
-// 			}
-// 		}
-// 		cmd.Env = env
-// 		out, err := cmd.CombinedOutput()
-// 		if err != nil {
-// 			slog.Warn("library refresh failed", "err", err.Error(), "output", string(out))
-// 			return
-// 		}
-// 		slog.Info("library refresh complete")
-// 	}()
-// }
+func (s *Server) triggerLibraryRefresh() {
+	go func() {
+		cmd := exec.Command(s.cfg.ExploPath, "--refresh-only", "--config", s.cfg.WebEnvPath)
+		env := make([]string, 0, len(os.Environ()))
+		for _, e := range os.Environ() {
+			if !strings.HasPrefix(e, "WEB_UI=") {
+				env = append(env, e)
+			}
+		}
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			slog.Warn("library refresh failed", "err", err.Error(), "output", string(out))
+			return
+		}
+		slog.Info("library refresh complete")
+	}()
+}
 
 func (s *Server) startRun(args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
