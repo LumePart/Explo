@@ -141,7 +141,7 @@ func (c *Jellyfin) CheckRefreshState() bool {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -177,7 +177,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 }
 
 func (c *Jellyfin) SearchPlaylist() error {
-	queryParams := fmt.Sprintf("/Search/Hints?IncludeItemTypes=Playlist&SearchTerm=%s", c.Cfg.PlaylistName)
+	queryParams := fmt.Sprintf("/Search/Hints?IncludeItemTypes=Playlist&SearchTerm=%s", url.QueryEscape(c.Cfg.PlaylistName))
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+queryParams, nil, c.Cfg.Creds.Headers)
 	if err != nil {
 		return err
@@ -257,6 +257,14 @@ func (c *Jellyfin) DeletePlaylist() error {
 		return fmt.Errorf("deleyeJfPlaylist(): %s", err.Error())
 	}
 	return nil
+}
+
+// SetPlaylistArtwork uploads a JPEG as the playlist's primary image.
+func (c *Jellyfin) SetPlaylistArtwork(localPath string) error {
+	if c.Cfg.PlaylistID == "" {
+		return fmt.Errorf("jellyfin: no PlaylistID set")
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/Items/"+c.Cfg.PlaylistID+"/Images/Primary", localPath, c.Cfg.Creds.Headers)
 }
 
 func formatJFSongs(tracks []*models.Track) ([]byte, error) { // marshal track IDs

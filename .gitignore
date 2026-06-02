@@ -8,5 +8,6 @@ explo
 src/web/dist/
 src/web/frontend/node_modules/
 /cache
-data/
+/data/
+/.data/
 .zed/

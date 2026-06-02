@@ -78,15 +78,56 @@ func ParseResp[T any](body []byte, target *T) error {
 	return nil
 }
 
-// DownloadCover downloads coverURL into coversDir and returns "/api/covers/<mbid>.jpg".
-// Returns "" if url is empty.
+// DownloadFile downloads a URL to destPath, creating parent directories as needed.
+// No-op if destPath already exists. Returns the resolved local path on success.
+func DownloadFile(url, destPath string) (string, error) {
+	if url == "" {
+		return "", fmt.Errorf("empty url")
+	}
+	if _, err := os.Stat(destPath); err == nil {
+		return destPath, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return "", fmt.Errorf("mkdir: %w", err)
+	}
+	resp, err := http.Get(url) //nolint:noctx
+	if err != nil {
+		return "", fmt.Errorf("get: %w", err)
+	}
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.Warn("DownloadFile: close failed", "err", cerr.Error())
+		}
+	}()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status %d from %s", resp.StatusCode, url)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read body: %w", err)
+	}
+	if err := os.WriteFile(destPath, data, 0644); err != nil {
+		return "", fmt.Errorf("write: %w", err)
+	}
+	return destPath, nil
+}
+
+// DownloadCover downloads coverURL into coversDir and returns "/api/covers/<id>.jpg".
+// For CoverArtArchive URLs the id is the MusicBrainz release MBID (second-to-last
+// path segment). For Spotify CDN URLs (i.scdn.co) the id is the image hash (last
+// path segment). Returns "" if url is empty.
 func DownloadCover(url, coversDir string) string {
 	if url == "" {
 		return ""
 	}
 	parts := strings.Split(strings.TrimRight(url, "/"), "/")
-	mbid := parts[len(parts)-2]
-	destPath := filepath.Join(coversDir, mbid+".jpg")
+	// Spotify CDN: https://i.scdn.co/image/<hash>  → use last segment
+	// CAA:         https://coverartarchive.org/release/<mbid>/front-250 → use second-to-last
+	id := parts[len(parts)-2]
+	if strings.Contains(url, "scdn.co") || strings.Contains(url, "spotifycdn.com") {
+		id = parts[len(parts)-1]
+	}
+	destPath := filepath.Join(coversDir, id+".jpg")
 	if _, err := os.Stat(destPath); os.IsNotExist(err) {
 		resp, err := http.Get(url) //nolint:noctx
 		if err == nil {
@@ -106,5 +147,5 @@ func DownloadCover(url, coversDir string) string {
 			}()
 		}
 	}
-	return "/api/covers/" + mbid + ".jpg"
+	return "/api/covers/" + id + ".jpg"
 }

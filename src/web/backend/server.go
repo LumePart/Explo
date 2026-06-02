@@ -171,9 +171,12 @@ func (s *Server) startJobs() {
 	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 	if err := s.cronJobs.RegisterCoverCleanup(
 		"0 3 * * *", coversDir, s.cfg.CacheSizeMB<<20); err != nil {
-			slog.Warn("failed to register cover cleanup job", "err", err.Error())
-		}
+		slog.Warn("failed to register cover cleanup job", "err", err.Error())
+	}
 
+	if err := s.cronJobs.RegisterCustomPlaylistRefresh(s.cfg.WebDataDir, s.cfg.WebEnvPath); err != nil {
+		slog.Warn("failed to register custom playlist refresh job", "err", err.Error())
+	}
 
 	s.cronJobs.Start()
 }
@@ -236,6 +239,10 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("GET /api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
 	s.mux.Handle("GET /api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
 	s.mux.Handle("POST /api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
+	s.mux.Handle("GET /api/ui/custom-playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetCustomPlaylists)))
+	s.mux.Handle("POST /api/ui/custom-playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleImportCustomPlaylist)))
+	s.mux.Handle("DELETE /api/ui/custom-playlists/{id}", s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)))
+	s.mux.Handle("POST /api/ui/custom-playlists/{id}/refresh", s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)))
 	s.mux.Handle("POST /api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
 	s.mux.HandleFunc("GET /api/ui/csrf", s.csrfHandler)
 	s.mux.HandleFunc("POST /api/ui/login", s.handleLogin)
@@ -474,14 +481,30 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	def, ok := playlistDefs[body.Name]
-	if !ok {
+	var envPrefix string
+	var defaultFlags string
+
+	if def, ok := playlistDefs[body.Name]; ok {
+		envPrefix = def.EnvPrefix
+		defaultFlags = def.DefaultFlags
+	} else if customIDRe.MatchString(body.Name) {
+		envPrefix = customEnvPrefix(body.Name)
+		defaultFlags = "--playlist " + body.Name
+	} else {
 		http.Error(w, "unknown playlist name", http.StatusBadRequest)
 		return
 	}
 
 	updates := map[string]string{}
-	if body.Enabled {
+	if !body.Enabled {
+		// Toggle off — truly disable, regardless of day value carried over from state
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = ""
+	} else if body.Day == -2 {
+		// "Never" — keep playlist active for manual runs but remove auto-schedule
+		updates[envPrefix+"_SCHEDULE"] = ""
+		updates[envPrefix+"_FLAGS"] = defaultFlags
+	} else {
 		dom := "*"
 		dow := "*"
 		if body.Day == 100 {
@@ -489,11 +512,8 @@ func (s *Server) handleSaveSchedule(w http.ResponseWriter, r *http.Request) {
 		} else if body.Day >= 0 {
 			dow = fmt.Sprintf("%d", body.Day)
 		}
-		updates[def.EnvPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
-		updates[def.EnvPrefix+"_FLAGS"] = def.DefaultFlags
-	} else {
-		updates[def.EnvPrefix+"_SCHEDULE"] = ""
-		updates[def.EnvPrefix+"_FLAGS"] = ""
+		updates[envPrefix+"_SCHEDULE"] = fmt.Sprintf("%d %d %s * %s", body.Minute, body.Hour, dom, dow)
+		updates[envPrefix+"_FLAGS"] = defaultFlags
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {
@@ -777,6 +797,28 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(s.currentRunStatus()); err != nil {
 		slog.Warn("failed to encode current run status", "msg", err.Error())
 	}
+}
+
+// triggerLibraryRefresh spawns the CLI with --refresh-only in the background to
+// nudge the configured media server's library scan. Fire-and-forget: errors are
+// logged but do not block the caller.
+func (s *Server) triggerLibraryRefresh() {
+	go func() {
+		cmd := exec.Command(s.cfg.ExploPath, "--refresh-only", "--config", s.cfg.WebEnvPath)
+		env := make([]string, 0, len(os.Environ()))
+		for _, e := range os.Environ() {
+			if !strings.HasPrefix(e, "WEB_UI=") {
+				env = append(env, e)
+			}
+		}
+		cmd.Env = env
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			slog.Warn("library refresh failed", "err", err.Error(), "output", string(out))
+			return
+		}
+		slog.Info("library refresh complete")
+	}()
 }
 
 func (s *Server) startRun(args []string) error {

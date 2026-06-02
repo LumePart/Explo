@@ -367,7 +367,7 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
 		params := fmt.Sprintf(
 			"/hubs/search?query=%s&limit=10",
-			url.QueryEscape(track.CleanTitle),
+			url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)),
 		)
 
 		var body []byte
@@ -524,6 +524,14 @@ func (c *Plex) DeletePlaylist() error {
 	return nil
 }
 
+// SetPlaylistArtwork uploads an image as the playlist's poster.
+func (c *Plex) SetPlaylistArtwork(localPath string) error {
+	if c.Cfg.PlaylistID == "" {
+		return fmt.Errorf("plex: no PlaylistID set")
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/library/metadata/"+c.Cfg.PlaylistID+"/posters", localPath, c.Cfg.Creds.Headers)
+}
+
 func (c *Plex) getServer() error {
 	params := "/identity"
 
@@ -542,7 +550,7 @@ func (c *Plex) getServer() error {
 }
 
 func getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
-	loweredArtist := strings.ToLower(track.MainArtist)
+	normArtist := util.AlnumOnly(strings.ToLower(track.MainArtist))
 
 	for _, md := range metadata {
 		if md.Type != "track" {
@@ -550,8 +558,8 @@ func getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
 		}
 
 		titleMatch := util.NormalizeTitle(md.Title) == util.NormalizeTitle(track.Title)
-		albumMatch := strings.EqualFold(md.ParentTitle, track.Album)
-		artistMatch := strings.Contains(strings.ToLower(md.OriginalTitle), loweredArtist) || strings.Contains(strings.ToLower(md.GrandparentTitle), loweredArtist)
+		albumMatch := util.AlnumOnly(strings.ToLower(md.ParentTitle)) == util.AlnumOnly(strings.ToLower(track.Album))
+		artistMatch := strings.Contains(util.AlnumOnly(strings.ToLower(md.OriginalTitle)), normArtist) || strings.Contains(util.AlnumOnly(strings.ToLower(md.GrandparentTitle)), normArtist)
 
 		if titleMatch && (albumMatch || artistMatch) {
 			slog.Debug(fmt.Sprintf("matched track via metadata: %s by %s", track.Title, track.Artist))
