@@ -69,11 +69,11 @@ func newManualRunState() manualRunState {
 }
 
 type Server struct {
-	cfg			   config.ServerConfig
+	cfg            config.ServerConfig
 	mux            *http.ServeMux
 	server         *http.Server
 	authStore      *AuthStore
-	cronJobs	   *Jobs
+	cronJobs       *Jobs
 	sessionManager *SessionManager
 	manualRun      manualRunState
 }
@@ -87,25 +87,25 @@ func NewServer(cfg config.ServerConfig) *Server {
 	)
 
 	authStore := NewAuthStore(
-	cfg.Username,
-	cfg.Password,
-	sessionManager,
-)
+		cfg.Username,
+		cfg.Password,
+		sessionManager,
+	)
 
 	cronJobs := NewJobs()
 
 	mux := http.NewServeMux()
 	s := &Server{
 		cfg: cfg,
-		mux:        mux,
+		mux: mux,
 		server: &http.Server{
 			Addr:    cfg.Port,
 			Handler: sessionManager.Handle(mux),
 		},
-		authStore: authStore,
-		cronJobs: cronJobs,
+		authStore:      authStore,
+		cronJobs:       cronJobs,
 		sessionManager: sessionManager,
-		manualRun: newManualRunState(),
+		manualRun:      newManualRunState(),
 	}
 
 	s.registerRoutes()
@@ -144,8 +144,13 @@ func checkForUpdate() {
 	c := parseVer(config.Version)
 	newer := false
 	for i := range 3 {
-		if l[i] > c[i] { newer = true; break }
-		if l[i] < c[i] { break }
+		if l[i] > c[i] {
+			newer = true
+			break
+		}
+		if l[i] < c[i] {
+			break
+		}
 	}
 	if newer {
 		slog.Info("new version available!", "latest", release.TagName, "current", config.Version)
@@ -181,7 +186,7 @@ func (s *Server) startJobs() {
 	s.cronJobs.Start()
 }
 
-func(s *Server) PrefetchCovers() {
+func (s *Server) PrefetchCovers() {
 
 	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
 
@@ -385,7 +390,7 @@ func parseEnvText(text string) map[string]string {
 			if len(v) >= 2 {
 				if (v[0] == '\'' && v[len(v)-1] == '\'') ||
 					(v[0] == '"' && v[len(v)-1] == '"') {
-						v = v[1 : len(v)-1]
+					v = v[1 : len(v)-1]
 				}
 			}
 			out[k] = v
@@ -559,7 +564,7 @@ func updateEnvKeys(path string, updates map[string]string, fallback []byte) erro
 	// Append any keys that weren't already in the file
 	for k, v := range updates {
 		if !touched[k] && v != "" {
-			lines = append(lines, k + "=" + formatEnvValue(v))
+			lines = append(lines, k+"="+formatEnvValue(v))
 		}
 	}
 
@@ -695,7 +700,9 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		FilterList       string   `json:"filter_list"`
 		SlskdURL         string   `json:"slskd_url"`
 		SlskdAPIKey      string   `json:"slskd_api_key"`
-		Extensions       string   `json:"extensions"`      // slskd
+		LidarrURL        string   `json:"lidarr_url"`
+		LidarrAPIKey     string   `json:"lidarr_api_key"`
+		Extensions       string   `json:"extensions"` // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -725,8 +732,10 @@ func (s *Server) handleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
-		"EXTENSIONS":        body.Extensions,        // slskd
-		"WIZARD_COMPLETE":	 "true",
+		"LIDARR_URL":        body.LidarrURL,
+		"LIDARR_API_KEY":    body.LidarrAPIKey,
+		"EXTENSIONS":        body.Extensions, // slskd
+		"WIZARD_COMPLETE":   "true",
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {

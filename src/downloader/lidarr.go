@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 
 	cfg "explo/src/config"
 	"explo/src/models"
@@ -23,65 +23,10 @@ type Lidarr struct {
 }
 
 type Album struct {
-	ID             int       `json:"id"`
-	Title          string    `json:"title"`
-	Disambiguation string    `json:"disambiguation"`
-	Overview       string    `json:"overview"`
-	ArtistID       int       `json:"artistId"`
-	ForeignAlbumID string    `json:"foreignAlbumId"`
-	Monitored      bool      `json:"monitored"`
-	AnyReleaseOK   bool      `json:"anyReleaseOk"`
-	ProfileID      int       `json:"profileId"`
-	Duration       int       `json:"duration"`
-	AlbumType      string    `json:"albumType"`
-	SecondaryTypes []string  `json:"secondaryTypes"`
-	MediumCount    int       `json:"mediumCount"`
-	Ratings        Ratings   `json:"ratings"`
-	ReleaseDate    string    `json:"releaseDate"`
-	Releases       []Release `json:"releases"`
-	Genres         []string  `json:"genres"`
-	Media          []Media   `json:"media"`
-	Artist         Artist    `json:"artist"`
-}
-
-type Ratings struct {
-	Votes int     `json:"votes"`
-	Value float64 `json:"value"`
-}
-
-type Release struct {
-	ID               int      `json:"id"`
-	AlbumID          int      `json:"albumId"`
-	ForeignReleaseID string   `json:"foreignReleaseId"`
-	Title            string   `json:"title"`
-	Status           string   `json:"status"`
-	Duration         int      `json:"duration"`
-	TrackCount       int      `json:"trackCount"`
-	Media            []Media  `json:"media"`
-	MediumCount      int      `json:"mediumCount"`
-	Disambiguation   string   `json:"disambiguation"`
-	Country          []string `json:"country"`
-	Label            []string `json:"label"`
-	Format           string   `json:"format"`
-	Monitored        bool     `json:"monitored"`
-}
-
-type Media struct {
-	MediumNumber int    `json:"mediumNumber"`
-	MediumName   string `json:"mediumName"`
-	MediumFormat string `json:"mediumFormat"`
-}
-
-type Artist struct {
-	Status            string `json:"status"`
-	Ended             bool   `json:"ended"`
-	ArtistName        string `json:"artistName"`
-	ForeignArtistID   string `json:"foreignArtistId"`
-	ArtistType        string `json:"artistType"`
-	Disambiguation    string `json:"disambiguation"`
-	QualityProfileID  int
-	MetadataProfileID int
-	RootFolderPath    string
+	ID             int    `json:"id"`
+	Title          string `json:"title"`
+	ArtistID       int    `json:"artistId"`
+	ForeignAlbumID string `json:"foreignAlbumId"`
 }
 
 type LidarrTrack struct {
@@ -143,36 +88,14 @@ type LidarrQueueItem struct {
 	Artist                              []LidarrQueueArtist `json:"artist"`
 }
 
-type Image struct {
-	// can leave empty for now
-}
-
-type AddOptions struct {
-	SearchForNewAlbum bool `json:"searchForNewAlbum"`
-}
-
-type MinimalArtist struct {
-	ForeignArtistID   string `json:"foreignArtistId"`
-	QualityProfileID  int    `json:"qualityProfileId"`
-	MetadataProfileID int    `json:"metadataProfileId"`
-	Monitored         bool   `json:"monitored"`
-	RootFolderPath    string `json:"rootFolderPath"`
-}
-
-type AddAlbumRequest struct {
-	ForeignAlbumID string        `json:"foreignAlbumId"`
-	Images         []Image       `json:"images"`
-	Monitored      bool          `json:"monitored"`
-	AnyReleaseOk   bool          `json:"anyReleaseOk"`
-	Artist         MinimalArtist `json:"artist"`
-	AddOptions     AddOptions    `json:"addOptions"`
-	Releases       []Release     `json:"releases"`
-}
-
 type RootFolder struct {
 	Path                     string `json:"path"`
 	DefaultMetadataProfileId int    `json:"defaultMetadataProfileId"`
 	DefaultQualityProfileId  int    `json:"defaultQualityProfileId"`
+}
+
+type AddOptions struct {
+	SearchForNewAlbum bool `json:"searchForNewAlbum"`
 }
 
 func NewLidarr(cfg cfg.Lidarr, downloadDir string) *Lidarr { // init downloader cfg for lidarr
@@ -192,8 +115,8 @@ func (c *Lidarr) AddHeader() {
 
 func (c *Lidarr) GetConf() (MonitorConfig, error) {
 	return MonitorConfig{
-		CheckInterval:   c.Cfg.MonitorConfig.Interval,
-		MonitorDuration: c.Cfg.MonitorConfig.Duration,
+		CheckInterval:   time.Duration(c.Cfg.MonitorConfig.Interval) * time.Minute,
+		MonitorDuration: time.Duration(c.Cfg.MonitorConfig.Duration) * time.Minute,
 		MigrateDownload: c.Cfg.MigrateDL,
 		ToDir:           c.DownloadDir,
 		FromDir:         c.Cfg.LidarrDir,
@@ -202,35 +125,48 @@ func (c *Lidarr) GetConf() (MonitorConfig, error) {
 }
 
 func (c *Lidarr) QueryTrack(track *models.Track) error {
+	trackDetails := fmt.Sprintf("%s - %s", track.Title, track.Artist)
+	slog.Info("initiating search", "track", trackDetails)
 
-	slog.Debug("querying track", 
-	    "title", track.Title,
-	    "artist", track.Artist,
-	    "album", track.Album,
-	)
-	slog.Debug(fmt.Sprintf("looking for track %s by %s on album %s", track.Title, track.Artist, track.Album))
-
-	album, err := c.findBestAlbumMatch(track)
-	if err != nil {
-		return err
+	if err := c.getReleaseGroupId(track); err != nil {
+		return fmt.Errorf("failed to get release group id for %s - %s: %w", track.Title, track.Artist, err)
 	}
 
-	queryURL := fmt.Sprintf("%s/api/v1/track?apiKey=%s&artistId=%v&albumId=%v", c.Cfg.URL, c.Cfg.APIKey, album.ArtistID, album.Releases[0].AlbumID)
-	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	queryURL := fmt.Sprintf("%s/api/v1/album?foreignAlbumId=%s", c.Cfg.URL, track.MusicBrainzReleaseGroupID)
+	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
+	if err != nil {
+		return fmt.Errorf("failed to check library for album: %w", err)
+	}
+
+	var libraryAlbums []Album
+	if err = util.ParseResp(body, &libraryAlbums); err != nil {
+		return fmt.Errorf("failed to unmarshal library albums: %w", err)
+	}
+
+	if len(libraryAlbums) == 0 {
+		slog.Info("album not found in Lidarr library")
+		return nil
+	}
+
+	libraryAlbum := libraryAlbums[0]
+	slog.Info("album found in Lidarr library", "album", libraryAlbum.Title, "id", libraryAlbum.ID)
+
+	queryURL = fmt.Sprintf("%s/api/v1/track?artistId=%v&albumId=%v", c.Cfg.URL, libraryAlbum.ArtistID, libraryAlbum.ID)
+	body, err = c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
 	if err != nil {
 		return fmt.Errorf("failed to check existing tracks: %w", err)
 	}
 
 	var lidarrTracks []LidarrTrack
 	if err = util.ParseResp(body, &lidarrTracks); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr tracks body: %w", err)
+		return fmt.Errorf("failed to unmarshal lidarr tracks: %w", err)
 	}
 
 	for _, t := range lidarrTracks {
-		if strings.Contains(t.Title, track.Title) {
-			if t.HasFile {
-				track.Present = true
-			}
+		if strings.Contains(t.Title, track.Title) && t.HasFile {
+			track.Present = true
+			slog.Info("track already present in Lidarr", "track", trackDetails)
+			return nil
 		}
 	}
 
@@ -239,105 +175,54 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 
 func (c Lidarr) GetTrack(track *models.Track) error {
 
-	slog.Debug("downloading track", 
-	    "title", track.Title,
-	    "artist", track.Artist,
-	    "album", track.Album,
+	slog.Info("downloading track",
+		"title", track.Title,
+		"artist", track.Artist,
+		"album", track.Album,
 	)
 	if track.Present {
 		return nil
 	}
 
-	// Get the defaults from the root dir
-	queryURL := fmt.Sprintf("%s/api/v1/rootfolder?apiKey=%s", c.Cfg.URL, c.Cfg.APIKey)
-
-	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
+	rootFolder, err := c.getRootDirectory()
 	if err != nil {
-		return fmt.Errorf("failed to lookup root folder: %w", err)
+		return fmt.Errorf("could not look up root directory: %w", err)
 	}
 
-	var rootFolders []RootFolder
-	if err = util.ParseResp(body, &rootFolders); err != nil {
-		return fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
-	}
-
-	if len(rootFolders) == 0 {
-		return fmt.Errorf("no root folders found in Lidarr")
-	}
-	rootFolder := rootFolders[0]
-
-	album, err := c.findBestAlbumMatch(track)
-	if err != nil {
-		return err
-	}
-
-	payload := AddAlbumRequest{
-		ForeignAlbumID: track.MusicBrainzAlbumID,
-		Images:         []Image{},
-		Monitored:      true,
-		AnyReleaseOk:   true,
-		Artist: MinimalArtist{
-			QualityProfileID:  rootFolder.DefaultQualityProfileId,
-			MetadataProfileID: rootFolder.DefaultMetadataProfileId,
-			Monitored:         false,
-			ForeignArtistID:   track.MusicBrainzArtistID,
-			RootFolderPath:    rootFolder.Path,
+	payload := map[string]any{
+		"foreignAlbumId": track.MusicBrainzReleaseGroupID,
+		"monitored":      true,
+		"anyReleaseOk":   true,
+		"artist": map[string]any{
+			"qualityProfileId":  rootFolder.DefaultQualityProfileId,
+			"metadataProfileId": rootFolder.DefaultMetadataProfileId,
+			"foreignArtistId":   track.MusicBrainzArtistID,
+			"rootFolderPath":    rootFolder.Path,
 		},
-		AddOptions: AddOptions{
+		"addOptions": AddOptions{
 			SearchForNewAlbum: true,
 		},
-		Releases: []Release{album.Releases[0]},
 	}
 
-	body, err = json.Marshal(payload)
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal error: %w", err)
 	}
-	queryURL = fmt.Sprintf("%s/api/v1/album?apiKey=%s", c.Cfg.URL, c.Cfg.APIKey)
-	_, err = c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(body), nil)
+	queryURL := fmt.Sprintf("%s/api/v1/album", c.Cfg.URL)
+	slog.Info("Track struct", track)
+	slog.Info("request payload", payload)
+	slog.Info("query url", queryURL)
+	_, err = c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(body), c.Headers)
 	if err != nil {
 		return fmt.Errorf("failed to add album: %w", err)
 	}
 	return nil
 }
 
-func (c Lidarr) findBestAlbumMatch(track *models.Track) (*Album, error) {
-	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Album, track.MainArtist))
-	queryURL := fmt.Sprintf("%s/api/v1/album/lookup?apiKey=%s&term=%s", c.Cfg.URL, c.Cfg.APIKey, escQuery)
-
-	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to lookup tracks: %w", err)
-	}
-
-	var albums []Album
-	if err = util.ParseResp(body, &albums); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal query lidarr body: %w", err)
-	}
-
-	if len(albums) == 0 {
-		return nil, fmt.Errorf("could not find album for track: %s - %s", track.Title, track.MainArtist)
-	}
-	topMatch := albums[0]
-	if len(topMatch.Releases) == 0 {
-		return nil, fmt.Errorf("could not find album releases for track: %s - %s", track.Title, track.MainArtist)
-	}
-
-	track.MusicBrainzAlbumID = topMatch.ForeignAlbumID
-	track.MusicBrainzArtistID = topMatch.Artist.ForeignArtistID
-
-	if topMatch.Releases[0].ID == 0 || topMatch.ArtistID == 0 {
-		return nil, fmt.Errorf("invalid album or artist ID for track: %s - %s", track.Title, track.MainArtist)
-	}
-
-	return &topMatch, nil
-}
-
-
 func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
-	req := fmt.Sprintf("/api/v1/queue?apiKey=%s", c.Cfg.APIKey)
+	req := "/api/v1/queue"
 
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, c.Headers)
 	if err != nil {
 		return nil, err
 	}
@@ -360,11 +245,53 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 		}
 	}
 
-	if len(statuses) == 0 {
-		return nil, fmt.Errorf("no queue items found")
+	return statuses, nil
+}
+
+func (c Lidarr) getRootDirectory() (*RootFolder, error) {
+	// Get the defaults from the root dir
+	queryURL := fmt.Sprintf("%s/api/v1/rootfolder", c.Cfg.URL)
+	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup root folder: %w", err)
 	}
 
-	return statuses, nil
+	var rootFolders []RootFolder
+	if err = util.ParseResp(body, &rootFolders); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal query root folder: %w", err)
+	}
+
+	if len(rootFolders) == 0 {
+		return nil, fmt.Errorf("no root folders found in Lidarr")
+	}
+	rootFolder := rootFolders[0]
+	return &rootFolder, nil
+}
+
+func (c Lidarr) getReleaseGroupId(track *models.Track) error {
+	if track.MusicBrainzReleaseGroupID != "" {
+		return nil
+	}
+
+	escQuery := url.PathEscape(fmt.Sprintf("%s - %s", track.Album, track.MainArtist))
+	queryURL := fmt.Sprintf("%s/api/v1/album/lookup?term=%s", c.Cfg.URL, escQuery)
+
+	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
+	if err != nil {
+		return fmt.Errorf("failed to lookup album: %w", err)
+	}
+
+	var albums []Album
+	if err = util.ParseResp(body, &albums); err != nil {
+		return fmt.Errorf("failed to unmarshal lookup response: %w", err)
+	}
+
+	if len(albums) == 0 {
+		return fmt.Errorf("could not find album for track: %s - %s", track.Title, track.MainArtist)
+	}
+
+	track.MusicBrainzReleaseGroupID = albums[0].ForeignAlbumID
+	return nil
 }
 
 func percent(total, remaining int64) float64 {
@@ -375,24 +302,21 @@ func percent(total, remaining int64) float64 {
 }
 
 func (c Lidarr) deleteDownload(ID string) error {
-	reqParams := fmt.Sprintf("/api/v1/queue/%s?apiKey=%s", ID, c.Cfg.APIKey)
+	reqParams := fmt.Sprintf("/api/v1/queue/%s", ID)
 
-	// cancel download
-	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"/removeFromClient=false", nil, nil); err != nil {
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?removeFromClient=false", nil, c.Headers); err != nil {
 		return fmt.Errorf("soft delete failed: %w", err)
 	}
-	time.Sleep(1 * time.Second) // Small buffer between soft and hard delete
-	// delete download
-	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"/removeFromClient=true", nil, nil); err != nil {
+	time.Sleep(1 * time.Second)
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?removeFromClient=true", nil, c.Headers); err != nil {
 		return fmt.Errorf("hard delete failed: %w", err)
 	}
-
 	return nil
 }
 
 func (c *Lidarr) Cleanup(track models.Track, fileID string) error {
 	if err := c.deleteDownload(fileID); err != nil {
-		slog.Debug(fmt.Sprintf("[lidarr] failed to delete download: %v", err))
+		slog.Info(fmt.Sprintf("[lidarr] failed to delete download: %v", err))
 	}
 	return nil
 }

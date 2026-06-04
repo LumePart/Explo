@@ -111,6 +111,19 @@ package backend
 		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 	},
+	{
+		Key: "LIDARR_URL", Label: "Lidarr URL",
+		Type: "url", Section: "downloader",
+		Placeholder:  "e.g. http://192.168.1.100:8686",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+	},
+	{
+		Key: "LIDARR_API_KEY", Label: "Lidarr API Key",
+		Type: "text", Section: "downloader",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+	},
 } */
 
 // FieldDef describes a single configurable env var.
@@ -159,5 +172,6 @@ var allConfigKeys = []string{
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY",
 	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
 	"SLSKD_URL", "SLSKD_API_KEY",
+	"LIDARR_URL", "LIDARR_API_KEY",
 	"WIZARD_COMPLETE", "MIGRATE_DOWNLOADS", "EXTENSIONS",
 }
