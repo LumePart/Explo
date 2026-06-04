@@ -163,8 +163,6 @@ func main() {
 		return
 	}
 
-	httpClient := initHttpClient()
-
 	var tracks []*models.Track
 	var err error
 	if strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
