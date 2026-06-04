@@ -15,11 +15,22 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
-	"time"
 )
 
 const lbAPIBase = "https://api.listenbrainz.org/1"
+
+// PlaylistTrack represents a single track fetched from any playlist source.
+// Replaces the raw [][4]string{title, artist, album, coverURL} pattern
+// with named fields and adds MainArtist for accurate matching in music servers.
+type PlaylistTrack struct {
+	Title      string
+	Artist     string
+	MainArtist string
+	Album      string
+	CoverURL   string
+}
 
 // validPlaylistTypes is derived from playlistDefs — no manual sync needed.
 var validPlaylistTypes = func() map[string]bool {
@@ -30,11 +41,18 @@ var validPlaylistTypes = func() map[string]bool {
 	return m
 }()
 
+var customIDRe = regexp.MustCompile(`^custom-[a-z0-9]+$`)
+
+// isValidPlaylistID accepts built-in playlist types and custom-* IDs (blocks path traversal).
+func isValidPlaylistID(t string) bool {
+	return validPlaylistTypes[t] || customIDRe.MatchString(t)
+}
+
 // handleGetPlaylist serves the tracklist cache written by explo during its last run.
 // Returns an empty track list if no cache exists yet.
 func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	playlistType := r.URL.Query().Get("type")
-	if !validPlaylistTypes[playlistType] {
+	if !isValidPlaylistID(playlistType) {
 		http.Error(w, "unknown playlist type", http.StatusBadRequest)
 		return
 	}
@@ -58,126 +76,34 @@ func (s *Server) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 
 // ── LB fallback ──────────────────────────────────────────────────────────────
 
-type lbCreatedForResp struct {
-	Count         int `json:"count"`
-	Offset        int `json:"offset"`
-	PlaylistCount int `json:"playlist_count"`
-	Playlists     []struct {
-		Playlist struct {
-			Date       time.Time `json:"date"`
-			Identifier string    `json:"identifier"`
-			Extension  struct {
-				JspfPlaylist struct {
-					AdditionalMetadata struct {
-						AlgorithmMetadata struct {
-							SourcePatch string `json:"source_patch"`
-						} `json:"algorithm_metadata"`
-					} `json:"additional_metadata"`
-				} `json:"https://musicbrainz.org/doc/jspf#playlist"`
-			} `json:"extension"`
-		} `json:"playlist"`
-	} `json:"playlists"`
-}
-
-type lbPlaylistResp struct {
-	Playlist struct {
-		Track []struct {
-			Title     string `json:"title"`
-			Creator   string `json:"creator"`
-			Album     string `json:"album"`
-			Extension struct {
-				JspfTrack struct {
-					AdditionalMetadata struct {
-						CaaID          int64  `json:"caa_id"`
-						CaaReleaseMbid string `json:"caa_release_mbid"`
-					} `json:"additional_metadata"`
-				} `json:"https://musicbrainz.org/doc/jspf#track"`
-			} `json:"extension"`
-		} `json:"track"`
-	} `json:"playlist"`
-}
-
-func fetchOnRepeatTracks(username string) ([][4]string, error) {
-	body, err := lbGet(fmt.Sprintf("%s/stats/user/%s/recordings?count=30&range=month", lbAPIBase, username))
+func fetchOnRepeatTracks(username string) ([]PlaylistTrack, error) {
+	tracks, err := discovery.FetchTopRecordings(util.NewHttp(util.HttpClientConfig{Timeout: 30}), username)
 	if err != nil {
-		return nil, fmt.Errorf("on-repeat stats fetch: %w", err)
+		return nil, err
 	}
-	var resp discovery.TopRecordings
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("on-repeat stats parse: %w", err)
-	}
-	out := make([][4]string, 0, len(resp.Payload.Recordings))
-	for _, rec := range resp.Payload.Recordings {
-		var cover string
-		if rec.ReleaseMbid != "" {
-			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/front-250", rec.ReleaseMbid)
-		}
-		out = append(out, [4]string{rec.TrackName, rec.ArtistName, rec.ReleaseName, cover})
-	}
-	return out, nil
+	return modelTracksToPlaylistTracks(tracks), nil
 }
 
-func fetchMostRecentLBPlaylist(username, playlistType string) ([][4]string, time.Time, error) {
-	var offset int
-	var bestDate time.Time
-	var bestID string
-
-	for {
-		url := fmt.Sprintf("%s/user/%s/playlists/createdfor?offset=%d", lbAPIBase, username, offset)
-		body, err := lbGet(url)
-		if err != nil {
-			return nil, time.Time{}, fmt.Errorf("createdfor fetch: %w", err)
-		}
-		var resp lbCreatedForResp
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, time.Time{}, fmt.Errorf("createdfor parse: %w", err)
-		}
-		for _, p := range resp.Playlists {
-			patch := p.Playlist.Extension.JspfPlaylist.AdditionalMetadata.AlgorithmMetadata.SourcePatch
-			if patch != playlistType {
-				continue
-			}
-			if bestID == "" || p.Playlist.Date.After(bestDate) {
-				bestDate = p.Playlist.Date
-				parts := strings.Split(p.Playlist.Identifier, "/")
-				bestID = parts[len(parts)-1]
-			}
-		}
-		fetched := resp.Count + resp.Offset
-		if fetched >= resp.PlaylistCount || resp.Count == 0 {
-			break
-		}
-		offset += resp.Count
-	}
-
-	if bestID == "" {
-		return nil, time.Time{}, nil
-	}
-
-	body, err := lbGet(fmt.Sprintf("%s/playlist/%s", lbAPIBase, bestID))
+func fetchMostRecentLBPlaylist(username, playlistType string) ([]PlaylistTrack, error) {
+	tracks, err := discovery.FetchMostRecentPlaylistByType(util.NewHttp(util.HttpClientConfig{Timeout: 30}), username, playlistType)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("playlist fetch: %w", err)
+		return nil, err
 	}
-	var resp lbPlaylistResp
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, time.Time{}, fmt.Errorf("playlist parse: %w", err)
-	}
+	return modelTracksToPlaylistTracks(tracks), nil
+}
 
-	out := make([][4]string, 0, len(resp.Playlist.Track))
-	for _, t := range resp.Playlist.Track {
-		meta := t.Extension.JspfTrack.AdditionalMetadata
-		var cover string
-		if meta.CaaReleaseMbid != "" && meta.CaaID != 0 {
-			coverSize := os.Getenv("COVERART_SIZE")
-			if coverSize == "" {
-				coverSize = "250"
-			}
-			cover = fmt.Sprintf("https://coverartarchive.org/release/%s/%d-%s.jpg",
-				meta.CaaReleaseMbid, meta.CaaID, coverSize)
+func modelTracksToPlaylistTracks(tracks []*models.Track) []PlaylistTrack {
+	out := make([]PlaylistTrack, len(tracks))
+	for i, t := range tracks {
+		out[i] = PlaylistTrack{
+			Title:      t.CleanTitle,
+			Artist:     t.Artist,
+			MainArtist: t.MainArtist,
+			Album:      t.Album,
+			CoverURL:   t.CoverURL,
 		}
-		out = append(out, [4]string{t.Title, t.Creator, t.Album, cover})
 	}
-	return out, bestDate, nil
+	return out
 }
 
 // writePlaylistCache downloads cover art and writes a tracklist JSON for the web UI.
@@ -282,12 +208,12 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
 			}
-			var tracks [][4]string
+			var tracks []PlaylistTrack
 			var err error
 			if pt == "on-repeat" {
 				tracks, err = fetchOnRepeatTracks(body.User)
 			} else {
-				tracks, _, err = fetchMostRecentLBPlaylist(body.User, pt)
+				tracks, err = fetchMostRecentLBPlaylist(body.User, pt)
 			}
 			if err != nil {
 				slog.Warn("prefetch: failed to fetch LB playlist", "type", pt, "err", err)
@@ -300,42 +226,50 @@ func (s *Server) handlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 }
 
 type cachedPrefetchTrack struct {
-	Rank     int    `json:"rank"`
-	Title    string `json:"title"`
-	Artist   string `json:"artist"`
-	Release  string `json:"release"`
-	CoverURL string `json:"coverUrl,omitempty"`
+	Rank       int    `json:"rank"`
+	Title      string `json:"title"`
+	Artist     string `json:"artist"`
+	MainArtist string `json:"mainArtist,omitempty"`
+	Release    string `json:"release"`
+	CoverURL   string `json:"coverUrl,omitempty"`
 }
 
-func writePrefetchCache(cfgDir, playlistType string, tracks [][4]string) {
+// writePreliminaryCache writes the track cache with remote cover URLs immediately.
+// Returns false if the write fails.
+func writePreliminaryCache(cfgDir, playlistType string, tracks []PlaylistTrack) bool {
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{
-			Rank:     i + 1,
-			Title:    t[0],
-			Artist:   t[1],
-			Release:  t[2],
-			CoverURL: t[3],
-		}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: t.CoverURL}
 	}
-
 	if !writeTrackCache(cfgDir, playlistType, ct) {
-		return
+		return false
 	}
 	slog.Info("prefetch: cache written", "playlist", playlistType, "covers", "remote")
+	return true
+}
 
+// downloadAndCacheCovers downloads cover art and rewrites the cache with local URLs.
+// Safe to call in a goroutine.
+func downloadAndCacheCovers(cfgDir, playlistType string, tracks []PlaylistTrack) {
 	coversDir := filepath.Join(cfgDir, "cache", "covers")
 	if err := os.MkdirAll(coversDir, 0755); err != nil {
 		slog.Error("prefetch: failed to create covers dir", "err", err.Error())
 		return
 	}
-
+	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i].CoverURL = util.DownloadCover(t[3], coversDir)
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: util.DownloadCover(t.CoverURL, coversDir)}
 	}
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
 	}
+}
+
+func writePrefetchCache(cfgDir, playlistType string, tracks []PlaylistTrack) {
+	if !writePreliminaryCache(cfgDir, playlistType, tracks) {
+		return
+	}
+	downloadAndCacheCovers(cfgDir, playlistType, tracks)
 }
 
 // ── Background art ───────────────────────────────────────────────────────────

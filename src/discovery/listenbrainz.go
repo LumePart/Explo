@@ -206,7 +206,7 @@ func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
 		if err != nil {
 			return nil, err
 		}
-		tracks, err = c.parsePlaylist(id, c.cfg.SingleArtist)
+		_, tracks, err = c.parsePlaylist(id, c.cfg.SingleArtist)
 		if err != nil {
 			return nil, err
 		}
@@ -621,19 +621,43 @@ func (c *ListenBrainz) getImportPlaylist(user string) (string, error) {
 	return bestID, nil
 }
 
-func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*models.Track, error) {
+
+// FetchPlaylistByMBID fetches a LB playlist by MBID. For use outside the discovery flow.
+func FetchPlaylistByMBID(httpClient *util.HttpClient, mbid string) (string, []*models.Track, error) {
+	lb := &ListenBrainz{HttpClient: httpClient}
+	return lb.parsePlaylist(mbid, false)
+}
+
+// FetchTopRecordings returns the user's top recordings for the current month.
+func FetchTopRecordings(httpClient *util.HttpClient, user string) ([]*models.Track, error) {
+	lb := &ListenBrainz{HttpClient: httpClient}
+	return lb.getTopRecordings(user)
+}
+
+// FetchMostRecentPlaylistByType finds and fetches the most recent LB-generated playlist of the given type for the user.
+func FetchMostRecentPlaylistByType(httpClient *util.HttpClient, user, playlistType string) ([]*models.Track, error) {
+	lb := &ListenBrainz{HttpClient: httpClient, cfg: cfg.Listenbrainz{ImportPlaylist: playlistType}}
+	id, err := lb.getImportPlaylist(user)
+	if err != nil {
+		return nil, err
+	}
+	_, tracks, err := lb.parsePlaylist(id, false)
+	return tracks, err
+}
+
+func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) (string, []*models.Track, error) {
 	body, err := c.lbRequest(fmt.Sprintf("playlist/%s", identifier))
 	if err != nil {
-		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
+		return "", nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
 	var exploration Exploration
 	err = util.ParseResp(body, &exploration)
 	if err != nil {
-		return nil, fmt.Errorf("parsePlaylist: %s", err.Error())
+		return "", nil, fmt.Errorf("parsePlaylist: %s", err.Error())
 	}
 	srcTracks := exploration.Playlist.Tracks
 	if len(srcTracks) == 0 {
-		return nil, fmt.Errorf("no tracks found in playlist %s", identifier)
+		return "", nil, fmt.Errorf("no tracks found in playlist %s", identifier)
 	}
 
 	tracks := make([]*models.Track, 0, len(srcTracks))
@@ -693,7 +717,7 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) ([]*m
 		})
 	}
 
-	return tracks, nil
+	return exploration.Playlist.Title, tracks, nil
 
 }
 

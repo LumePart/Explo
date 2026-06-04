@@ -23,6 +23,7 @@ func (cfg *Config) GetFlags() error {
 	var persist bool
 	var showVersion bool
 	var searchMBID string
+	var refreshOnly bool
 	// Long flags
 	flag.StringVarP(&configPath, "config", "c", ".env", "Path of the configuration file")
 	flag.StringVarP(&playlist, "playlist", "p", "weekly-exploration", "Playlist where to get tracks. Supported: weekly-exploration, weekly-jams, daily-jams, on-repeat")
@@ -31,7 +32,9 @@ func (cfg *Config) GetFlags() error {
 	flag.BoolVar(&persist, "persist", true, "Keep playlists between generations")
 	flag.BoolVarP(&showVersion, "version", "v", false, "Print version and exit")
 	flag.StringVar(&searchMBID, "search-mbid", "", "Test Plex search for a single recording MBID (resolves via ListenBrainz, then searches your library)")
-	flag.Parse()
+	flag.BoolVar(&refreshOnly, "refresh-only", false, "Trigger alibrary rescan and exit; skips discovery and downloads")
+
+  flag.Parse()
 
 	if showVersion {
 		fmt.Println(Version)
@@ -40,7 +43,6 @@ func (cfg *Config) GetFlags() error {
 	persistSet := flag.Lookup("persist").Changed
 	cfgSet := flag.Lookup("config").Changed
 
-	// Validation for playlist
 
 	if searchMBID == "" {
 		if !contains(validPlaylists, playlist) {
@@ -51,6 +53,11 @@ func (cfg *Config) GetFlags() error {
 			return fmt.Errorf("flag validation error: invalid download mode %s (must be one of: %s)",
 				downloadMode, strings.Join(validDownloadMode, ", "))
 		}
+    if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
+      return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
+        playlist, strings.Join(validPlaylists, ", "))
+    }
+
 	}
 	cfg.Flags.CfgPath = configPath
 	cfg.Flags.CfgSet = cfgSet
@@ -59,6 +66,8 @@ func (cfg *Config) GetFlags() error {
 	cfg.Flags.ExcludeLocal = excludeLocal
 	cfg.Flags.Persist = persist
 	cfg.Flags.SearchMBID = searchMBID
+	cfg.Flags.RefreshOnly = refreshOnly
+
 	// for deprecation purposes (can be removed at a later date)
 	cfg.Flags.PersistSet = persistSet
 
@@ -70,7 +79,7 @@ func (cfg *Config) MergeFlags() {
 	cfg.DownloadCfg.ExcludeLocal = cfg.Flags.ExcludeLocal
 
 	if cfg.Flags.CfgSet {
-	cfg.ServerCfg.WebEnvPath = cfg.Flags.CfgPath
+		cfg.ServerCfg.WebEnvPath = cfg.Flags.CfgPath
 	}
 
 	if cfg.Flags.PersistSet {

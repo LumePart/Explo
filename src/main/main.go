@@ -1,12 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"explo/src/logging"
 	"explo/src/models"
 	"explo/src/web/backend"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"explo/src/client"
 	"explo/src/config"
@@ -19,6 +23,65 @@ type Song struct {
 	Title  string
 	Artist string
 	Album  string
+}
+
+// loadCustomTracks reads a custom playlist's track cache and returns them as
+// models.Track slices, bypassing the LB discovery step entirely.
+func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, error) {
+	type cachedTrack struct {
+		Title      string `json:"title"`
+		Artist     string `json:"artist"`
+		MainArtist string `json:"mainArtist"`
+		Release    string `json:"release"`
+		CoverURL   string `json:"coverUrl"`
+	}
+	type cacheFile struct {
+		Tracks []cachedTrack `json:"tracks"`
+	}
+	type customPlaylist struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+
+	data, err := os.ReadFile(filepath.Join(dataDir, "cache", playlistID+".json"))
+	if err != nil {
+		return nil, "", fmt.Errorf("custom playlist %q not found in cache: %w", playlistID, err)
+	}
+	var c cacheFile
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, "", fmt.Errorf("failed to parse custom playlist cache: %w", err)
+	}
+
+	// Look up the human-readable name from metadata
+	name := playlistID
+	if meta, err := os.ReadFile(filepath.Join(dataDir, "custom-playlists.json")); err == nil {
+		var all []customPlaylist
+		if json.Unmarshal(meta, &all) == nil {
+			for _, p := range all {
+				if p.ID == playlistID {
+					name = p.Name
+					break
+				}
+			}
+		}
+	}
+
+	tracks := make([]*models.Track, len(c.Tracks))
+	for i, t := range c.Tracks {
+		mainArtist := t.MainArtist
+		if mainArtist == "" {
+			mainArtist = t.Artist
+		}
+		tracks[i] = &models.Track{
+			CleanTitle: t.Title,
+			Title:      t.Title,
+			Artist:     t.Artist,
+			MainArtist: mainArtist,
+			Album:      t.Release,
+			CoverURL:   t.CoverURL,
+		}
+	}
+	return tracks, name, nil
 }
 
 func initHttpClient() *util.HttpClient {
@@ -91,9 +154,31 @@ func main() {
 		log.Fatal(srv.Start())
 	}
 
-	discovery := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
-	tracks, err := discovery.Discover()
-	if err != nil {
+	if cfg.Flags.RefreshOnly {
+		if err := client.TriggerRefresh(&cfg); err != nil {
+			slog.Error("refresh-only failed", "err", err.Error())
+			os.Exit(1)
+		}
+		slog.Info("library refresh triggered")
+		return
+	}
+
+	httpClient := initHttpClient()
+
+	var tracks []*models.Track
+	var err error
+	if strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
+		var playlistName string
+		tracks, playlistName, err = loadCustomTracks(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist)
+		if err == nil {
+			cfg.ClientCfg.PlaylistName = playlistName
+		}
+	} else {
+		disc := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
+		tracks, err = disc.Discover()
+	}
+
+  if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
@@ -144,5 +229,37 @@ func main() {
 		slog.Warn(err.Error())
 	} else {
 		slog.Info("playlist created successfully", "system", cfg.System, "playlistName", cfg.ClientCfg.PlaylistName, "notify", true)
+		uploadCustomPlaylistArtwork(&cfg, client)
 	}
+}
+
+// uploadCustomPlaylistArtwork pushes a custom playlist's cached artwork to the music app
+// after first successful creation. No-op for non-custom playlists, playlists without
+// artwork, or clients that don't support artwork upload (Subsonic, MPD).
+func uploadCustomPlaylistArtwork(cfg *config.Config, c *client.Client) {
+	if !strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
+		return
+	}
+	cp := backend.GetCustomPlaylist(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist)
+	if cp == nil || cp.ArtworkURL == "" || cp.ArtworkUploaded {
+		return
+	}
+	uploader, ok := c.API.(client.ArtworkUploader)
+	if !ok {
+		return
+	}
+	path := backend.CustomPlaylistArtworkPath(cfg.ServerCfg.WebDataDir, cp.ID)
+	if _, err := os.Stat(path); err != nil {
+		slog.Warn("custom-playlists: artwork not cached locally, skipping upload", "id", cp.ID, "path", path)
+		return
+	}
+	if err := uploader.SetPlaylistArtwork(path); err != nil {
+		slog.Warn("custom-playlists: failed to upload playlist artwork", "id", cp.ID, "err", err.Error())
+		return
+	}
+	if err := backend.MarkCustomPlaylistArtworkUploaded(cfg.ServerCfg.WebDataDir, cp.ID); err != nil {
+		slog.Warn("custom-playlists: artwork upload succeeded but flag not persisted", "id", cp.ID, "err", err.Error())
+		return
+	}
+	slog.Info("custom-playlists: playlist artwork uploaded", "id", cp.ID, "system", cfg.System)
 }

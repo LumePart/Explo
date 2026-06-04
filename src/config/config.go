@@ -39,6 +39,7 @@ type Flags struct {
 	Persist      bool
 	PersistSet   bool
 	SearchMBID   string
+	RefreshOnly  bool
 }
 
 type ServerConfig struct {

@@ -126,7 +126,7 @@ func (c *Emby) CheckRefreshState() bool {
 
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(track.CleanTitle))
+		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -162,7 +162,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 }
 
 func (c *Emby) SearchPlaylist() error {
-	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", c.Cfg.PlaylistName)
+	params := fmt.Sprintf("/emby/Items?SearchTerm=%s&Recursive=true&IncludeItemTypes=Playlist", url.QueryEscape(c.Cfg.PlaylistName))
 
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
 	if err != nil {
@@ -185,7 +185,7 @@ func (c *Emby) SearchPlaylist() error {
 func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
 	songIDs := formatEmbySongs(tracks)
 
-	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", c.Cfg.PlaylistName, songIDs)
+	reqParam := fmt.Sprintf("/emby/Playlists?Name=%s&Ids=%s&MediaType=Music", url.QueryEscape(c.Cfg.PlaylistName), songIDs)
 
 
 	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
@@ -225,6 +225,14 @@ func (c *Emby) DeletePlaylist() error { // Doesn't currently work due to a bug i
 		return err
 	} */
 	return nil
+}
+
+// SetPlaylistArtwork uploads a JPEG as the playlist's primary image.
+func (c *Emby) SetPlaylistArtwork(localPath string) error {
+	if c.Cfg.PlaylistID == "" {
+		return fmt.Errorf("emby: no PlaylistID set")
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/emby/Items/"+c.Cfg.PlaylistID+"/Images/Primary", localPath, c.Cfg.Creds.Headers)
 }
 
 func formatEmbySongs(tracks []*models.Track) string {
