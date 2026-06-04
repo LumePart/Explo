@@ -5,6 +5,7 @@ on:
       - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
     branches:
       - dev
+      - feat/add-lidarr-download-config
   pull_request:
     branches: ['*']
   workflow_dispatch:
@@ -133,7 +134,7 @@ jobs:
   build-dev:
     name: Build/publish dev image
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/feat/add-lidarr-download-config'
     permissions:
       contents: read
       packages: write

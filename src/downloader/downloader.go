@@ -128,6 +128,9 @@ func (c *DownloadClient) needsDownloadDir() bool {
 			return true
 		}
 	}
+	if c.Cfg.Lidarr.MigrateDL {
+		return c.Cfg.Lidarr.MigrateDL
+	}
 	return c.Cfg.Slskd.MigrateDL
 }
 
