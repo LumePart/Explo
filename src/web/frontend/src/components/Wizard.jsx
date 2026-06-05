@@ -251,17 +251,18 @@ function Collapse({ open, children }) {
 }
 
 // ── Step 3: Downloader ────────────────────────────────────────────────────────
-// Collects download service selection (YouTube, Slskd) and their respective
+// Collects download service selection (YouTube, Slskd, Lidarr) and their respective
 // credentials, download directory, and file format preferences.
 
 function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
-          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, extensions } = fields
+          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, lidarrUrl, lidarrApiKey, extensions } = fields
   const isLocked = key => envSources[key] === 'env'
 
   const valid = () => {
     if (!Object.values(dlServices).some(Boolean)) return false
     if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim())) return false
+    if (dlServices.lidarr && (!lidarrUrl.trim() || !lidarrApiKey.trim())) return false
     return true
   }
 
@@ -378,6 +379,69 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
             </div>
           </Collapse>
         </div>
+
+        {/* Lidarr section */}
+        <div className="flex flex-col gap-4">
+          <ToggleRow
+            checked={dlServices.lidarr}
+            onChange={v => setField('dlServices', { ...dlServices, lidarr: v })}
+            name="Lidarr"
+            desc="Downloads using Lidarr's config · requires a running Lidarr instance"
+          />
+          <Collapse open={dlServices.lidarr}>
+            <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
+              <TextField label="Lidarr URL">
+                <input type="text" className={inputCls} value={lidarrUrl} onChange={e => setField('lidarrUrl', e.target.value)}
+                  placeholder="e.g. http://192.168.1.100:5030" disabled={isLocked('LIDARR_URL')} />
+              </TextField>
+              <TextField label="Lidarr API Key">
+                <input type="text" className={inputCls} value={lidarrApiKey} onChange={e => setField('lidarrApiKey', e.target.value)}
+                  autoComplete="off" spellCheck={false} disabled={isLocked('LIDARR_API_KEY')} />
+              </TextField>
+              <TextField label="File extensions"
+                hint="Comma-separated list of extensions to prefer, in priority order. No spaces.">
+                <input type="text" className={inputCls} value={extensions} onChange={e => setField('extensions', e.target.value)}
+                  placeholder="flac,mp3" autoComplete="off" spellCheck={false} disabled={isLocked('EXTENSIONS')} />
+              </TextField>
+              {/* Show keyword exclusion when YouTube isn't enabled — otherwise it lives in the YouTube section */}
+              <Collapse open={!dlServices.youtube}>
+                <TextField label="Exclude keywords"
+                  hint="Leave blank to use the defaults shown.">
+                  <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                    placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
+                </TextField>
+              </Collapse>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] text-muted leading-relaxed">
+                  By default, lidarr saves tracks to whichever download path is configured in your lidarr instance.
+                </p>
+                <ToggleRow
+                  checked={migrateDownloads}
+                  onChange={v => setField('migrateDownloads', v)}
+                  disabled={isLocked('MIGRATE_DOWNLOADS')}
+                  desc="Move completed downloads to a separate directory after transfer"
+                />
+              </div>
+              {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
+              <Collapse open={migrateDownloads && !dlServices.youtube}>
+                <div className="flex flex-col gap-4 pt-4 pb-1">
+                  <TextField label="Download directory"
+                    hint="Custom download directory. Leave blank to use default">
+                    <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
+                      placeholder="/data/" />
+                  </TextField>
+                  <ToggleRow
+                    checked={useSubdirectory}
+                    onChange={v => setField('useSubdirectory', v)}
+                    disabled={isLocked('USE_SUBDIRECTORY')}
+                    name="Use playlist subfolders"
+                    desc="Create a subfolder per playlist inside the download directory"
+                  />
+                </div>
+              </Collapse>
+            </div>
+          </Collapse>
+        </div>
       </div>
 
       <div className="mt-8 flex">
@@ -421,12 +485,14 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
       downloadDir:      config.DOWNLOAD_DIR || '',
       useSubdirectory:  config.USE_SUBDIRECTORY !== 'false',
       migrateDownloads: config.MIGRATE_DOWNLOADS === 'true',
-      dlServices:       { youtube: s.includes('youtube'), slskd: s.includes('slskd') },
+      dlServices:       { youtube: s.includes('youtube'), slskd: s.includes('slskd'), lidarr: s.includes('lidarr') },
       youtubeApiKey:    config.YOUTUBE_API_KEY || '',
       trackExtension:   config.TRACK_EXTENSION || '',
       filterList:       config.FILTER_LIST || '',
       slskdUrl:         config.SLSKD_URL || '',
       slskdApiKey:      config.SLSKD_API_KEY || '',
+      lidarrUrl:        config.LIDARR_URL || '',
+      lidarrApiKey:     config.LIDARR_API_KEY || '',
       extensions:       config.EXTENSIONS || '',
     }
   })
@@ -479,6 +545,7 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
         migrate_downloads: fields.migrateDownloads, download_services: services,
         youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
         filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,
+        lidarr_url: fields.lidarrUrl, lidarr_api_key: fields.lidarrApiKey,
         extensions: fields.extensions,
       })
       onComplete()

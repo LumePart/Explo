@@ -94,6 +94,7 @@ type DownloadConfig struct {
 	Youtube         Youtube
 	YoutubeMusic    YoutubeMusic
 	Slskd           Slskd
+	Lidarr          Lidarr
 	ExcludeLocal    bool
 	KeepPermissions bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	RenameTrack     bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
@@ -143,18 +144,35 @@ type SlskdMon struct {
 	Duration int `env:"SLSKD_MONITOR_DURATION" env-default:"15"`
 }
 
+type Lidarr struct {
+	APIKey           string `env:"LIDARR_API_KEY"`
+	Retry            int    `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
+	DownloadAttempts int    `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	LidarrDir        string `env:"LIDARR_DIR" env-default:"/lidarr/"`
+	MigrateDL        bool   `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
+	Timeout          int    `env:"LIDARR_TIMEOUT" env-default:"20"`
+	URL              string `env:"LIDARR_URL"`
+	Filters          Filters
+	MonitorConfig    LidarrMon
+}
+
+type LidarrMon struct {
+	Interval time.Duration `env:"LIDARR_MONITOR_INTERVAL" env-default:"1m"`
+	Duration time.Duration `env:"LIDARR_MONITOR_DURATION" env-default:"15m"`
+}
+
 type DiscoveryConfig struct {
-	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	Discovery       string   `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
 	ArtistBlacklist []string `env:"ARTIST_BLACKLIST"`
-	Listenbrainz Listenbrainz
+	Listenbrainz    Listenbrainz
 }
 type Listenbrainz struct {
-	Discovery              string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	User                   string `env:"LISTENBRAINZ_USER"`
-	ImportPlaylist         string
-	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
-	CoverArtSize           string `env:"COVER_ART_SIZE" env-default:"250"`
-	EnrichTrackMetadata	   bool   `env:"ENRICH_TRACK_METADATA" env-default:"false"`
+	Discovery           string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	User                string `env:"LISTENBRAINZ_USER"`
+	ImportPlaylist      string
+	SingleArtist        bool   `env:"SINGLE_ARTIST" env-default:"true"`
+	CoverArtSize        string `env:"COVER_ART_SIZE" env-default:"250"`
+	EnrichTrackMetadata bool   `env:"ENRICH_TRACK_METADATA" env-default:"false"`
 }
 
 type NotifyConfig struct {
@@ -215,6 +233,7 @@ func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.CoversDir = filepath.Join(filepath.Dir(cfg.Flags.CfgPath), "cache", "covers")
 	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
 	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
+	cfg.DownloadCfg.Lidarr.URL = fixBaseURL(cfg.DownloadCfg.Lidarr.URL)
 	cfg.NormalizeDir()
 }
 
@@ -223,6 +242,7 @@ func (cfg *Config) NormalizeDir() {
 		cfg.ClientCfg.PlaylistDir = fixDir(cfg.ClientCfg.PlaylistDir)
 	}
 	cfg.DownloadCfg.Slskd.SlskdDir = fixDir(cfg.DownloadCfg.Slskd.SlskdDir)
+	cfg.DownloadCfg.Lidarr.LidarrDir = fixDir(cfg.DownloadCfg.Lidarr.LidarrDir)
 	cfg.DownloadCfg.DownloadDir = fixDir(cfg.DownloadCfg.DownloadDir)
 }
 

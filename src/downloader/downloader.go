@@ -38,6 +38,10 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
+		case "lidarr":
+			lidarrClient := NewLidarr(cfg.Lidarr, cfg.DownloadDir)
+			lidarrClient.AddHeader()
+			downloader = append(downloader, lidarrClient)
 		default:
 			return nil, fmt.Errorf("downloader '%s' not supported", service)
 		}
@@ -100,6 +104,9 @@ func (c *DownloadClient) needsDownloadDir() bool {
 		if svc == "youtube" || svc == "youtube-music" {
 			return true
 		}
+	}
+	if c.Cfg.Lidarr.MigrateDL {
+		return c.Cfg.Lidarr.MigrateDL
 	}
 	return c.Cfg.Slskd.MigrateDL
 }
