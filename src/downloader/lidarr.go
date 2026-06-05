@@ -42,11 +42,7 @@ type LidarrTrack struct {
 	Duration            int    `json:"duration"` // In milliseconds
 	MediumNumber        int    `json:"mediumNumber"`
 	HasFile             bool   `json:"hasFile"`
-	Ratings             struct {
-		Votes int     `json:"votes"`
-		Value float64 `json:"value"`
-	} `json:"ratings"`
-	ID int `json:"id"`
+	ID                  int    `json:"id"`
 }
 
 type LidarrQueue struct {
@@ -64,28 +60,17 @@ type LidarrQueueAlbum struct {
 }
 
 type LidarrQueueItem struct {
-	ArtistID                            int                 `json:"artistId"`
-	AlbumID                             int                 `json:"albumId"`
-	Size                                int64               `json:"size"`
-	Title                               string              `json:"title"`
-	SizeLeft                            int64               `json:"sizeleft"`
-	TimeLeft                            string              `json:"timeleft"` // duration string like "00:00:00"
-	EstimatedCompletionTime             time.Time           `json:"estimatedCompletionTime"`
-	Added                               time.Time           `json:"added"`
-	Status                              string              `json:"status"`
-	TrackedDownloadStatus               string              `json:"trackedDownloadStatus"`
-	TrackedDownloadState                string              `json:"trackedDownloadState"`
-	StatusMessages                      []string            `json:"statusMessages"`
-	DownloadID                          string              `json:"downloadId"`
-	Protocol                            string              `json:"protocol"`
-	DownloadClient                      string              `json:"downloadClient"`
-	DownloadClientHasPostImportCategory bool                `json:"downloadClientHasPostImportCategory"`
-	Indexer                             string              `json:"indexer"`
-	TrackFileCount                      int                 `json:"trackFileCount"`
-	TrackHasFileCount                   int                 `json:"trackHasFileCount"`
-	DownloadForced                      bool                `json:"downloadForced"`
-	ID                                  int64               `json:"id"`
-	Artist                              []LidarrQueueArtist `json:"artist"`
+	ArtistID                int                 `json:"artistId"`
+	AlbumID                 int                 `json:"albumId"`
+	Size                    int64               `json:"size"`
+	Title                   string              `json:"title"`
+	SizeLeft                int64               `json:"sizeleft"`
+	TimeLeft                string              `json:"timeleft"` // duration string like "00:00:00"
+	EstimatedCompletionTime time.Time           `json:"estimatedCompletionTime"`
+	Added                   time.Time           `json:"added"`
+	Status                  string              `json:"status"`
+	ID                      int64               `json:"id"`
+	Artist                  []LidarrQueueArtist `json:"artist"`
 }
 
 type RootFolder struct {
@@ -150,6 +135,7 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 
 	libraryAlbum := libraryAlbums[0]
 	slog.Info("album found in Lidarr library", "album", libraryAlbum.Title, "id", libraryAlbum.ID)
+	track.ID = strconv.Itoa(libraryAlbum.ID)
 
 	queryURL = fmt.Sprintf("%s/api/v1/track?artistId=%v&albumId=%v", c.Cfg.URL, libraryAlbum.ArtistID, libraryAlbum.ID)
 	body, err = c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
@@ -163,7 +149,7 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	}
 
 	for _, t := range lidarrTracks {
-		if strings.Contains(t.Title, track.Title) && t.HasFile {
+		if strings.Contains(strings.ToLower(t.Title), strings.ToLower(track.Title)) && t.HasFile {
 			track.Present = true
 			slog.Info("track already present in Lidarr", "track", trackDetails)
 			return nil
@@ -181,6 +167,28 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		"album", track.Album,
 	)
 	if track.Present {
+		return nil
+	}
+
+	if track.ID != "" {
+		albumID, err := strconv.Atoi(track.ID)
+		if err != nil {
+			return fmt.Errorf("invalid lidarr album ID: %w", err)
+		}
+		slog.Info("album in library but track missing, triggering search", "album", track.Album, "id", albumID)
+		payload := map[string]any{
+			"name":     "AlbumSearch",
+			"albumIds": []int{albumID},
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("marshal error: %w", err)
+		}
+		_, err = c.HttpClient.MakeRequest("POST", fmt.Sprintf("%s/api/v1/command", c.Cfg.URL), bytes.NewReader(body), c.Headers)
+		if err != nil {
+			return fmt.Errorf("failed to trigger album search: %w", err)
+		}
+		track.File = track.Title
 		return nil
 	}
 
@@ -209,13 +217,16 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		return fmt.Errorf("marshal error: %w", err)
 	}
 	queryURL := fmt.Sprintf("%s/api/v1/album", c.Cfg.URL)
-	slog.Info("Track struct", track)
-	slog.Info("request payload", payload)
-	slog.Info("query url", queryURL)
 	_, err = c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(body), c.Headers)
 	if err != nil {
+		if strings.Contains(err.Error(), "got 409") {
+			slog.Debug("album already in Lidarr, skipping", "album", track.MusicBrainzReleaseGroupID)
+			return nil
+		}
 		return fmt.Errorf("failed to add album: %w", err)
 	}
+	track.File = track.Title
+	slog.Info("download started")
 	return nil
 }
 
