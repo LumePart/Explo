@@ -38,6 +38,7 @@ type Flags struct {
 	ExcludeLocal bool
 	Persist      bool
 	PersistSet   bool
+	SearchMBID   string
 	RefreshOnly  bool
 }
 

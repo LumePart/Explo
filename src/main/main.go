@@ -97,7 +97,29 @@ func setup(cfg *config.Config) {
 	logging.Init(cfg.LogLevel, notifyClient)
 	cfg.GenPlaylistName()
 }
+func runSearchTest(cfg *config.Config, httpClient *util.HttpClient) {
+	lb := discovery.NewListenBrainz(cfg.DiscoveryCfg, httpClient)
+	track, err := lb.LookupRecording(cfg.Flags.SearchMBID)
+	if err != nil {
+		log.Fatalf("failed to resolve MBID %s from ListenBrainz: %s", cfg.Flags.SearchMBID, err)
+	}
+	slog.Info("resolved recording", "title", track.CleanTitle, "artist", track.MainArtist, "album", track.Album, "duration_ms", track.Duration)
 
+	c, err := client.NewClient(cfg)
+	if err != nil {
+		log.Fatalf("failed to init client: %s", err)
+	}
+	tracks := []*models.Track{track}
+	if err := c.CheckTracks(tracks); err != nil {
+		slog.Warn("CheckTracks error", "err", err)
+	}
+
+	if track.Present {
+		slog.Info("FOUND in library", "system", cfg.System, "key", track.ID)
+	} else {
+		slog.Info("NOT FOUND in library", "system", cfg.System)
+	}
+}
 func main() {
 	var cfg config.Config
 	if err := cfg.GetFlags(); err != nil {
@@ -106,6 +128,14 @@ func main() {
 	cfg.ReadEnv()
 	cfg.MergeFlags()
 	setup(&cfg)
+
+	httpClient := initHttpClient()
+
+	if cfg.Flags.SearchMBID != "" {
+		runSearchTest(&cfg, httpClient)
+		return
+	}
+
 	slog.Info("Starting Explo...")
 
 	if err := os.MkdirAll(cfg.DownloadCfg.Youtube.CoversDir, 0755); err != nil {
@@ -133,8 +163,6 @@ func main() {
 		return
 	}
 
-	httpClient := initHttpClient()
-
 	var tracks []*models.Track
 	var err error
 	if strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
@@ -147,7 +175,8 @@ func main() {
 		disc := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
 		tracks, err = disc.Discover()
 	}
-	if err != nil {
+
+  if err != nil {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}

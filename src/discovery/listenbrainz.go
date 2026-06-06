@@ -289,7 +289,13 @@ func (c *ListenBrainz) getTopRecordings(user string) ([]*models.Track, error) {
 
 	return tracks, nil
 }
-
+func (c *ListenBrainz) LookupRecording(mbid string) (*models.Track, error) {
+	tracks, err := c.getTracks([]string{mbid}, false)
+	if err != nil {
+		return nil, err
+	}
+	return tracks[0], nil
+}
 func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.Track, error) {
 	strMbids := strings.Join(mbids, ",")
 

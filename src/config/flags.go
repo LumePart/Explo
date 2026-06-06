@@ -22,6 +22,7 @@ func (cfg *Config) GetFlags() error {
 	var excludeLocal bool
 	var persist bool
 	var showVersion bool
+	var searchMBID string
 	var refreshOnly bool
 	// Long flags
 	flag.StringVarP(&configPath, "config", "c", ".env", "Path of the configuration file")
@@ -30,9 +31,10 @@ func (cfg *Config) GetFlags() error {
 	flag.BoolVarP(&excludeLocal, "exclude-local", "e", false, "Exclude locally found tracks from the imported playlist")
 	flag.BoolVar(&persist, "persist", true, "Keep playlists between generations")
 	flag.BoolVarP(&showVersion, "version", "v", false, "Print version and exit")
+	flag.StringVar(&searchMBID, "search-mbid", "", "Test Plex search for a single recording MBID (resolves via ListenBrainz, then searches your library)")
 	flag.BoolVar(&refreshOnly, "refresh-only", false, "Trigger alibrary rescan and exit; skips discovery and downloads")
 
-	flag.Parse()
+  flag.Parse()
 
 	if showVersion {
 		fmt.Println(Version)
@@ -41,24 +43,29 @@ func (cfg *Config) GetFlags() error {
 	persistSet := flag.Lookup("persist").Changed
 	cfgSet := flag.Lookup("config").Changed
 
-	// Validation for playlist — built-in types or user-imported custom-* IDs
-	if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
-		return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
-			playlist, strings.Join(validPlaylists, ", "))
-	}
 
-	// Validation for download mode
-	if !contains(validDownloadMode, downloadMode) {
-		return fmt.Errorf("flag validation error: invalid download mode %s (must be one of: %s)",
-			downloadMode, strings.Join(validDownloadMode, ", "))
-	}
+	if searchMBID == "" {
+		if !contains(validPlaylists, playlist) {
+			return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s)",
+				playlist, strings.Join(validPlaylists, ", "))
+		}
+		if !contains(validDownloadMode, downloadMode) {
+			return fmt.Errorf("flag validation error: invalid download mode %s (must be one of: %s)",
+				downloadMode, strings.Join(validDownloadMode, ", "))
+		}
+    if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
+      return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
+        playlist, strings.Join(validPlaylists, ", "))
+    }
 
+	}
 	cfg.Flags.CfgPath = configPath
 	cfg.Flags.CfgSet = cfgSet
 	cfg.Flags.Playlist = playlist
 	cfg.Flags.DownloadMode = downloadMode
 	cfg.Flags.ExcludeLocal = excludeLocal
 	cfg.Flags.Persist = persist
+	cfg.Flags.SearchMBID = searchMBID
 	cfg.Flags.RefreshOnly = refreshOnly
 
 	// for deprecation purposes (can be removed at a later date)
