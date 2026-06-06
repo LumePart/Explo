@@ -91,6 +91,7 @@ type SubsonicConfig struct {
 
 type DownloadConfig struct {
 	DownloadDir     string `env:"DOWNLOAD_DIR" env-default:"/data/"`
+	PathTemplate	string `env:"PATH_TEMPLATE"`
 	Youtube         Youtube
 	YoutubeMusic    YoutubeMusic
 	Slskd           Slskd
@@ -118,6 +119,7 @@ type Youtube struct {
 	CookiesPath   string `env:"COOKIES_PATH" env-default:"./cookies.txt"`
 	Filters       Filters
 	CoversDir     string
+	PathTemplate  string `env:"PATH_TEMPLATE"`
 }
 
 type YoutubeMusic struct {

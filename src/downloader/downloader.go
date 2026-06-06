@@ -1,19 +1,23 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
-
-	"golang.org/x/sync/errgroup"
+	"time"
 
 	cfg "explo/src/config"
 	"explo/src/models"
 	"explo/src/util"
+
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 )
 
 type DownloadClient struct {
@@ -52,6 +56,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
 		filterLocalTracks(tracks, true)
 	}
+
 	if c.needsDownloadDir() {
 		if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
 			slog.Error(err.Error())
@@ -61,40 +66,56 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 
 	for _, d := range c.Downloaders {
 		var g errgroup.Group
-		g.SetLimit(1)
+		g.SetLimit(3)
+
+		limiter := rate.NewLimiter(rate.Every(time.Second), 1)
 
 		for _, track := range *tracks {
 			if track.Present {
 				continue
 			}
 
+			track := track
+
 			g.Go(func() error {
+				ctx := context.Background()
+
+				if err := limiter.Wait(ctx); err != nil {
+					return err
+				}
 
 				if err := d.QueryTrack(track); err != nil {
 					slog.Warn(err.Error())
 					return nil
 				}
+
+				if err := limiter.Wait(ctx); err != nil {
+					return err
+				}
+
 				if err := d.GetTrack(track); err != nil {
 					slog.Warn(err.Error())
 					return nil
 				}
+
 				return nil
 			})
 		}
+
 		if err := g.Wait(); err != nil {
+			slog.Warn(err.Error())
 			return
 		}
 
 		if m, ok := d.(Monitor); ok {
-			err := c.MonitorDownloads(*tracks, m)
-			if err != nil {
+			if err := c.MonitorDownloads(*tracks, m); err != nil {
 				slog.Warn(err.Error())
 			}
 		}
 	}
+
 	filterLocalTracks(tracks, false)
 }
-
 func (c *DownloadClient) needsDownloadDir() bool {
 	for _, svc := range c.Cfg.Services {
 		if svc == "youtube" || svc == "youtube-music" {
@@ -181,7 +202,48 @@ func containsLower(str string, substr string) bool {
 	)
 }
 
-// Move download from the source dir to the dest dir (download dir)
+func sanitize(s string) string {
+	replacer := strings.NewReplacer(
+		"/", "-",
+		"\\", "-",
+		":", "-",
+		"*", "",
+		"?", "",
+		"\"", "",
+		"<", "",
+		">", "",
+		"|", "",
+	)
+
+	return strings.TrimSpace(replacer.Replace(s))
+}
+
+func buildTrackPath(template string, track *models.Track) string {
+	replacements := map[string]string{
+		"Artist":		sanitize(track.MainArtist),
+		"Album":		sanitize(track.Album),
+		"AlbumName":	sanitize(track.Album),
+		"TrackName":	sanitize(track.CleanTitle),
+		"TrackNumber":	fmt.Sprintf("%02d", track.TrackNumber),
+		"DiscNumber":	fmt.Sprintf("%02d", track.DiscNumber),
+		"Year":			strconv.Itoa(track.OriginalYear),
+		"File":			sanitize(track.File),
+		"ext":			strings.TrimPrefix(filepath.Ext(track.File), "."),
+	}
+
+	result := template
+
+	for key, value := range replacements {
+		result = strings.ReplaceAll(
+			result,
+			"{{"+key+"}}",
+			value,
+		)
+	}
+
+	return filepath.Clean(result)
+}
+
 func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
 	trackDir := filepath.Join(srcDir, trackPath)
 	srcFile := filepath.Join(trackDir, track.File)
@@ -197,23 +259,34 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 
 	defer func() {
 		if cerr := in.Close(); cerr != nil {
-			slog.Error(fmt.Sprintf("failed to close source file: %s", err.Error()))
+			slog.Error(fmt.Sprintf("failed to close source file: %s", cerr.Error()))
 		}
 	}()
 
-	if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
-		return fmt.Errorf("couldn't make download directory: %s", err.Error())
+	var dstFile string
+
+	if c.Cfg.PathTemplate != "" {
+		relativePath := buildTrackPath(c.Cfg.PathTemplate, track)
+		dstFile = filepath.Join(destDir, relativePath)
+	} else {
+		if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
+			return fmt.Errorf("couldn't make download directory: %s", err.Error())
+		}
+
+		dstFile = filepath.Join(destDir, track.File)
+	}
+	if err = os.MkdirAll(filepath.Dir(dstFile), os.ModePerm); err != nil {
+		return fmt.Errorf("couldn't make destination directory: %s", err.Error())
 	}
 
-	dstFile := filepath.Join(destDir, track.File)
 	out, err := os.Create(dstFile)
 	if err != nil {
 		return fmt.Errorf("couldn't create destination file: %s", err.Error())
 	}
 
 	defer func() {
-		if err = out.Close(); err != nil {
-			slog.Error(fmt.Sprintf("failed to close destination file: %s", err.Error()))
+		if cerr := out.Close(); cerr != nil {
+			slog.Error(fmt.Sprintf("failed to close destination file: %s", cerr.Error()))
 		}
 	}()
 
@@ -225,7 +298,6 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		return fmt.Errorf("sync failed: %s", err.Error())
 	}
 
-	// Keep permissions, unless specified otherwise in .env (some systems don't support chmod)
 	if c.Cfg.KeepPermissions {
 		info, err := os.Stat(srcFile)
 		if err != nil {
@@ -236,12 +308,10 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 		}
 	}
 
-	// Remove only the moved file, not the directory
 	if err = os.Remove(srcFile); err != nil {
 		return fmt.Errorf("failed to delete original file: %s", err.Error())
 	}
 
-	// to avoid removing additional downloads check if directory is empty before removing
 	isEmpty, err := isDirEmpty(trackDir)
 	if err != nil {
 		return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
@@ -250,8 +320,10 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 			return fmt.Errorf("failed to remove empty directory: %s", err.Error())
 		}
 	}
+
 	return nil
 }
+
 
 func isDirEmpty(path string) (bool, error) {
 	f, err := os.Open(path)
