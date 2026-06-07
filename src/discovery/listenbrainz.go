@@ -462,7 +462,7 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		var mbErr error
 		for attempt := 1; attempt <= 3; attempt++ {
 
-			if attempt != 1 && attempt <= 3 {
+			if attempt <= 3 {
 				time.Sleep(time.Duration(waitTime) * time.Second)
 			}
 			mbData, mbErr = c.mbRequest(fmt.Sprintf("recording/%s?inc=media+releases+artist-credits+release-groups&fmt=json", track.MusicBrainzTrackID))
