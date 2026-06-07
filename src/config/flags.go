@@ -43,20 +43,17 @@ func (cfg *Config) GetFlags() error {
 	persistSet := flag.Lookup("persist").Changed
 	cfgSet := flag.Lookup("config").Changed
 
-
+	
+	
 	if searchMBID == "" {
-		if !contains(validPlaylists, playlist) {
-			return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s)",
-				playlist, strings.Join(validPlaylists, ", "))
+		if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
+		  return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
+			playlist, strings.Join(validPlaylists, ", "))
 		}
 		if !contains(validDownloadMode, downloadMode) {
 			return fmt.Errorf("flag validation error: invalid download mode %s (must be one of: %s)",
 				downloadMode, strings.Join(validDownloadMode, ", "))
 		}
-    if !contains(validPlaylists, playlist) && !strings.HasPrefix(playlist, "custom-") {
-      return fmt.Errorf("flag validation error: invalid playlist %s (must be one of: %s, or a custom-* id)",
-        playlist, strings.Join(validPlaylists, ", "))
-    }
 
 	}
 	cfg.Flags.CfgPath = configPath
