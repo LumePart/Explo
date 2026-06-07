@@ -221,36 +221,20 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	}
 
 	var cmd *ffmpeg.Stream
-
-	if c.Cfg.EmbedCoverArt {
-			coversDir := c.Cfg.CoversDir
-			util.DownloadCover(track.CoverURL, coversDir)
-
-			coverPath := filepath.Join(
-				coversDir,
-				track.MusicBrainzAlbumID+".jpg",
-			)
-
-			cmd = ffmpeg.Output(
-				[]*ffmpeg.Stream{
-					ffmpeg.Input(input),
-					ffmpeg.Input(coverPath),
-				},
-				outputPath,
-				ffmpeg.KwArgs{
-					"metadata": metadata,
-					"loglevel": "error",
-				},
-			).OverWriteOutput().ErrorToStdOut()
+	if c.Cfg.EmbedCoverArt && track.CoverURL != "" {
+		if track.CoverPath == "" {
+			_, track.CoverPath = util.DownloadCover(track.CoverURL, c.Cfg.CoversDir)
+		}
+		cmd = ffmpeg.Output([]*ffmpeg.Stream{ffmpeg.Input(input), ffmpeg.Input(track.CoverPath)}, filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+			"metadata": metadata,
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut()
 	} else {
-			cmd = ffmpeg.Input(input).Output(
-				outputPath,
-				ffmpeg.KwArgs{
-					"map":      "0:a",
-					"metadata": metadata,
-					"loglevel": "error",
-				},
-			).OverWriteOutput().ErrorToStdOut()
+		cmd = ffmpeg.Input(input).Output(filepath.Join(c.DownloadDir, track.File), ffmpeg.KwArgs{
+			"map":      "0:a",
+			"metadata": metadata,
+			"loglevel": "error",
+		}).OverWriteOutput().ErrorToStdOut()
 	}
 
 	if c.Cfg.FfmpegPath != "" {

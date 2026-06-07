@@ -115,6 +115,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 		Artist    string `json:"artist"`
 		Release   string `json:"release"`
 		CoverURL  string `json:"coverUrl,omitempty"`
+		CoverPath string `json:"coverPath,omitempty"`
 		InLibrary *bool  `json:"inLibrary,omitempty"`
 	}
 	type cache struct {
@@ -128,7 +129,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 
 	ct := make([]cachedTrack, len(tracks))
 	for i, t := range tracks {
-		localCover := util.DownloadCover(t.CoverURL, coversDir)
+		apiPath, coverPath := util.DownloadCover(t.CoverURL, coversDir)
 		var inLibrary *bool
 		if added != nil {
 			v := added[t.CleanTitle+"|"+t.Artist]
@@ -139,7 +140,8 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 			Title:     t.CleanTitle,
 			Artist:    t.Artist,
 			Release:   t.Album,
-			CoverURL:  localCover,
+			CoverURL:  apiPath,
+			CoverPath: coverPath,
 			InLibrary: inLibrary,
 		}
 	}
@@ -232,6 +234,7 @@ type cachedPrefetchTrack struct {
 	MainArtist string `json:"mainArtist,omitempty"`
 	Release    string `json:"release"`
 	CoverURL   string `json:"coverUrl,omitempty"`
+	CoverPath  string `json:"coverPath,omitempty"`
 }
 
 // writePreliminaryCache writes the track cache with remote cover URLs immediately.
@@ -258,7 +261,8 @@ func downloadAndCacheCovers(cfgDir, playlistType string, tracks []PlaylistTrack)
 	}
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: util.DownloadCover(t.CoverURL, coversDir)}
+		APIPath, coverPath := util.DownloadCover(t.CoverURL, coversDir)
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: APIPath, CoverPath: coverPath}
 	}
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
