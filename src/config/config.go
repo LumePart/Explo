@@ -97,6 +97,7 @@ type DownloadConfig struct {
 	YoutubeMusic    YoutubeMusic
 	Slskd           Slskd
 	ExcludeLocal    bool
+	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
 	KeepPermissions bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	RenameTrack     bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
 	UseSubDir       bool     `env:"USE_SUBDIRECTORY" env-default:"true"`

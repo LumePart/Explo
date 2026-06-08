@@ -16,6 +16,8 @@ import (
 	"explo/src/models"
 	"explo/src/util"
 
+	ffmpeg "github.com/u2takey/ffmpeg-go"
+
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
@@ -251,6 +253,12 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
 		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
 	}
+	if c.Cfg.OverwriteMetadata {
+		metadata := util.BuildffmpegMetadata(*track)
+		if err := overwriteMetadata(metadata, srcFile); err != nil {
+			slog.Warn("problem overwriting metadata", "msg", err.Error())
+		}
+	}
 
 	in, err := os.Open(srcFile)
 	if err != nil {
@@ -324,6 +332,32 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 	return nil
 }
 
+func overwriteMetadata(metadata []string, srcFile string) error {
+	opts := ffmpeg.KwArgs{
+			"c": "copy",
+			"metadata": metadata,
+			"loglevel": "error",
+		}
+		streams := []*ffmpeg.Stream{
+    		ffmpeg.Input(srcFile),
+		}
+
+		tmpFile := tempAudioFile(srcFile)
+
+		if err := util.WriteMetadata(streams, "", tmpFile, opts); err != nil {
+			return fmt.Errorf("failed to overwrite metadata: %w", err)
+		} else {
+			if err := os.Rename(tmpFile, srcFile); err != nil {
+				return fmt.Errorf("failed to rename tmp file: %w", err)
+			}
+		}
+		return nil
+}
+
+func tempAudioFile(path string) string {
+    ext := filepath.Ext(path)
+    return strings.TrimSuffix(path, ext) + ".tmp" + ext
+}
 
 func isDirEmpty(path string) (bool, error) {
 	f, err := os.Open(path)
