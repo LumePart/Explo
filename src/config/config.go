@@ -91,18 +91,19 @@ type SubsonicConfig struct {
 }
 
 type DownloadConfig struct {
-	DownloadDir     string `env:"DOWNLOAD_DIR" env-default:"/data/"`
-	PathTemplate	string `env:"PATH_TEMPLATE"`
-	Youtube         Youtube
-	YoutubeMusic    YoutubeMusic
-	Slskd           Slskd
-	ExcludeLocal    bool
+	DownloadDir       string `env:"DOWNLOAD_DIR" env-default:"/data/"`
+	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	Youtube           Youtube
+	YoutubeMusic      YoutubeMusic
+	Slskd             Slskd
+	ExcludeLocal      bool
+	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
 	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
-	KeepPermissions bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
-	RenameTrack     bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
-	UseSubDir       bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
-	Discovery       string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	Services        []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
+	KeepPermissions   bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
+	RenameTrack       bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
+	UseSubDir         bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
+	Discovery         string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	Services          []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
 
 type Filters struct {

@@ -70,7 +70,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 		var g errgroup.Group
 		g.SetLimit(3)
 
-		limiter := rate.NewLimiter(rate.Every(time.Second), 1)
+		limiter := rate.NewLimiter(rate.Every(time.Second), c.Cfg.DownloadLimiter)
 
 		for _, track := range *tracks {
 			if track.Present {
