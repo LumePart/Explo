@@ -37,3 +37,8 @@ func FilenameSafe(s string) string {
 func AlnumOnly(s string) string {
 	return alnumRe.ReplaceAllString(s, "")
 }
+
+// Case insensitive check if substring is present in s
+func ContainsFold(s, substr string) bool {
+    return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
