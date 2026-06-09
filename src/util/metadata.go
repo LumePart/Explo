@@ -69,9 +69,8 @@ func BuildffmpegMetadata(track models.Track) []string {
 }
 
 func WriteMetadata(streams []*ffmpeg.Stream, ffmpegPath, filePath string, opts ffmpeg.KwArgs) error {
-	var cmd *ffmpeg.Stream
 
-	cmd = ffmpeg.Output(streams, filePath, opts).OverWriteOutput().ErrorToStdOut()
+	cmd := ffmpeg.Output(streams, filePath, opts).OverWriteOutput().ErrorToStdOut()
 
 	if ffmpegPath != "" {
 		cmd.SetFfmpegPath(ffmpegPath)
