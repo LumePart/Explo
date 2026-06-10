@@ -214,11 +214,18 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal track IDs: %s", err.Error())
 	}
-	userID, err := c.ResolveUserID()
-	if err != nil {
-		return err
+	var userID string
+	isPublic := c.Cfg.PublicPlaylist
+	if c.Cfg.Creds.User != "" {
+		userID, err = c.ResolveUserID()
+		if err != nil {
+			return err
+		}
+	} else {
+		userID = c.Cfg.Creds.APIKey
+		isPublic = true
 	}
-	isPublic := c.Cfg.Subsonic.PublicPlaylist
+
 
 	queryParams := "/Playlists"
 	payload := fmt.Appendf(nil, `
@@ -243,7 +250,10 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 }
 
 func (c *Jellyfin) UpdatePlaylist() error {
-	isPublic := c.Cfg.Subsonic.PublicPlaylist
+	isPublic := c.Cfg.PublicPlaylist
+	if c.Cfg.Creds.User == "" {
+		isPublic = true
+	}
 	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
 	payload := fmt.Appendf(nil, `
 		{
