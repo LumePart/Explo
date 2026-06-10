@@ -283,7 +283,7 @@ func (c *Plex) GetAuth() error { // Get user token from plex
 	return nil
 }
 func (c *Plex) GetLibrary() error {
-	if c.Cfg.AdminCreds.User != "" && c.Cfg.AdminCreds.Password != "" {
+	if (c.Cfg.AdminCreds.User != "" && c.Cfg.AdminCreds.Password != "")  {
 		adminCfg := c.Cfg
 		adminCfg.Creds = config.Credentials{
 			User:     c.Cfg.AdminCreds.User,
@@ -298,6 +298,23 @@ func (c *Plex) GetLibrary() error {
 			return err
 		}
 
+		err := c.AdminClient.getLibraryRequest()
+		if err != nil {
+			return err
+		}
+		c.LibraryID = c.AdminClient.LibraryID
+
+		return err
+	} else if (c.Cfg.AdminCreds.APIKey != "") {
+		adminCfg := c.Cfg
+		adminCfg.Creds = config.Credentials{
+			APIKey: c.Cfg.AdminCreds.APIKey,
+		}
+
+		c.AdminClient = NewPlex(adminCfg, c.HttpClient)
+		if err := c.AdminClient.AddHeader(); err != nil {
+			return err
+		}
 		err := c.AdminClient.getLibraryRequest()
 		if err != nil {
 			return err

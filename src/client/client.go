@@ -162,7 +162,6 @@ func (c *Client) systemSetup() error {
 			if err := c.API.GetAuth(); err != nil {
 				return err
 			}
-
 		}
 
 		if err := c.API.AddHeader(); err != nil {
