@@ -567,7 +567,12 @@ func (c *Plex) getPlexSong(track *models.Track, metadata []SongMetadata) (string
 			continue
 		}
 
-		mbid := c.getPlexMBID(md.RatingKey)
+                var mbid string;
+                if c.AdminClient != nil {
+                    mbid = c.AdminClient.getPlexMBID(md.RatingKey)
+                } else {
+                    mbid = c.getPlexMBID(md.RatingKey)
+                }
 
 		normalizedSongTitle := util.NormalizeTitle(md.Title)
 		musicBrainzMatch := mbid != "" && track.MusicBrainzReleaseTrackID == mbid
