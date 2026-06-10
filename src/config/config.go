@@ -91,17 +91,19 @@ type SubsonicConfig struct {
 }
 
 type DownloadConfig struct {
-	DownloadDir     string `env:"DOWNLOAD_DIR" env-default:"/data/"`
-	PathTemplate	string `env:"PATH_TEMPLATE"`
-	Youtube         Youtube
-	YoutubeMusic    YoutubeMusic
-	Slskd           Slskd
-	ExcludeLocal    bool
-	KeepPermissions bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
-	RenameTrack     bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
-	UseSubDir       bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
-	Discovery       string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
-	Services        []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
+	DownloadDir       string `env:"DOWNLOAD_DIR" env-default:"/data/"`
+	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	Youtube           Youtube
+	YoutubeMusic      YoutubeMusic
+	Slskd             Slskd
+	ExcludeLocal      bool
+	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
+	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
+	KeepPermissions   bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
+	RenameTrack       bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
+	UseSubDir         bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
+	Discovery         string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
+	Services          []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
 }
 
 type Filters struct {
@@ -215,7 +217,7 @@ func (cfg *Config) ReadEnv() {
 
 func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.FileExtension = strings.TrimPrefix(cfg.DownloadCfg.Youtube.FileExtension, ".")
-	cfg.DownloadCfg.Youtube.CoversDir = filepath.Join(filepath.Dir(cfg.Flags.CfgPath), "cache", "covers")
+	cfg.DownloadCfg.Youtube.CoversDir = filepath.Join(filepath.Dir(cfg.ServerCfg.WebDataDir), "cache", "covers")
 	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
 	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
 	cfg.NormalizeDir()

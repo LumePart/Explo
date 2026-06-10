@@ -21,6 +21,7 @@ type Track struct {
 	Present                   bool   // is track present in the system or not
 	Duration                  int    // Track duration in milliseconds (not available for every track)
 	CoverURL                  string // External cover art URL (Cover Art Archive), used at run-time to download art
+	CoverPath                 string // full Filesystem path to cover
 	OriginalDate              string
 	OriginalYear              int
 	Genres                    string

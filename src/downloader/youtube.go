@@ -196,11 +196,17 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		}
 	}()
 
+	defer func() {
+    	if err := os.Remove(input); err != nil {
+			slog.Debug(
+				fmt.Sprintf("failed to remove %s", input),
+				logging.RuntimeAttr(err.Error()),
+			)
+    	}
+}()
+
 	if _, err = io.Copy(file, stream); err != nil {
 		slog.Error("failed to copy stream to file", "context", err.Error())
-		if err = os.Remove(input); err != nil {
-			slog.Debug(fmt.Sprintf("failed to remove file %s", input), logging.RuntimeAttr(err.Error()))
-		}
 		return false
 	}
 
@@ -220,53 +226,31 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 			return false
 	}
 
-	var cmd *ffmpeg.Stream
-
-	if c.Cfg.EmbedCoverArt {
-			coversDir := c.Cfg.CoversDir
-			util.DownloadCover(track.CoverURL, coversDir)
-
-			coverPath := filepath.Join(
-				coversDir,
-				track.MusicBrainzAlbumID+".jpg",
-			)
-
-			cmd = ffmpeg.Output(
-				[]*ffmpeg.Stream{
-					ffmpeg.Input(input),
-					ffmpeg.Input(coverPath),
-				},
-				outputPath,
-				ffmpeg.KwArgs{
-					"metadata": metadata,
-					"loglevel": "error",
-				},
-			).OverWriteOutput().ErrorToStdOut()
-	} else {
-			cmd = ffmpeg.Input(input).Output(
-				outputPath,
-				ffmpeg.KwArgs{
-					"map":      "0:a",
-					"metadata": metadata,
-					"loglevel": "error",
-				},
-			).OverWriteOutput().ErrorToStdOut()
-	}
-
-	if c.Cfg.FfmpegPath != "" {
-		cmd.SetFfmpegPath(c.Cfg.FfmpegPath)
-	}
-
-	if err = cmd.Run(); err != nil {
-		slog.Error("failed to convert audio", "context", err.Error())
-		if err = os.Remove(input); err != nil {
-			slog.Debug(fmt.Sprintf("failed to remove %s", input), logging.RuntimeAttr(err.Error()))
+	var opts ffmpeg.KwArgs
+	var streams []*ffmpeg.Stream
+	streams = append(streams, ffmpeg.Input(input))
+	if c.Cfg.EmbedCoverArt && track.CoverURL != "" {
+		if track.CoverPath == "" {
+			if _, track.CoverPath = util.DownloadCover(track.CoverURL, c.Cfg.CoversDir); track.CoverPath != "" {
+    			streams = append(streams, ffmpeg.Input(track.CoverPath))
+			}
 		}
+		opts = ffmpeg.KwArgs{
+			"metadata": metadata,
+			"loglevel": "error",
+		}
+	} else {
+		opts = ffmpeg.KwArgs{
+			"map": "0:a",
+			"metadata": metadata,
+			"loglevel": "error",
+		}
+	}
+
+	if err := util.WriteMetadata(streams, c.Cfg.FfmpegPath, outputPath, opts); err != nil {
 		return false
 	}
-	if err = os.Remove(input); err != nil {
-		slog.Debug(fmt.Sprintf("failed to remove %s", input), logging.RuntimeAttr(err.Error()))
-	}
+
 	return true
 }
 

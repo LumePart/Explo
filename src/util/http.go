@@ -112,15 +112,19 @@ func DownloadFile(url, destPath string) (string, error) {
 	return destPath, nil
 }
 
-// DownloadCover downloads coverURL into coversDir and returns "/api/covers/<id>.jpg".
+// DownloadCover downloads coverURL into coversDir and returns cover api and filesystem path.
 // For CoverArtArchive URLs the id is the MusicBrainz release MBID (second-to-last
 // path segment). For Spotify CDN URLs (i.scdn.co) the id is the image hash (last
 // path segment). Returns "" if url is empty.
-func DownloadCover(url, coversDir string) string {
+func DownloadCover(url, coversDir string) (string, string) {
 	if url == "" {
-		return ""
+		return "", ""
 	}
 	parts := strings.Split(strings.TrimRight(url, "/"), "/")
+
+	if len(parts) < 2 {
+	return "", ""
+}
 	// Spotify CDN: https://i.scdn.co/image/<hash>  → use last segment
 	// CAA:         https://coverartarchive.org/release/<mbid>/front-250 → use second-to-last
 	id := parts[len(parts)-2]
@@ -147,5 +151,6 @@ func DownloadCover(url, coversDir string) string {
 			}()
 		}
 	}
-	return "/api/covers/" + id + ".jpg"
+	apiURL := fmt.Sprintf("/api/covers/%s.jpg", id)
+	return apiURL, destPath
 }

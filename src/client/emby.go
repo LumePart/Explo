@@ -21,6 +21,10 @@ type EmbyPaths []struct {
 	RefreshStatus  string         `json:"RefreshStatus"`
 }
 
+type EmbyProviderIds struct {
+	MusicBrainzTrack        string `json:"MusicBrainzTrack"`
+}
+
 type EmbyItemSearch struct {
 	Items            []EmbyItems `json:"Items"`
 	TotalRecordCount int     `json:"TotalRecordCount"`
@@ -30,6 +34,7 @@ type EmbyItems struct {
 	Name              string          `json:"Name"`
 	ServerID          string          `json:"ServerId"`
 	ID                string          `json:"Id"`
+	ProviderIds       EmbyProviderIds `json:"ProviderIds"`
 	Path			  string		  `json:"Path"`
 	Album             string          `json:"Album,omitempty"`
 	AlbumArtist       string          `json:"AlbumArtist,omitempty"`
@@ -138,16 +143,24 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
+		normalizedTrackTitle := util.NormalizeTitle(track.Title)
+		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 		for _, item := range results.Items {
-			if strings.EqualFold(track.MainArtist, item.AlbumArtist) && (util.NormalizeTitle(item.Name) == util.NormalizeTitle(track.Title) || (track.File != "" && strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)))) {
+
+			normalizedItemTitle := util.NormalizeTitle(item.Name)
+
+			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
+			titleMatch := normalizedItemTitle == normalizedTrackTitle || normalizedItemTitle == normalizedCleanTitle
+			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
+			pathMatch := util.ContainsFold(item.Path,track.File)
+
+			if musicBrainzMatch || (titleMatch && artistMatch)  {
 				track.ID = item.ID
 				track.Present = true
 				break
 			}
 
-			if track.File != "" && len(item.Artists) > 0 &&
-				strings.Contains(strings.ToLower(item.Artists[0]), strings.ToLower(track.MainArtist)) &&
-				strings.Contains(strings.ToLower(item.Path), strings.ToLower(track.File)) {
+			if track.File != "" && artistMatch && pathMatch {
 				track.ID = item.ID
 				track.Present = true
 				break

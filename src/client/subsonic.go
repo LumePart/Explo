@@ -35,17 +35,19 @@ type SubResponse struct {
 		ServerVersion string        `json:"serverVersion"`
 		SearchResult3 struct {
 			Song []struct {
-				ID          string    `json:"id"`
-				Title       string    `json:"title"`
+				ID            string    `json:"id"`
+				Title         string    `json:"title"`
 				Artist        string    `json:"artist"`
+				Album         string    `json:"album"`
 				Duration      int       `json:"duration"`
+				MusicBrainzID string    `json:"musicBrainzId"`
 				Path          string    `json:"path"`
 			} `json:"song"`
-		} `json:"searchResult3,omitempty"`
+		} `json:"searchResult3"`
 		Playlists     struct {
-			Playlist []Playlist `json:"playlist,omitempty"`
-		} `json:"playlists,omitempty"`
-		Playlist      Playlist `json:"playlist,omitempty"`
+			Playlist []Playlist `json:"playlist"`
+		} `json:"playlists"`
+		Playlist      Playlist `json:"playlist"`
 	} `json:"subsonic-response"`
 }
 
@@ -143,14 +145,19 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 			slog.Debug(fmt.Sprintf("[subsonic] no results found for %s", searchQuery))
 			continue
 		}
-
+		normalizedTrackTitle := util.NormalizeTitle(track.Title)
+		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 		for _, song := range songs {
-			artistMatch := strings.Contains(strings.ToLower(song.Artist), strings.ToLower(track.MainArtist))
-			titleMatch := util.NormalizeTitle(song.Title) == util.NormalizeTitle(track.Title)
-			durationMatch := util.Abs(song.Duration - (track.Duration / 1000)) < 10
-			pathMatch := strings.Contains(strings.ToLower(song.Path), strings.ToLower(track.File))
+			normalizedSongTitle := util.NormalizeTitle(song.Title)
 
-			if artistMatch && titleMatch {
+			musicBrainzMatch := track.MusicBrainzTrackID != "" && song.MusicBrainzID == track.MusicBrainzTrackID
+			artistMatch := util.ContainsFold(song.Artist, track.MainArtist)
+			albumMatch := util.ContainsFold(song.Album, track.Album)
+			titleMatch := normalizedSongTitle == normalizedTrackTitle || normalizedSongTitle == normalizedCleanTitle
+			durationMatch := util.Abs(song.Duration - (track.Duration / 1000)) < 10
+			pathMatch := util.ContainsFold(song.Path, track.File)
+
+			if musicBrainzMatch || (titleMatch && (albumMatch || artistMatch)) {
 				track.ID = song.ID
 				track.Present = true
 				break

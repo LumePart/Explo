@@ -134,6 +134,13 @@ type PlexPlaylist struct {
 	} `json:"MediaContainer"`
 }
 
+type GUID struct {
+	ID string `json:"id"`
+}
+type Metadata struct {
+	GUID []GUID `json:"Guid"`
+}
+
 type Plex struct {
 	machineID   string
 	LibraryID   string
@@ -410,7 +417,7 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 			}
 		}
 
-		key, err := getPlexSong(track, all)
+		key, err := c.getPlexSong(track, all)
 		if err != nil {
 			slog.Warn("failed to find match", "title", track.Title, "err", err)
 			continue
@@ -549,20 +556,32 @@ func (c *Plex) getServer() error {
 	return nil
 }
 
-func getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
-	normArtist := util.AlnumOnly(strings.ToLower(track.MainArtist))
+func (c *Plex) getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
+	normArtist := util.AlnumOnly(track.MainArtist)
+	normalizedTrackTitle := util.NormalizeTitle(track.Title)
+	normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
+	normalizedAlbum := util.AlnumOnly(strings.ToLower(track.Album))
 
 	for _, md := range metadata {
 		if md.Type != "track" {
 			continue
 		}
 
-		titleMatch := util.NormalizeTitle(md.Title) == util.NormalizeTitle(track.Title)
-		albumMatch := util.AlnumOnly(strings.ToLower(md.ParentTitle)) == util.AlnumOnly(strings.ToLower(track.Album))
-		artistMatch := strings.Contains(util.AlnumOnly(strings.ToLower(md.OriginalTitle)), normArtist) || strings.Contains(util.AlnumOnly(strings.ToLower(md.GrandparentTitle)), normArtist)
+                var mbid string;
+                if c.AdminClient != nil {
+                    mbid = c.AdminClient.getPlexMBID(md.RatingKey)
+                } else {
+                    mbid = c.getPlexMBID(md.RatingKey)
+                }
 
-		if titleMatch && (albumMatch || artistMatch) {
-			slog.Debug(fmt.Sprintf("matched track via metadata: %s by %s", track.Title, track.Artist))
+		normalizedSongTitle := util.NormalizeTitle(md.Title)
+		musicBrainzMatch := mbid != "" && track.MusicBrainzReleaseTrackID == mbid
+		titleMatch := normalizedSongTitle == normalizedTrackTitle || normalizedSongTitle == normalizedCleanTitle
+		albumMatch := util.AlnumOnly(strings.ToLower(md.ParentTitle)) == normalizedAlbum
+		artistMatch := util.ContainsFold(util.AlnumOnly(md.OriginalTitle), normArtist) || util.ContainsFold(util.AlnumOnly(md.GrandparentTitle), normArtist)
+
+		if musicBrainzMatch || (titleMatch && (albumMatch || artistMatch)) {
+			slog.Debug("matched track via metadata", "title", track.Title, "artist", track.Artist)
 			return md.Key, nil
 		}
 
@@ -571,17 +590,39 @@ func getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
 		}
 
 		media := md.Media[0]
-		pathMatch := strings.Contains(strings.ToLower(media.Part[0].File), strings.ToLower(track.File))
+		pathMatch := util.ContainsFold(media.Part[0].File, track.File)
 		durationMatch := util.Abs(media.Duration-track.Duration) < 10000 // duration within 10s
 
 		if durationMatch && pathMatch {
-			slog.Debug(fmt.Sprintf("matched track via path: %s by %s", track.Title, track.Artist))
+			slog.Debug("matched track via path", "title", track.Title, "artist", track.Artist)
 			return md.Key, nil
 		}
 	}
 
 	slog.Debug(fmt.Sprintf("full search result: %v", metadata))
 	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
+}
+
+func (c *Plex) getPlexMBID(ratingKey string) string {
+	params := fmt.Sprintf("/library/metadata/%s", ratingKey)
+
+
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	if err != nil {
+		return ""
+	}
+
+	var metadata Metadata
+	if err = util.ParseResp(body, &metadata); err != nil {
+		return ""
+	}
+	prefix := "mbid://"
+	for _, guid := range metadata.GUID {
+		if strings.HasPrefix(guid.ID, prefix) {
+			return strings.TrimPrefix(guid.ID, prefix)
+		}
+	}
+	return ""
 }
 
 func (c *Plex) addtoPlaylist(tracks []*models.Track) {

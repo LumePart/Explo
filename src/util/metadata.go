@@ -4,6 +4,8 @@ import (
 	"explo/src/models"
 	"fmt"
 	"strings"
+
+	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
 // Return absolute difference between tracks
@@ -64,4 +66,18 @@ func BuildffmpegMetadata(track models.Track) []string {
 	}
 
 	return metadata
+}
+
+func WriteMetadata(streams []*ffmpeg.Stream, ffmpegPath, filePath string, opts ffmpeg.KwArgs) error {
+
+	cmd := ffmpeg.Output(streams, filePath, opts).OverWriteOutput().ErrorToStdOut()
+
+	if ffmpegPath != "" {
+		cmd.SetFfmpegPath(ffmpegPath)
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+	return nil
 }

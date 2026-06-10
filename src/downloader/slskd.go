@@ -457,6 +457,7 @@ func wildcardArtist(artist string) string {
 
 // different failure states slskd has (format is "Completed,Rejected", "Errored,Cancelled" etc..)
 var failureStates = map[string]struct{} {
+	"Aborted": {},
 	"TimedOut": {},
 	"Rejected": {},
 	"Errored":  {},
