@@ -8,21 +8,15 @@
  * Receives existing config/envSources from App to pre-populate fields.
  */
 
-import { useState } from "react";
-import {
-  wizardStep1,
-  wizardStep2,
-  wizardStep3,
-  prefetchPlaylists,
-} from "../lib/api";
-import { ToggleRow } from "./ui/Toggle";
-import { DirInput } from "./ui/DirInput";
-import { TextField } from "./ui/common";
+import { useState } from 'react'
+import { wizardStep1, wizardStep2, wizardStep3, prefetchPlaylists } from '../lib/api'
+import { ToggleRow } from './ui/Toggle'
+import { DirInput } from './ui/DirInput'
+import { TextField } from './ui/common'
 
-const inputCls =
-  "w-full bg-surface border border-ui-border text-white rounded-[6px] px-3 py-2.5 text-[15px] outline-none focus:border-accent disabled:opacity-45 disabled:cursor-not-allowed transition-colors";
+const inputCls = 'w-full bg-surface border border-ui-border text-white rounded-[6px] px-3 py-2.5 text-[15px] outline-none focus:border-accent disabled:opacity-45 disabled:cursor-not-allowed transition-colors'
 
-const NextBtn = ({ onClick, disabled, saving, label = "Next →" }) => (
+const NextBtn = ({ onClick, disabled, saving, label = 'Next →' }) => (
   <button
     onClick={onClick}
     disabled={disabled || saving}
@@ -46,35 +40,19 @@ const BackBtn = ({ onClick }) => (
 // which playlists the user wants to enable on a schedule.
 
 const PLAYLISTS = [
-  {
-    value: "weekly-exploration",
-    name: "Weekly Exploration",
-    desc: "~50 tracks · refreshes every Tuesday",
-  },
-  {
-    value: "weekly-jams",
-    name: "Weekly Jams",
-    desc: "~25 tracks · refreshes every Monday",
-  },
-  {
-    value: "daily-jams",
-    name: "Daily Jams",
-    desc: "~25 tracks · refreshes daily",
-  },
+  { value: 'weekly-exploration', name: 'Weekly Exploration', desc: '~50 tracks · refreshes every Tuesday' },
+  { value: 'weekly-jams',        name: 'Weekly Jams',        desc: '~25 tracks · refreshes every Monday' },
+  { value: 'daily-jams',         name: 'Daily Jams',         desc: '~25 tracks · refreshes daily' },
 ];
 
 function Step1({ fields, setField, envSources, onNext, saving }) {
-  const { user, discoveryMode, checked } = fields;
-  const isLocked = (key) => envSources[key] === "env";
-  const valid =
-    user.trim() !== "" &&
-    (discoveryMode !== "playlist" || Object.values(checked).some(Boolean));
+  const { user, discoveryMode, checked } = fields
+  const isLocked = key => envSources[key] === 'env'
+  const valid = user.trim() !== '' && (discoveryMode !== 'playlist' || Object.values(checked).some(Boolean))
 
   return (
     <div>
-      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">
-        Step 1 of 3 — Discovery
-      </div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 1 of 3 — Discovery</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
         Explo uses your ListenBrainz listening history to find music
         recommendations.
@@ -137,17 +115,13 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
 
         {discoveryMode === "playlist" && (
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-medium text-muted">
-              Which playlists should run on a schedule?
-            </label>
+            <label className="text-[13px] font-medium text-muted">Which playlists should run on a schedule?</label>
             <div className="flex flex-col gap-0.5">
               {PLAYLISTS.map((p) => (
                 <ToggleRow
                   key={p.value}
                   checked={checked[p.value]}
-                  onChange={(v) =>
-                    setField("checked", { ...checked, [p.value]: v })
-                  }
+                  onChange={v => setField('checked', { ...checked, [p.value]: v })}
                   name={p.name}
                   desc={p.desc}
                 />
@@ -223,49 +197,17 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 
   const valid = () => {
     if (!system) return false;
-
-    if (system === "mpd") {
-      return playlistDir.trim() !== "";
-    }
-
-    if (!systemUrl.trim()) {
-      return false;
-    }
-
+    if (system === "mpd") return playlistDir.trim() !== "";
+    if (!systemUrl.trim()) return false;
     if (API_KEY_SYSTEMS.includes(system)) {
-      if (authMethod === "apikey") {
-        if (!apiKey.trim()) return false;
-      }
-
-      if (authMethod === "password") {
-        if (!systemUsername.trim() || !systemPassword.trim()) {
-          return false;
-        }
-      }
+      if (authMethod === "apikey" && !apiKey.trim()) return false;
+      if (authMethod === "password" && (!systemUsername.trim() || !systemPassword.trim())) return false;
     }
-    if (system === "jellyfin") {
-      if (!systemUsername.trim() || !apiKey.trim()) {
-        return false;
-      }
-    }
-    if (system === "subsonic") {
-      if (!systemUsername.trim() || !systemPassword.trim()) {
-        return false;
-      }
-    }
-
+    if (system === "jellyfin" && ( !systemUsername.trim() || !apiKey.trim() ) ) return false;
+    if (system === "subsonic" && (!systemUsername.trim() || !systemPassword.trim()))  return false;
     if (adminCredentials) {
-      if (adminAuthMethod == "apikey") {
-        if (!adminApiKey?.trim()) {
-          return false;
-        }
-      }
-
-      if (adminAuthMethod == "password") {
-        if (!adminSystemUsername?.trim() || !adminSystemPassword?.trim()) {
-          return false;
-        }
-      }
+      if (adminAuthMethod == "apikey" && !adminApiKey?.trim()) return false;
+      if (adminAuthMethod == "password" && (!adminSystemUsername?.trim() || !adminSystemPassword?.trim())) return false;
     }
 
     return true;
