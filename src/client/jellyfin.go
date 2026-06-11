@@ -81,11 +81,15 @@ func (c *Jellyfin) AddHeader() error {
 		c.Cfg.Creds.Headers = make(map[string]string)
 	}
 
-	if c.Cfg.Creds.APIKey != "" {
-		c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", c.Cfg.Creds.APIKey, c.Cfg.ClientID)
-		return nil
+	apiKey := c.resolveAPIKey()
+
+	if apiKey == "" {
+		return fmt.Errorf("API_KEY or ADMIN_API_KEY not set")
 	}
-	return fmt.Errorf("API_KEY not set")
+
+	c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", apiKey, c.Cfg.ClientID)
+
+	return nil
 }
 
 func (c *Jellyfin) GetAuth() error {
@@ -216,13 +220,14 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	}
 	var userID string
 	isPublic := c.Cfg.PublicPlaylist
+
 	if c.Cfg.Creds.User != "" {
 		userID, err = c.ResolveUserID()
 		if err != nil {
 			return err
 		}
 	} else {
-		userID = c.Cfg.Creds.APIKey
+		userID = c.resolveAPIKey()
 		isPublic = true
 	}
 
@@ -319,4 +324,12 @@ func (c *Jellyfin) ResolveUserID() (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to find Jellyfin user %q", c.Cfg.Creds.User)
+}
+
+// Check which API Key variable is used
+func (c *Jellyfin) resolveAPIKey() string {
+	if c.Cfg.AdminCreds.APIKey != "" {
+		return c.Cfg.AdminCreds.APIKey
+	}
+	return c.Cfg.Creds.APIKey
 }
