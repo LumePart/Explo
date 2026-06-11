@@ -5,7 +5,7 @@ import { forwardRef } from 'react'
 export function Button({ children, className = '', ...props }) {
   return (
     <button
-      className={`bg-surface border border-ui-border text-white rounded-[6px] px-[18px] py-[7px] text-[13px] cursor-pointer hover:border-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
+      className={`bg-transparent border border-ui-border text-white rounded-[6px] px-[18px] py-[7px] text-[13px] cursor-pointer hover:border-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
       {...props}
     >
       {children}

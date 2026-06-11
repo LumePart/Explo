@@ -50,9 +50,10 @@ export function PathLine({ template }) {
 }
 
 // Props:
-//   onClose  — called on cancel / backdrop / Escape
-//   onSave   — called with { name, template } when user saves the preset
-export function PathTemplateModal({ onClose, onSave }) {
+//   onClose       — called on cancel / backdrop / Escape
+//   onSave        — called with { name, template } when user saves the preset
+//   enrichEnabled — whether rich metadata is on; gates enriched variable chips
+export function PathTemplateModal({ onClose, onSave, enrichEnabled = false }) {
   const [name, setName] = useState('')
   const [template, setTemplate] = useState(SEED_PRESETS[0].template)
   const nameInputRef = useRef(null)
@@ -154,21 +155,27 @@ export function PathTemplateModal({ onClose, onSave }) {
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
-              {TEMPLATE_VARS.map(({ name: varName, example, enriched }) => (
-                <button
-                  key={varName}
-                  onClick={() => insertVariable(varName)}
-                  className="flex items-baseline gap-1.5 bg-surface border border-ui-border rounded-[6px] px-2.5 py-1.5 text-[12px] text-white cursor-pointer transition-colors hover:border-accent hover:text-accent"
-                >
-                  {varName}
-                  <span className="text-[10px] text-muted">{example}</span>
-                  {enriched && <span className="text-[9px] text-muted" title="Requires ENRICH_METADATA=true">*</span>}
-                </button>
-              ))}
+              {TEMPLATE_VARS.map(({ name: varName, example, enriched }) => {
+                const locked = enriched && !enrichEnabled
+                return (
+                  <button
+                    key={varName}
+                    onClick={() => !locked && insertVariable(varName)}
+                    title={locked ? 'Enable rich metadata in settings to use this variable' : undefined}
+                    className={`flex items-baseline gap-1.5 bg-surface border rounded-[6px] px-2.5 py-1.5 text-[12px] transition-colors
+                      ${locked
+                        ? 'border-ui-border text-muted opacity-40 cursor-not-allowed'
+                        : 'border-ui-border text-white cursor-pointer hover:border-accent hover:text-accent'}`}
+                  >
+                    {varName}
+                    <span className="text-[10px] text-muted">{example}</span>
+                  </button>
+                )
+              })}
             </div>
 
             <p className="text-[11px] text-muted mb-3 leading-relaxed">
-              Click to insert at cursor. Variables marked * need ENRICH_METADATA=true. Illegal chars (/ \ : * ? " &lt; &gt; |) are stripped.
+              Click a variable to insert it at the cursor. Dimmed variables require <span className="text-white">Auto-tag</span> to be enabled in settings. Illegal path characters are stripped automatically.
             </p>
           </div>
         </div>

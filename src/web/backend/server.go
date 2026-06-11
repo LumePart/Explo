@@ -244,6 +244,19 @@ func (s *Server) registerRoutes() {
 	s.mux.Handle("/api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
 	s.mux.Handle("/api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
 	s.mux.Handle("/api/ui/config/path-template", s.authStore.RequireAuth(http.HandlerFunc(s.handleSavePathTemplate)))
+	s.mux.Handle("/api/ui/config/enrich-metadata", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveEnrichMetadata)))
+
+	// Path template presets: GET list, POST add; DELETE per name under prefix
+	s.mux.HandleFunc("/api/ui/path-templates", func(w http.ResponseWriter, r *http.Request) {
+		s.authStore.RequireAuth(http.HandlerFunc(s.handlePathTemplates)).ServeHTTP(w, r)
+	})
+	s.mux.HandleFunc("/api/ui/path-templates/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			s.authStore.RequireAuth(http.HandlerFunc(s.handleDeletePathTemplate)).ServeHTTP(w, r)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
 
 	// Wizard steps (POST) — require auth
 	s.mux.Handle("/api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
@@ -581,6 +594,30 @@ func (s *Server) handleSavePathTemplate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := updateEnvKeys(s.cfg.WebEnvPath, map[string]string{"PATH_TEMPLATE": body.Template}, web.SampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleSaveEnrichMetadata writes ENRICH_METADATA=true/false to the .env file.
+func (s *Server) handleSaveEnrichMetadata(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	val := "false"
+	if body.Enabled {
+		val = "true"
+	}
+	if err := updateEnvKeys(s.cfg.WebEnvPath, map[string]string{"ENRICH_METADATA": val}, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

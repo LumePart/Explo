@@ -14,7 +14,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate,
+  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata,
+  fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks } from '../lib/listenbrainz'
@@ -503,25 +504,64 @@ function DownloadPathSection() {
   const [saveStatus, setSaveStatus] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [openMenuIdx, setOpenMenuIdx] = useState(null)
+  const [enrichEnabled, setEnrichEnabled] = useState(false)
+  const [templateEnabled, setTemplateEnabled] = useState(false)
 
   useEffect(() => {
-    fetchConfig().then(({ values }) => {
+    Promise.all([
+      fetchConfig(),
+      fetchPathTemplatePresets().catch(() => []),
+    ]).then(([{ values }, jsonPresets]) => {
+      const allProfiles = [
+        ...SEED_PRESETS.map(p => ({ ...p, seed: true })),
+        ...jsonPresets,
+      ]
+      setEnrichEnabled(values.ENRICH_METADATA === 'true')
       const t = values.PATH_TEMPLATE || ''
       if (t) {
-        const idx = SEED_PRESETS.findIndex(p => p.template === t)
+        setTemplateEnabled(true)
+        const idx = allProfiles.findIndex(p => p.template === t)
         if (idx >= 0) {
+          setProfiles(allProfiles)
           setAppliedIdx(idx)
           setSelectedIdx(idx)
         } else {
-          const customIdx = SEED_PRESETS.length
-          setProfiles([...SEED_PRESETS.map(p => ({ ...p, seed: true })), { name: 'Custom', template: t }])
+          const customIdx = allProfiles.length
+          setProfiles([...allProfiles, { name: 'Custom', template: t }])
           setAppliedIdx(customIdx)
           setSelectedIdx(customIdx)
         }
+      } else {
+        setProfiles(allProfiles)
       }
       setLoaded(true)
     })
   }, [])
+
+  const handleEnrichToggle = async () => {
+    const next = !enrichEnabled
+    setEnrichEnabled(next)
+    try { await saveEnrichMetadata(next) } catch { setEnrichEnabled(!next) }
+  }
+
+  const handleTemplateToggle = async () => {
+    if (templateEnabled) {
+      setTemplateEnabled(false)
+      setAppliedIdx(null)
+      setSelectedIdx(null)
+      try { await savePathTemplate('') } catch { setTemplateEnabled(true) }
+    } else {
+      setTemplateEnabled(true)
+      if (selectedIdx === null) setSelectedIdx(0)
+    }
+  }
+
+  useEffect(() => {
+    if (!showModal) return
+    const handle = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handle)
+    return () => window.removeEventListener('beforeunload', handle)
+  }, [showModal])
 
   useEffect(() => {
     if (openMenuIdx === null) return
@@ -534,7 +574,11 @@ function DownloadPathSection() {
 
   if (!loaded) return null
 
-  const handleDeleteProfile = i => {
+  const handleDeleteProfile = async (i) => {
+    const profile = profiles[i]
+    if (!profile.seed) {
+      try { await deletePathTemplatePreset(profile.name) } catch {}
+    }
     const newApplied = appliedIdx === i ? null : appliedIdx !== null && appliedIdx > i ? appliedIdx - 1 : appliedIdx
     const newSelected = selectedIdx === i ? newApplied : selectedIdx !== null && selectedIdx > i ? selectedIdx - 1 : selectedIdx
     setProfiles(prev => prev.filter((_, j) => j !== i))
@@ -558,7 +602,8 @@ function DownloadPathSection() {
     }
   }
 
-  const handleSavePreset = ({ name, template }) => {
+  const handleSavePreset = async ({ name, template }) => {
+    try { await addPathTemplatePreset(name, template) } catch {}
     const newIdx = profiles.length
     setProfiles(prev => [...prev, { name, template }])
     setSelectedIdx(newIdx)
@@ -568,9 +613,41 @@ function DownloadPathSection() {
   return (
     <div className="mt-6">
       <SectionLabel>Folder Structure</SectionLabel>
+      {/* ENRICH_METADATA toggle */}
+      <div className="flex items-start justify-between mt-3 mb-1 gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-white">Auto-tag songs</span>
+          <span className="text-[11px] text-muted">Looks up track numbers, year, genre & more from MusicBrainz and writes them to downloaded files.</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={enrichEnabled}
+          onClick={handleEnrichToggle}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${enrichEnabled ? 'bg-accent' : 'bg-[#383838]'}`}
+        >
+          <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${enrichEnabled ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
+        </button>
+      </div>
 
+      {/* Organize into folders toggle */}
+      <div className="flex items-start justify-between mt-3 mb-1 gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-white">Organize into folders</span>
+          <span className="text-[11px] text-muted">Sort downloads into subfolders by artist, album, etc.</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={templateEnabled}
+          onClick={handleTemplateToggle}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${templateEnabled ? 'bg-accent' : 'bg-[#383838]'}`}
+        >
+          <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${templateEnabled ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
+        </button>
+      </div>
+
+      {templateEnabled && (<>
       {/* Current / pending path readout */}
-      <div className="flex items-baseline gap-2.5 overflow-x-auto py-1">
+      <div className="flex items-baseline gap-2.5 overflow-x-auto py-1 mt-6">
         <span className={`text-[11px] shrink-0 transition-colors ${dirty ? 'text-accent' : 'text-muted'}`}>
           {dirty ? 'Preview:' : 'Active:'}
         </span>
@@ -580,7 +657,7 @@ function DownloadPathSection() {
       </div>
 
       {/* Profile card grid */}
-      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-4">
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-2">
         {profiles.map((profile, i) => {
           const isSelected = i === selectedIdx
           return (
@@ -606,7 +683,7 @@ function DownloadPathSection() {
                         ···
                       </button>
                       {openMenuIdx === i && (
-                        <div className="absolute right-0 top-full mt-1 bg-surface border border-ui-border rounded-[6px] z-10 py-1 min-w-[80px]"
+                        <div className="absolute right-0 top-full mt-1 bg-well border border-ui-border rounded-[6px] z-10 py-1 min-w-[80px]"
                           style={{ boxShadow: '0 8px 24px #00000066' }}
                         >
                           <button
@@ -661,7 +738,7 @@ function DownloadPathSection() {
             >
               Cancel
             </button>
-            <Button onClick={handleSave} style={{ background: 'transparent' }}>
+            <Button onClick={handleSave}>
               Save folder structure
             </Button>
           </motion.div>
@@ -679,11 +756,14 @@ function DownloadPathSection() {
         )}
       </AnimatePresence>
 
+      </>)}
+
       <AnimatePresence>
         {showModal && (
           <PathTemplateModal
             onClose={() => setShowModal(false)}
             onSave={handleSavePreset}
+            enrichEnabled={enrichEnabled}
           />
         )}
       </AnimatePresence>
