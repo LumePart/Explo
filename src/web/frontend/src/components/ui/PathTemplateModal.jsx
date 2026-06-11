@@ -3,21 +3,20 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Button } from './common'
 
 export const SEED_PRESETS = [
-  { name: 'Artist / Album / Track', template: '{{Artist}}/{{Album}}/{{TrackNumber}} - {{TrackName}}.{{ext}}' },
-  { name: 'Year-tagged albums',     template: '{{Artist}}/{{Year}} - {{Album}}/{{TrackNumber}} - {{TrackName}}.{{ext}}' },
-  { name: 'Disc-aware',             template: '{{Artist}}/{{Album}}/{{DiscNumber}}-{{TrackNumber}} {{TrackName}}.{{ext}}' },
+  { name: 'Artist / Album / Track', template: '{{Artist}}/{{Album}}/{{TrackName}}.{{ext}}' },
   { name: 'Flat',                   template: '{{Artist}} - {{TrackName}}.{{ext}}' },
 ]
 
+// enriched: requires ENRICH_METADATA=true (or a source that provides the field)
 const TEMPLATE_VARS = [
-  ['Artist', 'Radiohead'],
-  ['Album', 'OK Computer'],
-  ['TrackName', 'Karma Police'],
-  ['TrackNumber', '03'],
-  ['DiscNumber', '01'],
-  ['Year', '1997'],
-  ['File', 'filename'],
-  ['ext', 'flac'],
+  { name: 'Artist',      example: 'Radiohead',     enriched: false },
+  { name: 'Album',       example: 'OK Computer',   enriched: false },
+  { name: 'TrackName',   example: 'Karma Police',  enriched: false },
+  { name: 'ext',         example: 'flac',          enriched: false },
+  { name: 'TrackNumber', example: '03',            enriched: true  },
+  { name: 'DiscNumber',  example: '01',            enriched: true  },
+  { name: 'Year',        example: '1997',          enriched: true  },
+  { name: 'File',        example: 'filename',      enriched: false },
 ]
 
 const SAMPLE_META = {
@@ -107,7 +106,7 @@ export function PathTemplateModal({ onClose, onSave }) {
         transition={{ duration: 0.18 }}
         className="w-full max-w-[540px] border border-ui-border rounded-lg overflow-hidden"
         style={{
-          background: '#1a1a1ae6',
+          background: '#0d0d0df0',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           boxShadow: '0 24px 64px #00000099',
@@ -125,58 +124,53 @@ export function PathTemplateModal({ onClose, onSave }) {
         </div>
 
         {/* Body */}
-        <div className="px-5 pt-5 pb-1">
-          <p className="text-[11px] text-muted uppercase tracking-[1px] mb-2">Template name</p>
+        <div className="px-5 pt-5 pb-2">
           <input
             ref={nameInputRef}
-            className="w-full bg-well border border-ui-border text-white rounded-[6px] px-3 py-2.5 text-[14px] outline-none focus:border-accent transition-colors"
-            placeholder="e.g. By genre"
+            className="w-full bg-transparent border-none text-accent text-[16px] font-semibold outline-none placeholder:text-muted placeholder:font-normal mb-5"
+            placeholder="Template name"
             value={name}
             onChange={e => setName(e.target.value)}
             spellCheck={false}
           />
 
-          <p className="text-[11px] text-muted uppercase tracking-[1px] mb-2 mt-5">Folder structure</p>
-          <input
-            ref={templateInputRef}
-            className="w-full bg-well border border-ui-border text-white rounded-[6px] px-3 py-2.5 text-[13px] outline-none focus:border-accent transition-colors"
-            value={template}
-            onChange={e => setTemplate(e.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-          />
+          <div className="border-t border-ui-border pt-4 flex flex-col gap-3">
+            <input
+              ref={templateInputRef}
+              className="w-full bg-well border border-ui-border text-white rounded-[6px] px-3 py-2.5 text-[13px] outline-none focus:border-accent transition-colors"
+              value={template}
+              onChange={e => setTemplate(e.target.value)}
+              spellCheck={false}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+            />
 
-          <p className="text-[11px] text-muted uppercase tracking-[1px] mb-2 mt-5">Preview</p>
-          <div className="flex items-baseline gap-2.5 overflow-x-auto py-1">
-            <span className="text-white shrink-0" style={{ opacity: 0.25 }}>→</span>
-            <div className="text-[13px] font-medium whitespace-nowrap">
-              <PathLine template={template} />
+            <div className="flex items-baseline gap-2 px-0.5 overflow-x-auto">
+              <span className="text-white shrink-0" style={{ opacity: 0.25 }}>→</span>
+              <div className="text-[13px] font-medium whitespace-nowrap">
+                <PathLine template={template} />
+              </div>
             </div>
-          </div>
 
-          <p className="text-[11px] text-muted uppercase tracking-[1px] mb-2 mt-5">Insert variable</p>
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATE_VARS.map(([varName, example]) => (
-              <button
-                key={varName}
-                onClick={() => insertVariable(varName)}
-                className="flex items-baseline gap-1.5 bg-surface border border-ui-border rounded-[6px] px-2.5 py-1.5 text-[12px] text-white cursor-pointer transition-colors hover:border-accent hover:text-accent"
-              >
-                {varName}
-                <span className="text-[10px] text-muted">{example}</span>
-              </button>
-            ))}
-          </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {TEMPLATE_VARS.map(({ name: varName, example, enriched }) => (
+                <button
+                  key={varName}
+                  onClick={() => insertVariable(varName)}
+                  className="flex items-baseline gap-1.5 bg-surface border border-ui-border rounded-[6px] px-2.5 py-1.5 text-[12px] text-white cursor-pointer transition-colors hover:border-accent hover:text-accent"
+                >
+                  {varName}
+                  <span className="text-[10px] text-muted">{example}</span>
+                  {enriched && <span className="text-[9px] text-muted" title="Requires ENRICH_METADATA=true">*</span>}
+                </button>
+              ))}
+            </div>
 
-          <p className="text-[11px] text-muted mt-3 mb-5 leading-relaxed">
-            Click to insert at cursor. Illegal characters{' '}
-            {['/', '\\', ':', '*', '?', '"', '<', '>', '|'].map(c => (
-              <span key={c} className="inline-block bg-surface border border-ui-border rounded px-1 text-[10px] mx-0.5">{c}</span>
-            ))}{' '}
-            in a value are stripped automatically.
-          </p>
+            <p className="text-[11px] text-muted mb-3 leading-relaxed">
+              Click to insert at cursor. Variables marked * need ENRICH_METADATA=true. Illegal chars (/ \ : * ? " &lt; &gt; |) are stripped.
+            </p>
+          </div>
         </div>
 
         {/* Footer */}

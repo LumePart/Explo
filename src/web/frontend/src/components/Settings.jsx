@@ -530,6 +530,8 @@ function DownloadPathSection() {
     return () => document.removeEventListener('click', handle)
   }, [openMenuIdx])
 
+  const dirty = selectedIdx !== appliedIdx
+
   if (!loaded) return null
 
   const handleDeleteProfile = i => {
@@ -540,8 +542,6 @@ function DownloadPathSection() {
     setSelectedIdx(newSelected)
     setOpenMenuIdx(null)
   }
-
-  const dirty = selectedIdx !== appliedIdx
   const previewTemplate = selectedIdx !== null
     ? (profiles[selectedIdx]?.template ?? SEED_PRESETS[0].template)
     : SEED_PRESETS[0].template
@@ -570,11 +570,10 @@ function DownloadPathSection() {
       <SectionLabel>Folder Structure</SectionLabel>
 
       {/* Current / pending path readout */}
-      <p className={`text-[12px] mb-2 transition-colors ${dirty ? 'text-accent' : 'text-muted'}`}>
-        {dirty ? 'New folder structure' : 'Current folder structure'}
-      </p>
       <div className="flex items-baseline gap-2.5 overflow-x-auto py-1">
-        <span className="text-white shrink-0" style={{ opacity: 0.25 }}>→</span>
+        <span className={`text-[11px] shrink-0 transition-colors ${dirty ? 'text-accent' : 'text-muted'}`}>
+          {dirty ? 'Preview:' : 'Active:'}
+        </span>
         <div className="text-[13px] font-medium whitespace-nowrap">
           <PathLine template={previewTemplate} />
         </div>
@@ -583,7 +582,6 @@ function DownloadPathSection() {
       {/* Profile card grid */}
       <div className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-4">
         {profiles.map((profile, i) => {
-          const isApplied = i === appliedIdx
           const isSelected = i === selectedIdx
           return (
             <div
@@ -598,11 +596,6 @@ function DownloadPathSection() {
               <div className="flex items-start justify-between gap-1.5">
                 <span className="text-[14px] font-medium text-white leading-snug">{profile.name}</span>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {isApplied && (
-                    <span className="text-[9.5px] uppercase tracking-[0.12em] text-accent border border-accent rounded-[5px] px-1.5 py-0.5 whitespace-nowrap">
-                      In use
-                    </span>
-                  )}
                   {!profile.seed && (
                     <div className="relative" onClick={e => e.stopPropagation()}>
                       <button
@@ -755,7 +748,7 @@ function ConfigSection({ onWizard }) {
         {!editing ? (
           <pre
             className="bg-well border border-ui-border rounded-[6px] w-full h-[420px] overflow-y-auto p-3.5 font-mono text-[12px] leading-relaxed whitespace-pre break-normal"
-            dangerouslySetInnerHTML={{ __html: highlightEnv(rawConfig) }}
+            dangerouslySetInnerHTML={{ __html: highlightEnv(rawConfig, true) }}
           />
         ) : (
           <textarea
