@@ -205,7 +205,7 @@ const SYSTEMS = [
   { value: "mpd", name: "MPD" },
 ];
 
-const API_KEY_SYSTEMS = ["jellyfin", "emby", "plex"];
+const API_KEY_SYSTEMS = ["emby", "plex"];
 const ADMIN_SYSTEMS = ["plex", "subsonic"];
 
 function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
@@ -260,7 +260,11 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
         }
       }
     }
-
+    if (system === "jellyfin") {
+      if (!systemUsername.trim() || !apiKey.trim()) {
+        return false;
+      }
+    }
     if (system === "subsonic") {
       if (!systemUsername.trim() || !systemPassword.trim()) {
         return false;
@@ -326,7 +330,42 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
             />
           </TextField>
         )}
-
+        {system && system == "jellyfin" && (
+          <>
+            <TextField label="API Key">
+              <input
+                type="text"
+                className={inputCls}
+                value={apiKey}
+                onChange={(e) => setField("apiKey", e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={isLocked("API_KEY")}
+              />
+            </TextField>
+            <TextField label="System Username">
+              <input
+                type="text"
+                className={inputCls}
+                value={systemUsername}
+                onChange={(e) => setField("systemUsername", e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={isLocked("SYSTEM_USERNAME")}
+              />
+            </TextField>
+            <TextField label="Library Name">
+              <input
+                type="text"
+                className={inputCls}
+                value={libraryName}
+                onChange={(e) => setField("libraryName", e.target.value)}
+                placeholder="e.g. Music"
+                disabled={isLocked("LIBRARY_NAME")}
+              />
+            </TextField>
+          </>
+        )}
         {API_KEY_SYSTEMS.includes(system) && (
           <>
             <TextField
@@ -384,20 +423,89 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
                 </TextField>
               </>
             )}
+            <TextField label="Library Name">
+              <input
+                type="text"
+                className={inputCls}
+                value={libraryName}
+                onChange={(e) => setField("libraryName", e.target.value)}
+                placeholder="e.g. Music"
+                disabled={isLocked("LIBRARY_NAME")}
+              />
+            </TextField>
+            <div className="border border-ui-border rounded-[6px] p-4 bg-surface">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={adminCredentials}
+                  onChange={(e) => setField("adminCredentials", e.target.checked)}
+                  className="mt-[2px] accent-accent"
+                />
+  
+                <div>
+                  <div className="text-[14px] font-medium text-white">
+                    Add Administrator Credentials
+                  </div>
+  
+                  <div className="text-[12px] text-muted mt-1">
+                    Optional. Used for administrative actions such as creating
+                    playlists for other users.
+                  </div>
+                </div>
+              </label>
+  
+              <Collapse open={adminCredentials}>
+                <SegmentedControl
+                  value={adminAuthMethod}
+                  onChange={(v) => setField("adminAuthMethod", v)}
+                  options={[
+                    {
+                      value: "password",
+                      label: "Username & Password",
+                    },
+                    {
+                      value: "apikey",
+                      label: "API Key",
+                    },
+                  ]}
+                />
+                {adminAuthMethod === "apikey" ? (
+                  <TextField label="Administrator API Key">
+                    <input
+                      type="text"
+                      className={inputCls}
+                      value={adminApiKey}
+                      onChange={(e) => setField("adminApiKey", e.target.value)}
+                    />
+                  </TextField>
+                ) : (
+                  <>
+                    <TextField label="Administrator Username">
+                      <input
+                        type="text"
+                        className={inputCls}
+                        value={adminSystemUsername}
+                        onChange={(e) =>
+                          setField("adminSystemUsername", e.target.value)
+                        }
+                      />
+                    </TextField>
+  
+                    <TextField label="Administrator Password">
+                      <input
+                        type="password"
+                        className={inputCls}
+                        value={adminSystemPassword}
+                        onChange={(e) =>
+                          setField("adminSystemPassword", e.target.value)
+                        }
+                      />
+                    </TextField>
+                  </>
+                )}
+              </Collapse>
+            </div>
           </>
-        )}
-
-        {API_KEY_SYSTEMS.includes(system) && (
-          <TextField label="Library Name">
-            <input
-              type="text"
-              className={inputCls}
-              value={libraryName}
-              onChange={(e) => setField("libraryName", e.target.value)}
-              placeholder="e.g. Music"
-              disabled={isLocked("LIBRARY_NAME")}
-            />
-          </TextField>
         )}
 
         {system === "subsonic" && (
@@ -423,80 +531,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
             </TextField>
           </>
         )}
-        {ADMIN_SYSTEMS.includes(system) && (
-          <div className="border border-ui-border rounded-[6px] p-4 bg-surface">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={adminCredentials}
-                onChange={(e) => setField("adminCredentials", e.target.checked)}
-                className="mt-[2px] accent-accent"
-              />
-
-              <div>
-                <div className="text-[14px] font-medium text-white">
-                  Add Administrator Credentials
-                </div>
-
-                <div className="text-[12px] text-muted mt-1">
-                  Optional. Used for administrative actions such as creating
-                  playlists for other users.
-                </div>
-              </div>
-            </label>
-
-            <Collapse open={adminCredentials}>
-              <SegmentedControl
-                value={adminAuthMethod}
-                onChange={(v) => setField("adminAuthMethod", v)}
-                options={[
-                  {
-                    value: "password",
-                    label: "Username & Password",
-                  },
-                  {
-                    value: "apikey",
-                    label: "API Key",
-                  },
-                ]}
-              />
-              {adminAuthMethod === "apikey" ? (
-                <TextField label="Administrator API Key">
-                  <input
-                    type="text"
-                    className={inputCls}
-                    value={adminApiKey}
-                    onChange={(e) => setField("adminApiKey", e.target.value)}
-                  />
-                </TextField>
-              ) : (
-                <>
-                  <TextField label="Administrator Username">
-                    <input
-                      type="text"
-                      className={inputCls}
-                      value={adminSystemUsername}
-                      onChange={(e) =>
-                        setField("adminSystemUsername", e.target.value)
-                      }
-                    />
-                  </TextField>
-
-                  <TextField label="Administrator Password">
-                    <input
-                      type="password"
-                      className={inputCls}
-                      value={adminSystemPassword}
-                      onChange={(e) =>
-                        setField("adminSystemPassword", e.target.value)
-                      }
-                    />
-                  </TextField>
-                </>
-              )}
-            </Collapse>
-          </div>
-        )}
+        
         {system === "mpd" && (
           <TextField
             label="Playlist directory"
