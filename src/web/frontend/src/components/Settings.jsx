@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist,
+  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks } from '../lib/listenbrainz'
@@ -23,6 +23,7 @@ import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
 import { ImportModal } from './ui/ImportModal'
+import { SEED_PRESETS, PathLine, PathTemplateModal } from './ui/PathTemplateModal'
 import { UpdateNotification } from './ui/UpdateNotification'
 
 const tabBtnCls = active =>
@@ -488,6 +489,215 @@ function HomeSection() {
   )
 }
 
+// ── Download Path Tab ─────────────────────────────────────────────────────────
+// Profile-picker for the PATH_TEMPLATE env key. Users select a preset folder
+// structure (or author their own via the modal) and apply it. Pending changes
+// are previewed inline before being written to .env via the confirm bar.
+
+
+function DownloadPathSection() {
+  const [profiles, setProfiles] = useState(() => SEED_PRESETS.map(p => ({ ...p, seed: true })))
+  const [appliedIdx, setAppliedIdx] = useState(null)
+  const [selectedIdx, setSelectedIdx] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [openMenuIdx, setOpenMenuIdx] = useState(null)
+
+  useEffect(() => {
+    fetchConfig().then(({ values }) => {
+      const t = values.PATH_TEMPLATE || ''
+      if (t) {
+        const idx = SEED_PRESETS.findIndex(p => p.template === t)
+        if (idx >= 0) {
+          setAppliedIdx(idx)
+          setSelectedIdx(idx)
+        } else {
+          const customIdx = SEED_PRESETS.length
+          setProfiles([...SEED_PRESETS.map(p => ({ ...p, seed: true })), { name: 'Custom', template: t }])
+          setAppliedIdx(customIdx)
+          setSelectedIdx(customIdx)
+        }
+      }
+      setLoaded(true)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (openMenuIdx === null) return
+    const handle = () => setOpenMenuIdx(null)
+    document.addEventListener('click', handle)
+    return () => document.removeEventListener('click', handle)
+  }, [openMenuIdx])
+
+  if (!loaded) return null
+
+  const handleDeleteProfile = i => {
+    const newApplied = appliedIdx === i ? null : appliedIdx !== null && appliedIdx > i ? appliedIdx - 1 : appliedIdx
+    const newSelected = selectedIdx === i ? newApplied : selectedIdx !== null && selectedIdx > i ? selectedIdx - 1 : selectedIdx
+    setProfiles(prev => prev.filter((_, j) => j !== i))
+    setAppliedIdx(newApplied)
+    setSelectedIdx(newSelected)
+    setOpenMenuIdx(null)
+  }
+
+  const dirty = selectedIdx !== appliedIdx
+  const previewTemplate = selectedIdx !== null
+    ? (profiles[selectedIdx]?.template ?? SEED_PRESETS[0].template)
+    : SEED_PRESETS[0].template
+
+  const handleSave = async () => {
+    const t = selectedIdx !== null ? profiles[selectedIdx].template : ''
+    try {
+      await savePathTemplate(t)
+      setAppliedIdx(selectedIdx)
+      setSaveStatus('Saved.')
+      setTimeout(() => setSaveStatus(''), 2500)
+    } catch {
+      setSaveStatus('Error saving.')
+    }
+  }
+
+  const handleSavePreset = ({ name, template }) => {
+    const newIdx = profiles.length
+    setProfiles(prev => [...prev, { name, template }])
+    setSelectedIdx(newIdx)
+    setShowModal(false)
+  }
+
+  return (
+    <div className="mt-6">
+      <SectionLabel>Folder Structure</SectionLabel>
+
+      {/* Current / pending path readout */}
+      <p className={`text-[12px] mb-2 transition-colors ${dirty ? 'text-accent' : 'text-muted'}`}>
+        {dirty ? 'New folder structure' : 'Current folder structure'}
+      </p>
+      <div className="flex items-baseline gap-2.5 overflow-x-auto py-1">
+        <span className="text-white shrink-0" style={{ opacity: 0.25 }}>→</span>
+        <div className="text-[13px] font-medium whitespace-nowrap">
+          <PathLine template={previewTemplate} />
+        </div>
+      </div>
+
+      {/* Profile card grid */}
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-4">
+        {profiles.map((profile, i) => {
+          const isApplied = i === appliedIdx
+          const isSelected = i === selectedIdx
+          return (
+            <div
+              key={i}
+              onClick={() => setSelectedIdx(i)}
+              className={`group relative flex flex-col gap-2.5 p-4 bg-transparent rounded-[8px] cursor-pointer select-none transition-all duration-[120ms] border
+                ${isSelected
+                  ? 'border-accent'
+                  : 'border-ui-border hover:border-[#404040] hover:-translate-y-px'}`}
+              style={{ minHeight: 112, ...(isSelected ? { boxShadow: '0 0 0 3px rgba(30,215,96,0.14)' } : {}) }}
+            >
+              <div className="flex items-start justify-between gap-1.5">
+                <span className="text-[14px] font-medium text-white leading-snug">{profile.name}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isApplied && (
+                    <span className="text-[9.5px] uppercase tracking-[0.12em] text-accent border border-accent rounded-[5px] px-1.5 py-0.5 whitespace-nowrap">
+                      In use
+                    </span>
+                  )}
+                  {!profile.seed && (
+                    <div className="relative" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={e => { e.stopPropagation(); setOpenMenuIdx(openMenuIdx === i ? null : i) }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-muted hover:text-white text-[15px] leading-none cursor-pointer px-1 py-0"
+                        title="Options"
+                      >
+                        ···
+                      </button>
+                      {openMenuIdx === i && (
+                        <div className="absolute right-0 top-full mt-1 bg-surface border border-ui-border rounded-[6px] z-10 py-1 min-w-[80px]"
+                          style={{ boxShadow: '0 8px 24px #00000066' }}
+                        >
+                          <button
+                            onClick={() => handleDeleteProfile(i)}
+                            className="w-full text-left px-3 py-1.5 text-[12px] text-danger hover:bg-well transition-colors cursor-pointer bg-transparent border-none whitespace-nowrap"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-auto pt-2.5 border-t border-dashed border-ui-border">
+                <div className="text-[11px] leading-relaxed">
+                  <PathLine template={profile.template} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* New template card */}
+        <div
+          onClick={() => setShowModal(true)}
+          className="flex flex-col items-center justify-center gap-2 p-4 bg-transparent rounded-[8px] border border-dashed border-ui-border cursor-pointer transition-colors text-muted hover:text-accent hover:border-accent"
+          style={{ minHeight: 112 }}
+        >
+          <span className="text-[26px] leading-none">+</span>
+          <span className="text-[13px]">New template</span>
+        </div>
+      </div>
+
+      {/* Confirm bar */}
+      <AnimatePresence>
+        {dirty && (
+          <motion.div
+            key="confirmbar"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center gap-4 mt-5"
+          >
+            <span className="mr-auto text-[12px] text-muted">
+              {saveStatus || 'Preview only — not applied yet.'}
+            </span>
+            <button
+              onClick={() => setSelectedIdx(appliedIdx)}
+              className="bg-transparent border-none text-muted text-[13px] cursor-pointer p-0 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <Button onClick={handleSave} style={{ background: 'transparent' }}>
+              Save folder structure
+            </Button>
+          </motion.div>
+        )}
+        {!dirty && saveStatus && (
+          <motion.p
+            key="savestatus"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-[12px] text-accent mt-4"
+          >
+            {saveStatus}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showModal && (
+          <PathTemplateModal
+            onClose={() => setShowModal(false)}
+            onSave={handleSavePreset}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ── Config Tab ────────────────────────────────────────────────────────────────
 // Raw .env file viewer/editor, plus wizard re-run and full reset actions.
 // Fetches its own raw config text from the API.
@@ -559,6 +769,8 @@ function ConfigSection({ onWizard }) {
           />
         )}
       </div>
+
+      <DownloadPathSection />
 
       <div className="mt-6">
         <SectionLabel>Setup</SectionLabel>

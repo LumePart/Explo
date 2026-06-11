@@ -192,6 +192,15 @@ export async function refreshCustomPlaylist(id) {
   return res.json()
 }
 
+export async function savePathTemplate(template) {
+  const res = await apiFetch('/api/ui/config/path-template', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+} 
+
 export async function fetchBackgroundArt() {
   try {
     const res = await fetch('/api/ui/background-art')
