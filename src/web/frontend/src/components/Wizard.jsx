@@ -22,9 +22,9 @@ const NextBtn = ({ onClick, disabled, saving, label = 'Next →' }) => (
     disabled={disabled || saving}
     className="bg-accent text-white rounded-[6px] px-6 py-2.5 text-[14px] border-none cursor-pointer hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
   >
-    {saving ? 'Saving…' : label}
+    {saving ? "Saving…" : label}
   </button>
-)
+);
 
 const BackBtn = ({ onClick }) => (
   <button
@@ -33,7 +33,7 @@ const BackBtn = ({ onClick }) => (
   >
     ← Back
   </button>
-)
+);
 
 // ── Step 1: Discovery ─────────────────────────────────────────────────────────
 // Collects the ListenBrainz username, discovery mode (playlist vs API), and
@@ -43,7 +43,7 @@ const PLAYLISTS = [
   { value: 'weekly-exploration', name: 'Weekly Exploration', desc: '~50 tracks · refreshes every Tuesday' },
   { value: 'weekly-jams',        name: 'Weekly Jams',        desc: '~25 tracks · refreshes every Monday' },
   { value: 'daily-jams',         name: 'Daily Jams',         desc: '~25 tracks · refreshes daily' },
-]
+];
 
 function Step1({ fields, setField, envSources, onNext, saving }) {
   const { user, discoveryMode, checked } = fields
@@ -54,7 +54,8 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
     <div>
       <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 1 of 3 — Discovery</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
-        Explo uses your ListenBrainz listening history to find music recommendations.
+        Explo uses your ListenBrainz listening history to find music
+        recommendations.
       </p>
 
       <div className="flex flex-col gap-5">
@@ -63,6 +64,33 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
           <input id="lb-user" type="text" className={inputCls} placeholder="e.g. musiclover42"
             autoComplete="off" spellCheck={false} value={user} onChange={e => setField('user', e.target.value)}
             disabled={isLocked('LISTENBRAINZ_USER')} />
+          label="ListenBrainz username"
+          labelFor="lb-user"
+          hint={
+            <>
+              Don't have an account?{" "}
+              <a
+                href="https://listenbrainz.org"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent"
+              >
+                Sign up free.
+              </a>
+            </>
+          }
+        >
+          <input
+            id="lb-user"
+            type="text"
+            className={inputCls}
+            placeholder="e.g. musiclover42"
+            autoComplete="off"
+            spellCheck={false}
+            value={user}
+            onChange={(e) => setField("user", e.target.value)}
+            disabled={isLocked("LISTENBRAINZ_USER")}
+          />
         </TextField>
 
         <div className="flex flex-col gap-2">
@@ -74,9 +102,9 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
             ].map(m => (
               <button
                 key={m.value}
-                onClick={() => setField('discoveryMode', m.value)}
+                onClick={() => setField("discoveryMode", m.value)}
                 className={`text-left flex flex-col gap-[5px] px-4 py-3.5 bg-surface border rounded-[6px] cursor-pointer transition-colors
-                  ${discoveryMode === m.value ? 'border-accent' : 'border-ui-border hover:border-[#404040]'}`}
+                  ${discoveryMode === m.value ? "border-accent" : "border-ui-border hover:border-[#404040]"}`}
               >
                 <span className={`text-[13px] font-semibold ${discoveryMode === m.value ? 'text-accent' : 'text-white'}`}>{m.name}</span>
                 <span className="text-[12px] text-muted leading-relaxed">{m.desc}</span>
@@ -85,11 +113,11 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
           </div>
         </div>
 
-        {discoveryMode === 'playlist' && (
+        {discoveryMode === "playlist" && (
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-medium text-muted">Which playlists should run on a schedule?</label>
             <div className="flex flex-col gap-0.5">
-              {PLAYLISTS.map(p => (
+              {PLAYLISTS.map((p) => (
                 <ToggleRow
                   key={p.value}
                   checked={checked[p.value]}
@@ -107,27 +135,60 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
         <NextBtn onClick={onNext} disabled={!valid} saving={saving} />
       </div>
     </div>
-  )
+  );
 }
 
 // ── Step 2: Media System ──────────────────────────────────────────────────────
 // Collects the media server type and its credentials. Fields shown/hidden
 // conditionally based on which system is selected.
+function SegmentedControl({ value, onChange, options }) {
+  return (
+    <div className="flex rounded-[6px] border border-ui-border bg-surface overflow-hidden">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`flex-1 px-4 py-2.5 border text-[13px] rounded-[6px] font-medium transition-colors
+            ${value === opt.value ? "border-accent text-accent" : "border-ui-border text-white hover:border-[#404040]"}`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const SYSTEMS = [
-  { value: 'jellyfin', name: 'Jellyfin' },
-  { value: 'emby',     name: 'Emby' },
-  { value: 'plex',     name: 'Plex' },
-  { value: 'subsonic', name: 'Subsonic' },
-  { value: 'mpd',      name: 'MPD' },
-]
+  { value: "jellyfin", name: "Jellyfin" },
+  { value: "emby", name: "Emby" },
+  { value: "plex", name: "Plex" },
+  { value: "subsonic", name: "Subsonic" },
+  { value: "mpd", name: "MPD" },
+];
 
-const API_KEY_SYSTEMS = ['jellyfin', 'emby', 'plex']
+const API_KEY_SYSTEMS = ["emby", "plex"];
+const ADMIN_SYSTEMS = ["plex", "subsonic"];
 
 function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
-  const { system, systemUrl, apiKey, libraryName, systemUsername, systemPassword,
-          playlistDir, sleepMinutes, publicPlaylist } = fields
-  const isLocked = key => envSources[key] === 'env'
+  const {
+    system,
+    systemUrl,
+    authMethod,
+    apiKey,
+    libraryName,
+    systemUsername,
+    systemPassword,
+    adminAuthMethod,
+    adminApiKey,
+    adminCredentials,
+    adminSystemUsername,
+    adminSystemPassword,
+    playlistDir,
+    sleepMinutes,
+    publicPlaylist,
+  } = fields;
+  const isLocked = (key) => envSources[key] === ".env";
 
   const urlPlaceholder = () => {
     const ports = { jellyfin: '8096', emby: '8096', plex: '32400', subsonic: '4533' }
@@ -135,31 +196,42 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
   }
 
   const valid = () => {
-    if (!system) return false
-    if (system === 'mpd') return playlistDir.trim() !== ''
-    if (!systemUrl) return false
-    if (API_KEY_SYSTEMS.includes(system) && !apiKey) return false
-    if (system === 'subsonic' && (!systemUsername || !systemPassword)) return false
-    return true
-  }
+    if (!system) return false;
+    if (system === "mpd") return playlistDir.trim() !== "";
+    if (!systemUrl.trim()) return false;
+    if (API_KEY_SYSTEMS.includes(system)) {
+      if (authMethod === "apikey" && !apiKey.trim()) return false;
+      if (authMethod === "password" && (!systemUsername.trim() || !systemPassword.trim())) return false;
+    }
+    if (system === "jellyfin" && ( !systemUsername.trim() || !apiKey.trim() ) ) return false;
+    if (system === "subsonic" && (!systemUsername.trim() || !systemPassword.trim()))  return false;
+    if (adminCredentials) {
+      if (adminAuthMethod == "apikey" && !adminApiKey?.trim()) return false;
+      if (adminAuthMethod == "password" && (!adminSystemUsername?.trim() || !adminSystemPassword?.trim())) return false;
+    }
+
+    return true;
+  };
 
   return (
     <div>
       <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 2 of 3 — Media System</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
-        Explo will add discovered tracks to your library and create playlists automatically. It needs access to your media server to do this.
+        Explo will add discovered tracks to your library and create playlists
+        automatically. It needs access to your media server to do this.
       </p>
 
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <label className="text-[13px] font-medium text-muted">Which media system do you use?</label>
           <div className="grid grid-cols-3 gap-2">
-            {SYSTEMS.map(s => (
+            {SYSTEMS.map((s) => (
               <button
                 key={s.value}
-                onClick={() => setField('system', s.value)}
-                className={`text-[14px] font-medium px-3 py-[18px] text-center bg-surface border rounded-[6px] ${isLocked('EXPLO_SYSTEM') ? 'cursor-not-allowed' : 'cursor-pointer'} transition-colors
-                  ${system === s.value ? 'border-accent text-accent' : 'border-ui-border text-white hover:border-[#404040]'}`} disabled={isLocked('EXPLO_SYSTEM')}
+                onClick={() => setField("system", s.value)}
+                className={`text-[14px] font-medium px-3 py-[18px] text-center bg-surface border rounded-[6px] ${isLocked("EXPLO_SYSTEM") ? "cursor-not-allowed" : "cursor-pointer"} transition-colors
+                  ${system === s.value ? "border-accent text-accent" : "border-ui-border text-white hover:border-[#404040]"}`}
+                disabled={isLocked("EXPLO_SYSTEM")}
               >
                 {s.name}
               </button>
@@ -167,31 +239,194 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
           </div>
         </div>
 
-        {system && system !== 'mpd' && (
+        {system && system !== "mpd" && (
           <TextField label="Server URL">
             <input type="text" className={inputCls} value={systemUrl} onChange={e => setField('systemUrl', e.target.value)}
               placeholder={urlPlaceholder()} disabled={isLocked('SYSTEM_URL')} />
           </TextField>
         )}
-
+        {system && system == "jellyfin" && (
+          <>
+            <TextField label="API Key">
+              <input
+                type="text"
+                className={inputCls}
+                value={apiKey}
+                onChange={(e) => setField("apiKey", e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={isLocked("API_KEY")}
+              />
+            </TextField>
+            <TextField label="System Username">
+              <input
+                type="text"
+                className={inputCls}
+                value={systemUsername}
+                onChange={(e) => setField("systemUsername", e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={isLocked("SYSTEM_USERNAME")}
+              />
+            </TextField>
+            <TextField label="Library Name">
+              <input
+                type="text"
+                className={inputCls}
+                value={libraryName}
+                onChange={(e) => setField("libraryName", e.target.value)}
+                placeholder="e.g. Music"
+                disabled={isLocked("LIBRARY_NAME")}
+              />
+            </TextField>
+          </>
+        )}
         {API_KEY_SYSTEMS.includes(system) && (
-          <TextField label="API Key">
-            <input type="text" className={inputCls} value={apiKey} onChange={e => setField('apiKey', e.target.value)}
-              autoComplete="off" spellCheck={false} disabled={isLocked('API_KEY')} />
-          </TextField>
+          <>
+            <TextField
+              label="Authentication Method"
+              hint="Choose how Explo should authenticate."
+            >
+              <SegmentedControl
+                value={authMethod || "password"}
+                onChange={(v) => setField("authMethod", v)}
+                options={[
+                  {
+                    value: "password",
+                    label: "Username & Password",
+                  },
+                  {
+                    value: "apikey",
+                    label: "API Key",
+                  },
+                ]}
+              />
+            </TextField>
+
+            {authMethod === "apikey" ? (
+              <TextField label="API Key">
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={apiKey}
+                  onChange={(e) => setField("apiKey", e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={isLocked("API_KEY")}
+                />
+              </TextField>
+            ) : (
+              <>
+                <TextField label="Username">
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={systemUsername}
+                    onChange={(e) => setField("systemUsername", e.target.value)}
+                    disabled={isLocked("SYSTEM_USERNAME")}
+                  />
+                </TextField>
+
+                <TextField label="Password">
+                  <input
+                    type="password"
+                    className={inputCls}
+                    value={systemPassword}
+                    onChange={(e) => setField("systemPassword", e.target.value)}
+                    disabled={isLocked("SYSTEM_PASSWORD")}
+                  />
+                </TextField>
+              </>
+            )}
+            <TextField label="Library Name">
+              <input
+                type="text"
+                className={inputCls}
+                value={libraryName}
+                onChange={(e) => setField("libraryName", e.target.value)}
+                placeholder="e.g. Music"
+                disabled={isLocked("LIBRARY_NAME")}
+              />
+            </TextField>
+            <div className="border border-ui-border rounded-[6px] p-4 bg-surface">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={adminCredentials}
+                  onChange={(e) => setField("adminCredentials", e.target.checked)}
+                  className="mt-[2px] accent-accent"
+                />
+  
+                <div>
+                  <div className="text-[14px] font-medium text-white">
+                    Add Administrator Credentials
+                  </div>
+  
+                  <div className="text-[12px] text-muted mt-1">
+                    Optional. Used for administrative actions such as creating
+                    playlists for other users.
+                  </div>
+                </div>
+              </label>
+  
+              <Collapse open={adminCredentials}>
+                <SegmentedControl
+                  value={adminAuthMethod}
+                  onChange={(v) => setField("adminAuthMethod", v)}
+                  options={[
+                    {
+                      value: "password",
+                      label: "Username & Password",
+                    },
+                    {
+                      value: "apikey",
+                      label: "API Key",
+                    },
+                  ]}
+                />
+                {adminAuthMethod === "apikey" ? (
+                  <TextField label="Administrator API Key">
+                    <input
+                      type="text"
+                      className={inputCls}
+                      value={adminApiKey}
+                      onChange={(e) => setField("adminApiKey", e.target.value)}
+                    />
+                  </TextField>
+                ) : (
+                  <>
+                    <TextField label="Administrator Username">
+                      <input
+                        type="text"
+                        className={inputCls}
+                        value={adminSystemUsername}
+                        onChange={(e) =>
+                          setField("adminSystemUsername", e.target.value)
+                        }
+                      />
+                    </TextField>
+  
+                    <TextField label="Administrator Password">
+                      <input
+                        type="password"
+                        className={inputCls}
+                        value={adminSystemPassword}
+                        onChange={(e) =>
+                          setField("adminSystemPassword", e.target.value)
+                        }
+                      />
+                    </TextField>
+                  </>
+                )}
+              </Collapse>
+            </div>
+          </>
         )}
 
-        {API_KEY_SYSTEMS.includes(system) && (
-          <TextField label="Library Name">
-            <input type="text" className={inputCls} value={libraryName} onChange={e => setField('libraryName', e.target.value)}
-              placeholder="e.g. Music" disabled={isLocked('LIBRARY_NAME')} />
-          </TextField>
-        )}
-
-        {system === 'subsonic' && (
+        {system === "subsonic" && (
           <>
             <TextField label="Username">
-              <input type="text" className={inputCls} value={systemUsername} onChange={e => setField('systemUsername', e.target.value)}
+               <input type="text" className={inputCls} value={systemUsername} onChange={e => setField('systemUsername', e.target.value)}
                 autoComplete="off" disabled={isLocked('SYSTEM_USERNAME')} />
             </TextField>
             <TextField label="Password">
@@ -217,11 +452,11 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
           </TextField>
         )}
 
-        {system === 'subsonic' && (
+        {system === "subsonic" && (
           <ToggleRow
             checked={publicPlaylist}
-            onChange={v => setField('publicPlaylist', v)}
-            disabled={isLocked('PUBLIC_PLAYLIST')}
+            onChange={(v) => setField("publicPlaylist", v)}
+            disabled={isLocked("PUBLIC_PLAYLIST")}
             name="Public playlists"
             desc="Make playlists visible to all users on the server"
           />
@@ -233,7 +468,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
         <NextBtn onClick={onNext} disabled={!valid()} saving={saving} />
       </div>
     </div>
-  )
+  );
 }
 
 function Collapse({ open, children }) {
@@ -247,7 +482,7 @@ function Collapse({ open, children }) {
         {children}
       </div>
     </div>
-  )
+  );
 }
 
 // ── Step 3: Downloader ────────────────────────────────────────────────────────
@@ -255,25 +490,36 @@ function Collapse({ open, children }) {
 // credentials, download directory, and file format preferences.
 
 function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
-  const { downloadDir, useSubdirectory, migrateDownloads, dlServices,
-          youtubeApiKey, trackExtension, filterList, slskdUrl, slskdApiKey, extensions } = fields
-  const isLocked = key => envSources[key] === 'env'
+  const {
+    downloadDir,
+    useSubdirectory,
+    migrateDownloads,
+    dlServices,
+    youtubeApiKey,
+    trackExtension,
+    filterList,
+    slskdUrl,
+    slskdApiKey,
+    extensions,
+  } = fields;
+  const isLocked = (key) => envSources[key] === "env";
 
   const valid = () => {
-    if (!Object.values(dlServices).some(Boolean)) return false
-    if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim())) return false
-    return true
-  }
+    if (!Object.values(dlServices).some(Boolean)) return false;
+    if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim()))
+      return false;
+    return true;
+  };
 
   return (
     <div>
       <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 3 of 3 — Downloader</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
-        Explo downloads tracks using one or both services. Enable what you have access to — if both are enabled, YouTube is tried first.
+        Explo downloads tracks using one or both services. Enable what you have
+        access to — if both are enabled, YouTube is tried first.
       </p>
 
       <div className="flex flex-col gap-6">
-
         {/* YouTube section */}
         <div className="flex flex-col gap-4">
           <ToggleRow
@@ -307,8 +553,8 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               </TextField>
               <ToggleRow
                 checked={useSubdirectory}
-                onChange={v => setField('useSubdirectory', v)}
-                disabled={isLocked('USE_SUBDIRECTORY')}
+                onChange={(v) => setField("useSubdirectory", v)}
+                disabled={isLocked("USE_SUBDIRECTORY")}
                 name="Use playlist subfolders"
                 desc="Create a subfolder per playlist inside the download directory"
               />
@@ -349,12 +595,13 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               </Collapse>
               <div className="flex flex-col gap-1.5">
                 <p className="text-[12px] text-muted leading-relaxed">
-                  By default, slskd saves tracks to whichever download path is configured in your slskd instance.
+                  By default, slskd saves tracks to whichever download path is
+                  configured in your slskd instance.
                 </p>
                 <ToggleRow
                   checked={migrateDownloads}
-                  onChange={v => setField('migrateDownloads', v)}
-                  disabled={isLocked('MIGRATE_DOWNLOADS')}
+                  onChange={(v) => setField("migrateDownloads", v)}
+                  disabled={isLocked("MIGRATE_DOWNLOADS")}
                   desc="Move completed downloads to a separate directory after transfer"
                 />
               </div>
@@ -368,8 +615,8 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                   </TextField>
                   <ToggleRow
                     checked={useSubdirectory}
-                    onChange={v => setField('useSubdirectory', v)}
-                    disabled={isLocked('USE_SUBDIRECTORY')}
+                    onChange={(v) => setField("useSubdirectory", v)}
+                    disabled={isLocked("USE_SUBDIRECTORY")}
                     name="Use playlist subfolders"
                     desc="Create a subfolder per playlist inside the download directory"
                   />
@@ -385,127 +632,181 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         <NextBtn onClick={onFinish} disabled={!valid()} saving={saving} label="Finish →" />
       </div>
     </div>
-  )
+  );
 }
 
 // ── Wizard ────────────────────────────────────────────────────────────────────
 // Owns all wizard state and calls wizardStep1/2/3 APIs to save each step.
 // Receives existing config/envSources from App to pre-populate fields.
 
-export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, onComplete }) {
-  const [step, setStep] = useState(1)
-  const [saving, setSaving] = useState(false)
+export default function Wizard({
+  config,
+  envSources,
+  bgUrl,
+  bgLoaded,
+  onBgLoad,
+  onComplete,
+}) {
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
 
   const [fields, setFields] = useState(() => {
-    const s = (config.DOWNLOAD_SERVICES || '').split(',')
+    const s = (config.DOWNLOAD_SERVICES || "").split(",");
     return {
       // Step 1
-      user:             config.LISTENBRAINZ_USER || '',
-      discoveryMode:    config.LISTENBRAINZ_DISCOVERY || 'playlist',
+      user: config.LISTENBRAINZ_USER || "",
+      discoveryMode: config.LISTENBRAINZ_DISCOVERY || "playlist",
       checked: {
-        'weekly-exploration': !!config.WEEKLY_EXPLORATION_SCHEDULE,
-        'weekly-jams':        !!config.WEEKLY_JAMS_SCHEDULE,
-        'daily-jams':         !!config.DAILY_JAMS_SCHEDULE,
+        "weekly-exploration": !!config.WEEKLY_EXPLORATION_SCHEDULE,
+        "weekly-jams": !!config.WEEKLY_JAMS_SCHEDULE,
+        "daily-jams": !!config.DAILY_JAMS_SCHEDULE,
       },
       // Step 2
-      system:           config.EXPLO_SYSTEM || '',
-      systemUrl:        config.SYSTEM_URL || '',
-      apiKey:           config.API_KEY || '',
-      libraryName:      config.LIBRARY_NAME || '',
-      systemUsername:   config.SYSTEM_USERNAME || '',
-      systemPassword:   config.SYSTEM_PASSWORD || '',
-      playlistDir:      config.PLAYLIST_DIR || '',
-      sleepMinutes:     config.SLEEP || '',
-      publicPlaylist:   config.PUBLIC_PLAYLIST === 'true',
+      system: config.EXPLO_SYSTEM || "",
+      systemUrl: config.SYSTEM_URL || "",
+      apiKey: config.API_KEY || "",
+      libraryName: config.LIBRARY_NAME || "",
+      systemUsername: config.SYSTEM_USERNAME || "",
+      systemPassword: config.SYSTEM_PASSWORD || "",
+      playlistDir: config.PLAYLIST_DIR || "",
+      sleepMinutes: config.SLEEP || "",
+      publicPlaylist: config.PUBLIC_PLAYLIST === "true",
       // Step 3
-      downloadDir:      config.DOWNLOAD_DIR || '',
-      useSubdirectory:  config.USE_SUBDIRECTORY !== 'false',
-      migrateDownloads: config.MIGRATE_DOWNLOADS === 'true',
-      dlServices:       { youtube: s.includes('youtube'), slskd: s.includes('slskd') },
-      youtubeApiKey:    config.YOUTUBE_API_KEY || '',
-      trackExtension:   config.TRACK_EXTENSION || '',
-      filterList:       config.FILTER_LIST || '',
-      slskdUrl:         config.SLSKD_URL || '',
-      slskdApiKey:      config.SLSKD_API_KEY || '',
-      extensions:       config.EXTENSIONS || '',
-    }
-  })
+      downloadDir: config.DOWNLOAD_DIR || "",
+      useSubdirectory: config.USE_SUBDIRECTORY !== "false",
+      migrateDownloads: config.MIGRATE_DOWNLOADS === "true",
+      dlServices: {
+        youtube: s.includes("youtube"),
+        slskd: s.includes("slskd"),
+      },
+      youtubeApiKey: config.YOUTUBE_API_KEY || "",
+      trackExtension: config.TRACK_EXTENSION || "",
+      filterList: config.FILTER_LIST || "",
+      slskdUrl: config.SLSKD_URL || "",
+      slskdApiKey: config.SLSKD_API_KEY || "",
+      extensions: config.EXTENSIONS || "",
+      adminAuthMethod: config.ADMIN_AUTH_METHOD || "password",
+      adminApiKey: config.ADMIN_API_KEY || "",
+      adminSystemUsername: config.ADMIN_SYSTEM_USERNAME || "",
+      adminSystemPassword: config.ADMIN_SYSTEM_PASSWORD || "",
+    };
+  });
 
-  const setField = (key, val) => setFields(prev => ({ ...prev, [key]: val }))
+  const setField = (key, val) => setFields((prev) => ({ ...prev, [key]: val }));
 
   const lockedKeys = Object.entries(envSources)
-    .filter(([k, s]) => s === 'env' && !k.endsWith('_SCHEDULE') && !k.endsWith('_FLAGS'))
-    .map(([k]) => k)
+    .filter(
+      ([k, s]) =>
+        s === "env" && !k.endsWith("_SCHEDULE") && !k.endsWith("_FLAGS"),
+    )
+    .map(([k]) => k);
 
   async function handleStep1() {
-    setSaving(true)
+    setSaving(true);
     try {
-      const playlists = Object.entries(fields.checked).filter(([, v]) => v).map(([k]) => k)
-      await wizardStep1(fields.user.trim(), playlists, fields.discoveryMode)
+      const playlists = Object.entries(fields.checked)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      await wizardStep1(fields.user.trim(), playlists, fields.discoveryMode);
       if (playlists.length > 0) {
-        prefetchPlaylists(fields.user.trim(), playlists, { source: 'wizard' }).catch(() => {})
+        prefetchPlaylists(fields.user.trim(), playlists, {
+          source: "wizard",
+        }).catch(() => {});
       }
-      setStep(2)
+      setStep(2);
     } catch (e) {
-      alert('Error saving: ' + e.message)
+      alert("Error saving: " + e.message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function handleStep2() {
-    setSaving(true)
+    setSaving(true);
     try {
       await wizardStep2({
-        system: fields.system, url: fields.systemUrl, api_key: fields.apiKey,
-        library_name: fields.libraryName, username: fields.systemUsername,
-        password: fields.systemPassword, playlist_dir: fields.playlistDir,
-        sleep: fields.sleepMinutes, public_playlist: fields.publicPlaylist,
-      })
-      setStep(3)
+        system: fields.system,
+        url: fields.systemUrl,
+
+        auth_method: fields.authMethod,
+
+        api_key: fields.apiKey,
+        username: fields.systemUsername,
+        password: fields.systemPassword,
+
+        admin_credentials: fields.adminCredentials,
+        admin_auth_method: fields.adminAuthMethod,
+        admin_api_key: fields.adminApiKey,
+        admin_system_username: fields.adminSystemUsername,
+        admin_system_password: fields.adminSystemPassword,
+
+        library_name: fields.libraryName,
+        playlist_dir: fields.playlistDir,
+        sleep: fields.sleepMinutes,
+        public_playlist: fields.publicPlaylist,
+      });
+      setStep(3);
     } catch (e) {
-      alert('Error saving: ' + e.message)
+      alert("Error saving: " + e.message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function handleStep3() {
-    setSaving(true)
+    setSaving(true);
     try {
-      const services = Object.entries(fields.dlServices).filter(([, v]) => v).map(([k]) => k)
+      const services = Object.entries(fields.dlServices)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
       await wizardStep3({
-        download_dir: fields.downloadDir, use_subdirectory: fields.useSubdirectory,
-        migrate_downloads: fields.migrateDownloads, download_services: services,
-        youtube_api_key: fields.youtubeApiKey, track_extension: fields.trackExtension,
-        filter_list: fields.filterList, slskd_url: fields.slskdUrl, slskd_api_key: fields.slskdApiKey,
+        download_dir: fields.downloadDir,
+        use_subdirectory: fields.useSubdirectory,
+        migrate_downloads: fields.migrateDownloads,
+        download_services: services,
+        youtube_api_key: fields.youtubeApiKey,
+        track_extension: fields.trackExtension,
+        filter_list: fields.filterList,
+        slskd_url: fields.slskdUrl,
+        slskd_api_key: fields.slskdApiKey,
         extensions: fields.extensions,
-      })
-      onComplete()
+      });
+      onComplete();
     } catch (e) {
-      alert('Error saving: ' + e.message)
+      alert("Error saving: " + e.message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center" style={{ background: '#121212' }}>
-
+    <div
+      className="min-h-screen relative overflow-hidden flex items-center"
+      style={{ background: "#121212" }}
+    >
       {/* Artwork backdrop — blurred ambient glow, matches the Settings page treatment */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 0,
+          overflow: "hidden",
+        }}
+      >
         {bgUrl && (
           <img
             src={bgUrl}
             onLoad={onBgLoad}
-            className={`transition-opacity duration-[1500ms] ${bgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            className={`transition-opacity duration-[1500ms] ${bgLoaded ? "opacity-100" : "opacity-0"}`}
             style={{
-              position: 'absolute', inset: 0,
-              width: '100%', height: '100%',
-              objectFit: 'cover',
-              filter: 'blur(90px) saturate(1.8) brightness(0.14)',
-              transform: 'scale(1.15) translateZ(0)',
-              willChange: 'opacity',
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              filter: "blur(90px) saturate(1.8) brightness(0.14)",
+              transform: "scale(1.15) translateZ(0)",
+              willChange: "opacity",
             }}
             alt=""
           />
@@ -513,39 +814,49 @@ export default function Wizard({ config, envSources, bgUrl, bgLoaded, onBgLoad, 
       </div>
 
       <div className="relative z-10 max-w-[520px] w-full mx-auto px-6 py-12">
-        <div className="text-[20px] font-bold tracking-tight text-accent mb-10">Explo</div>
+        <div className="text-[20px] font-bold tracking-tight text-accent mb-10">
+          Explo
+        </div>
 
         {lockedKeys.length > 0 && (
           <div className="text-[12px] text-muted bg-surface border border-ui-border rounded-[6px] px-3.5 py-2.5 mb-6 leading-relaxed">
-            You've set the following in your Docker environment, so they can't be changed here:{' '}
-            <strong>{lockedKeys.join(', ')}</strong>
+            You've set the following in your Docker environment, so they can't
+            be changed here: <strong>{lockedKeys.join(", ")}</strong>
           </div>
         )}
 
         <div key={step} className="animate-fade-up">
           {step === 1 && (
             <Step1
-              fields={fields} setField={setField}
+              fields={fields}
+              setField={setField}
               envSources={envSources}
-              onNext={handleStep1} saving={saving}
+              onNext={handleStep1}
+              saving={saving}
             />
           )}
           {step === 2 && (
             <Step2
-              fields={fields} setField={setField}
+              fields={fields}
+              setField={setField}
               envSources={envSources}
-              onBack={() => setStep(1)} onNext={handleStep2} saving={saving}
+              onBack={() => setStep(1)}
+              onNext={handleStep2}
+              saving={saving}
             />
           )}
           {step === 3 && (
             <Step3
-              fields={fields} setField={setField}
+              fields={fields}
+              setField={setField}
               envSources={envSources}
-              onBack={() => setStep(2)} onFinish={handleStep3} saving={saving}
+              onBack={() => setStep(2)}
+              onFinish={handleStep3}
+              saving={saving}
             />
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

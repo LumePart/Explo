@@ -692,12 +692,18 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		Password       string `json:"password"`
 		PlaylistDir    string `json:"playlist_dir"`
 		Sleep          string `json:"sleep"`
+		AdminAPIKey	   string `json:"admin_api_key"`
+		AdminSystemUsername string `json:"admin_system_username"`
+		AdminSystemPassword string `json:"admin_system_password"`
+
 		PublicPlaylist bool   `json:"public_playlist"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	if body.System == "" {
 		http.Error(w, "system is required", http.StatusBadRequest)
 		return
@@ -717,6 +723,9 @@ func (s *Server) handleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PLAYLIST_DIR":    body.PlaylistDir,
 		"SLEEP":           body.Sleep,
 		"PUBLIC_PLAYLIST": publicPlaylist,
+		"ADMIN_SYSTEM_USERNAME": body.AdminSystemUsername,
+		"ADMIN_SYSTEM_PASSWORD": body.AdminSystemPassword,
+		"ADMIN_SYSTEM_APIKEY": body.AdminAPIKey,
 	}
 
 	if err := updateEnvKeys(s.cfg.WebEnvPath, updates, web.SampleEnv); err != nil {

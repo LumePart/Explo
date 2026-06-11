@@ -81,6 +81,7 @@ type Credentials struct {
 }
 
 type AdminCredentials struct {
+	APIKey	 string `env:"ADMIN_API_KEY"`
 	User     string `env:"ADMIN_SYSTEM_USERNAME"`
 	Password string `env:"ADMIN_SYSTEM_PASSWORD"`
 }
