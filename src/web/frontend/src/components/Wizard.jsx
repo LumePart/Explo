@@ -81,7 +81,11 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
       </p>
 
       <div className="flex flex-col gap-5">
-        <TextField
+        <TextField label="ListenBrainz username" labelFor="lb-user"
+          hint={<>Don't have an account?{' '}<a href="https://listenbrainz.org" target="_blank" rel="noreferrer" className="text-accent">Sign up free.</a></>}>
+          <input id="lb-user" type="text" className={inputCls} placeholder="e.g. musiclover42"
+            autoComplete="off" spellCheck={false} value={user} onChange={e => setField('user', e.target.value)}
+            disabled={isLocked('LISTENBRAINZ_USER')} />
           label="ListenBrainz username"
           labelFor="lb-user"
           hint={
@@ -112,36 +116,20 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
         </TextField>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[13px] font-medium text-muted">
-            Discovery mode
-          </label>
+          <label className="text-[13px] font-medium text-muted">Discovery mode</label>
           <div className="grid grid-cols-2 gap-2">
             {[
-              {
-                value: "playlist",
-                name: "Playlist",
-                desc: "Pulls tracks from your ListenBrainz playlists on a schedule. Best once you have some listening history.",
-              },
-              {
-                value: "api",
-                name: "API",
-                desc: "~25 tracks generated on demand. Use this if your ListenBrainz account is new or testing your setup.",
-              },
-            ].map((m) => (
+              { value: 'playlist', name: 'Playlist', desc: 'Pulls tracks from your ListenBrainz playlists on a schedule. Best once you have some listening history.' },
+              { value: 'api',      name: 'API',      desc: '~25 tracks generated on demand. Use this if your ListenBrainz account is new or testing your setup.' },
+            ].map(m => (
               <button
                 key={m.value}
                 onClick={() => setField("discoveryMode", m.value)}
                 className={`text-left flex flex-col gap-[5px] px-4 py-3.5 bg-surface border rounded-[6px] cursor-pointer transition-colors
                   ${discoveryMode === m.value ? "border-accent" : "border-ui-border hover:border-[#404040]"}`}
               >
-                <span
-                  className={`text-[13px] font-semibold ${discoveryMode === m.value ? "text-accent" : "text-white"}`}
-                >
-                  {m.name}
-                </span>
-                <span className="text-[12px] text-muted leading-relaxed">
-                  {m.desc}
-                </span>
+                <span className={`text-[13px] font-semibold ${discoveryMode === m.value ? 'text-accent' : 'text-white'}`}>{m.name}</span>
+                <span className="text-[12px] text-muted leading-relaxed">{m.desc}</span>
               </button>
             ))}
           </div>
@@ -229,14 +217,9 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
   const isLocked = (key) => envSources[key] === ".env";
 
   const urlPlaceholder = () => {
-    const ports = {
-      jellyfin: "8096",
-      emby: "8096",
-      plex: "32400",
-      subsonic: "4533",
-    };
-    return `e.g. http://192.168.1.100:${ports[system] || "8096"}`;
-  };
+    const ports = { jellyfin: '8096', emby: '8096', plex: '32400', subsonic: '4533' }
+    return `e.g. http://192.168.1.100:${ports[system] || '8096'}`
+  }
 
   const valid = () => {
     if (!system) return false;
@@ -290,9 +273,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 
   return (
     <div>
-      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">
-        Step 2 of 3 — Media System
-      </div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 2 of 3 — Media System</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
         Explo will add discovered tracks to your library and create playlists
         automatically. It needs access to your media server to do this.
@@ -300,9 +281,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <label className="text-[13px] font-medium text-muted">
-            Which media system do you use?
-          </label>
+          <label className="text-[13px] font-medium text-muted">Which media system do you use?</label>
           <div className="grid grid-cols-3 gap-2">
             {SYSTEMS.map((s) => (
               <button
@@ -320,14 +299,8 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 
         {system && system !== "mpd" && (
           <TextField label="Server URL">
-            <input
-              type="text"
-              className={inputCls}
-              value={systemUrl}
-              onChange={(e) => setField("systemUrl", e.target.value)}
-              placeholder={urlPlaceholder()}
-              disabled={isLocked("SYSTEM_URL")}
-            />
+            <input type="text" className={inputCls} value={systemUrl} onChange={e => setField('systemUrl', e.target.value)}
+              placeholder={urlPlaceholder()} disabled={isLocked('SYSTEM_URL')} />
           </TextField>
         )}
         {system && system == "jellyfin" && (
@@ -511,56 +484,29 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
         {system === "subsonic" && (
           <>
             <TextField label="Username">
-              <input
-                type="text"
-                className={inputCls}
-                value={systemUsername}
-                onChange={(e) => setField("systemUsername", e.target.value)}
-                autoComplete="off"
-                disabled={isLocked("SYSTEM_USERNAME")}
-              />
+               <input type="text" className={inputCls} value={systemUsername} onChange={e => setField('systemUsername', e.target.value)}
+                autoComplete="off" disabled={isLocked('SYSTEM_USERNAME')} />
             </TextField>
             <TextField label="Password">
-              <input
-                type="password"
-                className={inputCls}
-                value={systemPassword}
-                onChange={(e) => setField("systemPassword", e.target.value)}
-                disabled={isLocked("SYSTEM_PASSWORD")}
-              />
+              <input type="password" className={inputCls} value={systemPassword} onChange={e => setField('systemPassword', e.target.value)}
+                disabled={isLocked('SYSTEM_PASSWORD')} />
             </TextField>
           </>
         )}
-        
-        {system === "mpd" && (
-          <TextField
-            label="Playlist directory"
-            hint="Explo writes .m3u files here — MPD reads them as playlists."
-          >
-            <DirInput
-              value={playlistDir}
-              onChange={(v) => setField("playlistDir", v)}
-              disabled={isLocked("PLAYLIST_DIR")}
-              placeholder="e.g. /var/lib/mpd/playlists"
-            />
+
+        {system === 'mpd' && (
+          <TextField label="Playlist directory" hint="Explo writes .m3u files here — MPD reads them as playlists.">
+            <DirInput value={playlistDir} onChange={v => setField('playlistDir', v)} disabled={isLocked('PLAYLIST_DIR')}
+              placeholder="e.g. /var/lib/mpd/playlists" />
           </TextField>
         )}
 
         {API_KEY_SYSTEMS.includes(system) && (
-          <TextField
-            label="Library scan wait"
-            hint="Minutes Explo waits after triggering a library scan before creating playlists. Default: 2."
-          >
-            <input
-              type="text"
-              inputMode="numeric"
-              className={inputCls}
-              style={{ width: 80 }}
-              value={sleepMinutes}
-              onChange={(e) => setField("sleepMinutes", e.target.value)}
-              placeholder="2"
-              disabled={isLocked("SLEEP")}
-            />
+          <TextField label="Library scan wait"
+            hint="Minutes Explo waits after triggering a library scan before creating playlists. Default: 2.">
+            <input type="text" inputMode="numeric" className={inputCls} style={{ width: 80 }}
+              value={sleepMinutes} onChange={e => setField('sleepMinutes', e.target.value)}
+              placeholder="2" disabled={isLocked('SLEEP')} />
           </TextField>
         )}
 
@@ -585,16 +531,12 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
 
 function Collapse({ open, children }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateRows: open ? "1fr" : "0fr",
-        transition: "grid-template-rows 220ms ease-out",
-      }}
-    >
-      <div
-        className={`overflow-hidden min-h-0 transition-opacity duration-200 ${open ? "opacity-100 delay-75" : "opacity-0"}`}
-      >
+    <div style={{
+      display: 'grid',
+      gridTemplateRows: open ? '1fr' : '0fr',
+      transition: 'grid-template-rows 220ms ease-out',
+    }}>
+      <div className={`overflow-hidden min-h-0 transition-opacity duration-200 ${open ? 'opacity-100 delay-75' : 'opacity-0'}`}>
         {children}
       </div>
     </div>
@@ -629,9 +571,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 
   return (
     <div>
-      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">
-        Step 3 of 3 — Downloader
-      </div>
+      <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 3 of 3 — Downloader</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
         Explo downloads tracks using one or both services. Enable what you have
         access to — if both are enabled, YouTube is tried first.
@@ -642,92 +582,32 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         <div className="flex flex-col gap-4">
           <ToggleRow
             checked={dlServices.youtube}
-            onChange={(v) =>
-              setField("dlServices", { ...dlServices, youtube: v })
-            }
+            onChange={v => setField('dlServices', { ...dlServices, youtube: v })}
             name="YouTube"
             desc="Downloads via yt-dlp · falls back to ytmusicapi if no API key is set"
           />
           <Collapse open={dlServices.youtube}>
             <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
-              <TextField
-                label={
-                  <>
-                    YouTube API Key{" "}
-                    <span className="font-normal opacity-50">(optional)</span>
-                  </>
-                }
-                hint={
-                  <>
-                    If set, uses the official YouTube Data API. Otherwise falls
-                    back to <strong>ytmusicapi</strong>.{" "}
-                    <a
-                      href="https://console.cloud.google.com/apis/library/youtube.googleapis.com"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent"
-                    >
-                      Get an API key.
-                    </a>
-                  </>
-                }
-              >
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={youtubeApiKey}
-                  onChange={(e) => setField("youtubeApiKey", e.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="AIza…"
-                  disabled={isLocked("YOUTUBE_API_KEY")}
-                />
+              <TextField label={<>YouTube API Key <span className="font-normal opacity-50">(optional)</span></>}
+                hint={<>If set, uses the official YouTube Data API. Otherwise falls back to <strong>ytmusicapi</strong>.{' '}
+                  <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" className="text-accent">Get an API key.</a></>}>
+                <input type="text" className={inputCls} value={youtubeApiKey} onChange={e => setField('youtubeApiKey', e.target.value)}
+                  autoComplete="off" spellCheck={false} placeholder="AIza…" disabled={isLocked('YOUTUBE_API_KEY')} />
               </TextField>
-              <TextField
-                label="Track format"
-                hint={
-                  <>
-                    File format yt-dlp converts to. Default is{" "}
-                    <strong>mp3</strong>
-                  </>
-                }
-              >
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={trackExtension}
-                  onChange={(e) => setField("trackExtension", e.target.value)}
-                  placeholder="mp3"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={isLocked("TRACK_EXTENSION")}
-                />
+              <TextField label="Track format"
+                hint={<>File format yt-dlp converts to. Default is <strong>mp3</strong></>}>
+                <input type="text" className={inputCls} value={trackExtension} onChange={e => setField('trackExtension', e.target.value)}
+                  placeholder="mp3" autoComplete="off" spellCheck={false} disabled={isLocked('TRACK_EXTENSION')} />
               </TextField>
-              <TextField
-                label="Exclude keywords"
-                hint="Comma-separated keywords to skip in YouTube results. Leave blank to use the defaults shown."
-              >
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={filterList}
-                  onChange={(e) => setField("filterList", e.target.value)}
-                  placeholder="live,remix,instrumental,extended,clean,acapella"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={isLocked("FILTER_LIST")}
-                />
+              <TextField label="Exclude keywords"
+                hint="Comma-separated keywords to skip in YouTube results. Leave blank to use the defaults shown.">
+                <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                  placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
               </TextField>
-              <TextField
-                label="Download directory"
-                hint="Custom download directory. Leave blank to use default"
-              >
-                <DirInput
-                  value={downloadDir}
-                  onChange={(v) => setField("downloadDir", v)}
-                  disabled={isLocked("DOWNLOAD_DIR")}
-                  placeholder="/data/"
-                />
+              <TextField label="Download directory"
+                hint="Custom download directory. Leave blank to use default">
+                <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
+                  placeholder="/data/" />
               </TextField>
               <ToggleRow
                 checked={useSubdirectory}
@@ -744,66 +624,31 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         <div className="flex flex-col gap-4">
           <ToggleRow
             checked={dlServices.slskd}
-            onChange={(v) =>
-              setField("dlServices", { ...dlServices, slskd: v })
-            }
+            onChange={v => setField('dlServices', { ...dlServices, slskd: v })}
             name="Slskd"
             desc="Downloads from the Soulseek P2P network · requires a running Slskd instance"
           />
           <Collapse open={dlServices.slskd}>
             <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
               <TextField label="Slskd URL">
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={slskdUrl}
-                  onChange={(e) => setField("slskdUrl", e.target.value)}
-                  placeholder="e.g. http://192.168.1.100:5030"
-                  disabled={isLocked("SLSKD_URL")}
-                />
+                <input type="text" className={inputCls} value={slskdUrl} onChange={e => setField('slskdUrl', e.target.value)}
+                  placeholder="e.g. http://192.168.1.100:5030" disabled={isLocked('SLSKD_URL')} />
               </TextField>
               <TextField label="Slskd API Key">
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={slskdApiKey}
-                  onChange={(e) => setField("slskdApiKey", e.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={isLocked("SLSKD_API_KEY")}
-                />
+                <input type="text" className={inputCls} value={slskdApiKey} onChange={e => setField('slskdApiKey', e.target.value)}
+                  autoComplete="off" spellCheck={false} disabled={isLocked('SLSKD_API_KEY')} />
               </TextField>
-              <TextField
-                label="File extensions"
-                hint="Comma-separated list of extensions to prefer, in priority order. No spaces."
-              >
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={extensions}
-                  onChange={(e) => setField("extensions", e.target.value)}
-                  placeholder="flac,mp3"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={isLocked("EXTENSIONS")}
-                />
+              <TextField label="File extensions"
+                hint="Comma-separated list of extensions to prefer, in priority order. No spaces.">
+                <input type="text" className={inputCls} value={extensions} onChange={e => setField('extensions', e.target.value)}
+                  placeholder="flac,mp3" autoComplete="off" spellCheck={false} disabled={isLocked('EXTENSIONS')} />
               </TextField>
               {/* Show keyword exclusion when YouTube isn't enabled — otherwise it lives in the YouTube section */}
               <Collapse open={!dlServices.youtube}>
-                <TextField
-                  label="Exclude keywords"
-                  hint="Leave blank to use the defaults shown."
-                >
-                  <input
-                    type="text"
-                    className={inputCls}
-                    value={filterList}
-                    onChange={(e) => setField("filterList", e.target.value)}
-                    placeholder="live,remix,instrumental,extended,clean,acapella"
-                    autoComplete="off"
-                    spellCheck={false}
-                    disabled={isLocked("FILTER_LIST")}
-                  />
+                <TextField label="Exclude keywords"
+                  hint="Leave blank to use the defaults shown.">
+                  <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
+                    placeholder="live,remix,instrumental,extended,clean,acapella" autoComplete="off" spellCheck={false} disabled={isLocked('FILTER_LIST')} />
                 </TextField>
               </Collapse>
               <div className="flex flex-col gap-1.5">
@@ -821,16 +666,10 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
               {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
               <Collapse open={migrateDownloads && !dlServices.youtube}>
                 <div className="flex flex-col gap-4 pt-4 pb-1">
-                  <TextField
-                    label="Download directory"
-                    hint="Custom download directory. Leave blank to use default"
-                  >
-                    <DirInput
-                      value={downloadDir}
-                      onChange={(v) => setField("downloadDir", v)}
-                      disabled={isLocked("DOWNLOAD_DIR")}
-                      placeholder="/data/"
-                    />
+                  <TextField label="Download directory"
+                    hint="Custom download directory. Leave blank to use default">
+                    <DirInput value={downloadDir} onChange={v => setField('downloadDir', v)} disabled={isLocked('DOWNLOAD_DIR')}
+                      placeholder="/data/" />
                   </TextField>
                   <ToggleRow
                     checked={useSubdirectory}
@@ -848,12 +687,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
 
       <div className="mt-8 flex">
         <BackBtn onClick={onBack} />
-        <NextBtn
-          onClick={onFinish}
-          disabled={!valid()}
-          saving={saving}
-          label="Finish →"
-        />
+        <NextBtn onClick={onFinish} disabled={!valid()} saving={saving} label="Finish →" />
       </div>
     </div>
   );
