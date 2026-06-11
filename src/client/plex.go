@@ -575,7 +575,6 @@ func (c *Plex) getServer() error {
 
 func (c *Plex) getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
 	normArtist := util.AlnumOnly(track.MainArtist)
-	normalizedTrackTitle := util.NormalizeTitle(track.Title)
 	normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 	normalizedAlbum := util.AlnumOnly(strings.ToLower(track.Album))
 
@@ -593,7 +592,7 @@ func (c *Plex) getPlexSong(track *models.Track, metadata []SongMetadata) (string
 
 		normalizedSongTitle := util.NormalizeTitle(md.Title)
 		musicBrainzMatch := mbid != "" && track.MusicBrainzReleaseTrackID == mbid
-		titleMatch := normalizedSongTitle == normalizedTrackTitle || normalizedSongTitle == normalizedCleanTitle
+		titleMatch := normalizedSongTitle == normalizedCleanTitle
 		albumMatch := util.AlnumOnly(strings.ToLower(md.ParentTitle)) == normalizedAlbum
 		artistMatch := util.ContainsFold(util.AlnumOnly(md.OriginalTitle), normArtist) || util.ContainsFold(util.AlnumOnly(md.GrandparentTitle), normArtist)
 

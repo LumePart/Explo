@@ -161,14 +161,13 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		if err = util.ParseResp(body, &results); err != nil {
 			return err
 		}
-		normalizedTrackTitle := util.NormalizeTitle(track.Title)
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 		for _, item := range results.Items {
 
 			normalizedItemTitle := util.NormalizeTitle(item.Name)
 
 			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
-			titleMatch := normalizedItemTitle == normalizedTrackTitle || normalizedItemTitle == normalizedCleanTitle
+			titleMatch := normalizedItemTitle == normalizedCleanTitle
 			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
 			pathMatch := util.ContainsFold(item.Path,track.File)
 			
