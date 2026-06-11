@@ -187,11 +187,8 @@ function SegmentedControl({ value, onChange, options }) {
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`flex-1 px-4 py-2.5 text-[13px] font-medium transition-colors ${
-            value == opt.value
-              ? "bg-accent text-white"
-              : "text-muted hover:text-white"
-          }`}
+          className={`flex-1 px-4 py-2.5 border text-[13px] rounded-[6px] font-medium transition-colors
+            ${value === opt.value ? "border-accent text-accent" : "border-ui-border text-white hover:border-[#404040]"}`}
         >
           {opt.label}
         </button>
@@ -433,7 +430,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
                 type="checkbox"
                 checked={adminCredentials}
                 onChange={(e) => setField("adminCredentials", e.target.checked)}
-                className="mt-[2px]"
+                className="mt-[2px] accent-accent"
               />
 
               <div>
