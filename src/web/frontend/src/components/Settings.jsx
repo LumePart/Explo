@@ -362,7 +362,17 @@ function HomeSection() {
           ))}
         </div>
         <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
-          <TracklistDropdown lbUser={lbUser} playlist={openTracklist} />
+          <TracklistDropdown
+            lbUser={lbUser}
+            playlist={openTracklist}
+            onRun={async () => {
+              await startRun(openTracklist, 'normal', true, false)
+              setRunning(true)
+              setStatus('running…')
+              setLogEntries([])
+              connect()
+            }}
+          />
         </TracklistSlide>
         <p className="text-[12px] text-muted mt-3">Schedule changes take effect after restarting the container.</p>
       </div>
