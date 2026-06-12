@@ -192,6 +192,45 @@ export async function refreshCustomPlaylist(id) {
   return res.json()
 }
 
+export async function savePathTemplate(template) {
+  const res = await apiFetch('/api/ui/config/path-template', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function fetchPathTemplatePresets() {
+  const res = await apiFetch('/api/ui/path-templates')
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function addPathTemplatePreset(name, template) {
+  const res = await apiFetch('/api/ui/path-templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, template }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deletePathTemplatePreset(name) {
+  const res = await apiFetch(`/api/ui/path-templates/${encodeURIComponent(name)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function saveEnrichMetadata(enabled) {
+  const res = await apiFetch('/api/ui/config/enrich-metadata', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
 export async function fetchBackgroundArt() {
   try {
     const res = await fetch('/api/ui/background-art')
