@@ -168,6 +168,7 @@ function CustomPlaylistsSection({
                     : 'Disabled'}
                   tracklistOpen={openTracklist === cp.id}
                   onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                  sourceUrl={cp.source_url || undefined}
                   onDelete={(opts) => onDelete(cp.id, opts)}
                 />
               </div>
