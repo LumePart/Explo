@@ -96,11 +96,24 @@ func customPlaylistsPath(cfgDir string) string {
 	return filepath.Join(cfgDir, "custom-playlists.json")
 }
 
-// customEnvPrefix converts a custom playlist ID like "custom-a1b2c3d4"
-// to an env-var prefix like "CUSTOM_A1B2C3D4".
-func customEnvPrefix(id string) string {
-	return strings.ToUpper(strings.ReplaceAll(id, "-", "_"))
+// customEnvPrefix converts a playlist name like "Today's Hits"
+// to an env-var prefix like "CUSTOM_TODAYS_HITS".
+// Non-alphanumeric characters are collapsed into underscores.
+func customEnvPrefix(name string) string {
+	var b strings.Builder
+	prevUnderscore := true // start true so leading separators are skipped
+	for _, r := range strings.ToUpper(name) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevUnderscore = false
+		} else if !prevUnderscore {
+			b.WriteRune('_')
+			prevUnderscore = true
+		}
+	}
+	return "CUSTOM_" + strings.TrimRight(b.String(), "_")
 }
+
 
 func loadCustomPlaylists(cfgDir string) []CustomPlaylist {
 	data, err := os.ReadFile(customPlaylistsPath(cfgDir))
@@ -216,7 +229,7 @@ func (s *Server) handleGetCustomPlaylists(w http.ResponseWriter, r *http.Request
 	items := make([]respItem, 0, len(playlists))
 	for _, p := range playlists {
 		count := customPlaylistTrackCount(s.cfg.WebDataDir, p.ID)
-		prefix := customEnvPrefix(p.ID)
+		prefix := customEnvPrefix(p.Name)
 		sched := envValues[prefix+"_SCHEDULE"]
 		flags := envValues[prefix+"_FLAGS"]
 		items = append(items, respItem{CustomPlaylist: p, TrackCount: count, Schedule: sched, Flags: flags})
@@ -334,7 +347,7 @@ func (s *Server) handleImportCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	// a daily poll SCHEDULE — RefreshDays in the JSON gates the actual refresh interval
 	// inside the cron task body. "Never" imports get FLAGS only so the card is usable
 	// for manual runs while the schedule editor pre-selects "Never".
-	prefix := customEnvPrefix(id)
+	prefix := customEnvPrefix(name)
 	envUpdates := map[string]string{
 		prefix + "_FLAGS": "--playlist " + id,
 	}
@@ -438,9 +451,11 @@ func (s *Server) handleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	existing := loadCustomPlaylists(s.cfg.WebDataDir)
 	filtered := existing[:0]
 	found := false
+	var deletedName string
 	for _, p := range existing {
 		if p.ID == id {
 			found = true
+			deletedName = p.Name
 		} else {
 			filtered = append(filtered, p)
 		}
@@ -460,7 +475,7 @@ func (s *Server) handleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Reque
 	_ = os.Remove(cachePath)
 
 	// Remove schedule env vars from .env
-	prefix := customEnvPrefix(id)
+	prefix := customEnvPrefix(deletedName)
 	_ = updateEnvKeys(s.cfg.WebEnvPath, map[string]string{
 		prefix + "_SCHEDULE": "",
 		prefix + "_FLAGS":    "",

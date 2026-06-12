@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './Toggle'
 import { Button } from './common'
@@ -375,6 +375,7 @@ export function PlaylistCard({
   onDelete,
   trackId,
   artworkUrl,
+  sourceUrl,
 }) {
   const { value, name } = playlist
   // trackFetchId: use real playlist ID (custom playlists) if provided, else fall back to value
@@ -441,13 +442,18 @@ export function PlaylistCard({
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteTracksChecked, setDeleteTracksChecked] = useState(false)
+  const [copyLabel, setCopyLabel] = useState('Copy URL')
   const [cardHovered, setCardHovered] = useState(false)
+  const menuBtnRef = useRef(null)
   const canEdit = !locked && !fixedSchedule && !!onToggleEdit
-  const hasMenu = canEdit || !!onDelete
+  const hasMenu = canEdit || !!onDelete || !!sourceUrl
 
   useEffect(() => {
     if (!menuOpen) { setConfirmDelete(false); setDeleteTracksChecked(false); return }
-    const close = () => setMenuOpen(false)
+    const close = e => {
+      if (menuBtnRef.current?.contains(e.target)) return
+      setMenuOpen(false)
+    }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [menuOpen])
@@ -552,7 +558,7 @@ export function PlaylistCard({
 
         {hasMenu && (
           <button
-            onMouseDown={e => e.stopPropagation()}
+            ref={menuBtnRef}
             onClick={e => { e.stopPropagation(); setMenuOpen(o => !o) }}
             style={{
               position: 'absolute', top: 6, right: 8,
@@ -629,7 +635,7 @@ export function PlaylistCard({
             position: 'absolute', top: 4, right: 4,
             zIndex: 50,
             transformOrigin: 'top right',
-            background: '#1a1a1ae6',
+            background: '#0d0d0df0',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
             border: '1px solid #282828',
@@ -639,6 +645,27 @@ export function PlaylistCard({
             boxShadow: '0 8px 24px #00000088',
           }}
         >
+          {sourceUrl && (
+            <button
+              onClick={e => {
+                e.stopPropagation()
+                navigator.clipboard.writeText(sourceUrl).then(() => {
+                  setCopyLabel('Copied!')
+                  setTimeout(() => setCopyLabel('Copy URL'), 2000)
+                })
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'none', border: 'none',
+                padding: '8px 14px', fontSize: 13, color: '#c0c0c0',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1a1a1a' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              {copyLabel}
+            </button>
+          )}
           {canEdit && (
             <button
               onClick={e => { e.stopPropagation(); setMenuOpen(false); onToggleEdit() }}
@@ -648,7 +675,7 @@ export function PlaylistCard({
                 padding: '8px 14px', fontSize: 13, color: '#c0c0c0',
                 cursor: 'pointer',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1a1a1a' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
             >
               Edit Schedule
@@ -663,7 +690,7 @@ export function PlaylistCard({
                 padding: '8px 14px', fontSize: 13, color: '#e05050',
                 cursor: 'pointer',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1a1a1a' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
             >
               Delete Playlist
@@ -705,7 +732,7 @@ export function PlaylistCard({
                 <button
                   onClick={e => { e.stopPropagation(); setConfirmDelete(false); setDeleteTracksChecked(false) }}
                   style={{
-                    flex: 1, background: '#242424', border: '1px solid #333',
+                    flex: 1, background: '#161616', border: '1px solid #2a2a2a',
                     borderRadius: 5, padding: '5px 0', fontSize: 12,
                     color: '#888', cursor: 'pointer',
                   }}

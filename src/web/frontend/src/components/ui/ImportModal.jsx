@@ -167,7 +167,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
         onClick={e => e.stopPropagation()}
         className="w-full max-w-[420px] mx-4 border border-ui-border rounded-lg overflow-hidden"
         style={{
-          background: '#1a1a1ae6',
+          background: '#0d0d0df0',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           boxShadow: '0 24px 64px #00000099',

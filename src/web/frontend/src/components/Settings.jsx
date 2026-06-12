@@ -151,28 +151,25 @@ function CustomPlaylistsSection({
           No custom playlists yet. Import one from ListenBrainz or Apple Music.
         </p>
       ) : (
-        <div className="flex gap-3 mt-3 overflow-x-auto snap-x snap-mandatory pb-2">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
           {customPlaylists.map((cp, i) => {
             if (!schedules[cp.id]) return null
             return (
-              <div
+              <PlaylistCard
                 key={cp.id}
-                className="shrink-0 snap-start w-full min-[420px]:w-[calc((100%-12px)/2)] min-[720px]:w-[calc((100%-36px)/4)]"
-              >
-                <PlaylistCard
-                  playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
-                  trackId={cp.id}
-                  artworkUrl={cp.artwork_url || undefined}
-                  {...scheduleProps(cp.id)}
-                  index={i}
-                  nextRunText={schedules[cp.id]?.enabled
-                    ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
-                    : 'Disabled'}
-                  tracklistOpen={openTracklist === cp.id}
-                  onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
-                  onDelete={(opts) => onDelete(cp.id, opts)}
-                />
-              </div>
+                playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
+                trackId={cp.id}
+                artworkUrl={cp.artwork_url || undefined}
+                {...scheduleProps(cp.id)}
+                index={i}
+                nextRunText={schedules[cp.id]?.enabled
+                  ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
+                  : 'Disabled'}
+                tracklistOpen={openTracklist === cp.id}
+                onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                sourceUrl={cp.source_url || undefined}
+                onDelete={(opts) => onDelete(cp.id, opts)}
+              />
             )
           })}
         </div>
@@ -367,7 +364,17 @@ function HomeSection() {
           ))}
         </div>
         <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
-          <TracklistDropdown lbUser={lbUser} playlist={openTracklist} />
+          <TracklistDropdown
+            lbUser={lbUser}
+            playlist={openTracklist}
+            onRun={async () => {
+              await startRun(openTracklist, 'normal', true, false)
+              setRunning(true)
+              setStatus('running…')
+              setLogEntries([])
+              connect()
+            }}
+          />
         </TracklistSlide>
         <p className="text-[12px] text-muted mt-3">Schedule changes take effect after restarting the container.</p>
       </div>
@@ -617,7 +624,7 @@ function DownloadPathSection() {
       <div className="flex items-start justify-between mt-3 mb-1 gap-4">
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] text-white">Auto-tag songs</span>
-          <span className="text-[11px] text-muted">Looks up track numbers, year, genre & more from MusicBrainz and writes them to downloaded files.</span>
+          <span className="text-[11px] text-muted">Looks up track numbers, year, genre & more from MusicBrainz and writes them to downloaded files. Applies to scheduled playlists only — not custom imports.</span>
         </div>
         <button
           role="switch"
