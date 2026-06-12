@@ -286,16 +286,19 @@ func (s *Server) registerRoutes() {
 		}
 	})
 	// ID-specific routes: DELETE /api/ui/custom-playlists/{id} and POST .../{id}/refresh
-	s.mux.HandleFunc("/api/ui/custom-playlists/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)).ServeHTTP(w, r)
+	s.mux.HandleFunc("/api/ui/custom-playlists/{id}/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/refresh") {
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)).ServeHTTP(w, r)
+		s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)).ServeHTTP(w, r)
+	})
+	s.mux.HandleFunc("/api/ui/custom-playlists/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)).ServeHTTP(w, r)
 	})
 
 	s.mux.Handle("/api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
@@ -617,7 +620,7 @@ func (s *Server) handleSaveEnrichMetadata(w http.ResponseWriter, r *http.Request
 	if body.Enabled {
 		val = "true"
 	}
-	if err := updateEnvKeys(s.cfg.WebEnvPath, map[string]string{"ENRICH_METADATA": val}, web.SampleEnv); err != nil {
+	if err := updateEnvKeys(s.cfg.WebEnvPath, map[string]string{"ENRICH_TRACK_METADATA": val}, web.SampleEnv); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

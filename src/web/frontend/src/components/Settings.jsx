@@ -516,7 +516,7 @@ function DownloadPathSection() {
         ...SEED_PRESETS.map(p => ({ ...p, seed: true })),
         ...jsonPresets,
       ]
-      setEnrichEnabled(values.ENRICH_METADATA === 'true')
+      setEnrichEnabled(values.ENRICH_TRACK_METADATA === 'true')
       const t = values.PATH_TEMPLATE || ''
       if (t) {
         setTemplateEnabled(true)
