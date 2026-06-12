@@ -14,7 +14,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist,
+  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata,
+  fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks } from '../lib/listenbrainz'
@@ -23,6 +24,7 @@ import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
 import { ImportModal } from './ui/ImportModal'
+import { SEED_PRESETS, PathLine, PathTemplateModal } from './ui/PathTemplateModal'
 import { UpdateNotification } from './ui/UpdateNotification'
 
 const tabBtnCls = active =>
@@ -149,28 +151,25 @@ function CustomPlaylistsSection({
           No custom playlists yet. Import one from ListenBrainz or Apple Music.
         </p>
       ) : (
-        <div className="flex gap-3 mt-3 overflow-x-auto snap-x snap-mandatory pb-2">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
           {customPlaylists.map((cp, i) => {
             if (!schedules[cp.id]) return null
             return (
-              <div
+              <PlaylistCard
                 key={cp.id}
-                className="shrink-0 snap-start w-full min-[420px]:w-[calc((100%-12px)/2)] min-[720px]:w-[calc((100%-36px)/4)]"
-              >
-                <PlaylistCard
-                  playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
-                  trackId={cp.id}
-                  artworkUrl={cp.artwork_url || undefined}
-                  {...scheduleProps(cp.id)}
-                  index={i}
-                  nextRunText={schedules[cp.id]?.enabled
-                    ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
-                    : 'Disabled'}
-                  tracklistOpen={openTracklist === cp.id}
-                  onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
-                  onDelete={(opts) => onDelete(cp.id, opts)}
-                />
-              </div>
+                playlist={{ value: `custom-${cp.color_index ?? i}`, name: cp.name }}
+                trackId={cp.id}
+                artworkUrl={cp.artwork_url || undefined}
+                {...scheduleProps(cp.id)}
+                index={i}
+                nextRunText={schedules[cp.id]?.enabled
+                  ? SCHEDULE_DAYS.find(d => d.value === schedules[cp.id].day)?.summary ?? 'Every day'
+                  : 'Disabled'}
+                tracklistOpen={openTracklist === cp.id}
+                onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
+                sourceUrl={cp.source_url || undefined}
+                onDelete={(opts) => onDelete(cp.id, opts)}
+              />
             )
           })}
         </div>
@@ -365,7 +364,17 @@ function HomeSection() {
           ))}
         </div>
         <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
-          <TracklistDropdown lbUser={lbUser} playlist={openTracklist} />
+          <TracklistDropdown
+            lbUser={lbUser}
+            playlist={openTracklist}
+            onRun={async () => {
+              await startRun(openTracklist, 'normal', true, false)
+              setRunning(true)
+              setStatus('running…')
+              setLogEntries([])
+              connect()
+            }}
+          />
         </TracklistSlide>
         <p className="text-[12px] text-muted mt-3">Schedule changes take effect after restarting the container.</p>
       </div>
@@ -488,6 +497,287 @@ function HomeSection() {
   )
 }
 
+// ── Download Path Tab ─────────────────────────────────────────────────────────
+// Profile-picker for the PATH_TEMPLATE env key. Users select a preset folder
+// structure (or author their own via the modal) and apply it. Pending changes
+// are previewed inline before being written to .env via the confirm bar.
+
+
+function DownloadPathSection() {
+  const [profiles, setProfiles] = useState(() => SEED_PRESETS.map(p => ({ ...p, seed: true })))
+  const [appliedIdx, setAppliedIdx] = useState(null)
+  const [selectedIdx, setSelectedIdx] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [openMenuIdx, setOpenMenuIdx] = useState(null)
+  const [enrichEnabled, setEnrichEnabled] = useState(false)
+  const [templateEnabled, setTemplateEnabled] = useState(false)
+
+  useEffect(() => {
+    Promise.all([
+      fetchConfig(),
+      fetchPathTemplatePresets().catch(() => []),
+    ]).then(([{ values }, jsonPresets]) => {
+      const allProfiles = [
+        ...SEED_PRESETS.map(p => ({ ...p, seed: true })),
+        ...jsonPresets,
+      ]
+      setEnrichEnabled(values.ENRICH_TRACK_METADATA === 'true')
+      const t = values.PATH_TEMPLATE || ''
+      if (t) {
+        setTemplateEnabled(true)
+        const idx = allProfiles.findIndex(p => p.template === t)
+        if (idx >= 0) {
+          setProfiles(allProfiles)
+          setAppliedIdx(idx)
+          setSelectedIdx(idx)
+        } else {
+          const customIdx = allProfiles.length
+          setProfiles([...allProfiles, { name: 'Custom', template: t }])
+          setAppliedIdx(customIdx)
+          setSelectedIdx(customIdx)
+        }
+      } else {
+        setProfiles(allProfiles)
+      }
+      setLoaded(true)
+    })
+  }, [])
+
+  const handleEnrichToggle = async () => {
+    const next = !enrichEnabled
+    setEnrichEnabled(next)
+    try { await saveEnrichMetadata(next) } catch { setEnrichEnabled(!next) }
+  }
+
+  const handleTemplateToggle = async () => {
+    if (templateEnabled) {
+      setTemplateEnabled(false)
+      setAppliedIdx(null)
+      setSelectedIdx(null)
+      try { await savePathTemplate('') } catch { setTemplateEnabled(true) }
+    } else {
+      setTemplateEnabled(true)
+      if (selectedIdx === null) setSelectedIdx(0)
+    }
+  }
+
+  useEffect(() => {
+    if (!showModal) return
+    const handle = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handle)
+    return () => window.removeEventListener('beforeunload', handle)
+  }, [showModal])
+
+  useEffect(() => {
+    if (openMenuIdx === null) return
+    const handle = () => setOpenMenuIdx(null)
+    document.addEventListener('click', handle)
+    return () => document.removeEventListener('click', handle)
+  }, [openMenuIdx])
+
+  const dirty = selectedIdx !== appliedIdx
+
+  if (!loaded) return null
+
+  const handleDeleteProfile = async (i) => {
+    const profile = profiles[i]
+    if (!profile.seed) {
+      try { await deletePathTemplatePreset(profile.name) } catch {}
+    }
+    const newApplied = appliedIdx === i ? null : appliedIdx !== null && appliedIdx > i ? appliedIdx - 1 : appliedIdx
+    const newSelected = selectedIdx === i ? newApplied : selectedIdx !== null && selectedIdx > i ? selectedIdx - 1 : selectedIdx
+    setProfiles(prev => prev.filter((_, j) => j !== i))
+    setAppliedIdx(newApplied)
+    setSelectedIdx(newSelected)
+    setOpenMenuIdx(null)
+  }
+  const previewTemplate = selectedIdx !== null
+    ? (profiles[selectedIdx]?.template ?? SEED_PRESETS[0].template)
+    : SEED_PRESETS[0].template
+
+  const handleSave = async () => {
+    const t = selectedIdx !== null ? profiles[selectedIdx].template : ''
+    try {
+      await savePathTemplate(t)
+      setAppliedIdx(selectedIdx)
+      setSaveStatus('Saved.')
+      setTimeout(() => setSaveStatus(''), 2500)
+    } catch {
+      setSaveStatus('Error saving.')
+    }
+  }
+
+  const handleSavePreset = async ({ name, template }) => {
+    try { await addPathTemplatePreset(name, template) } catch {}
+    const newIdx = profiles.length
+    setProfiles(prev => [...prev, { name, template }])
+    setSelectedIdx(newIdx)
+    setShowModal(false)
+  }
+
+  return (
+    <div className="mt-6">
+      <SectionLabel>Folder Structure</SectionLabel>
+      {/* ENRICH_METADATA toggle */}
+      <div className="flex items-start justify-between mt-3 mb-1 gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-white">Auto-tag songs</span>
+          <span className="text-[11px] text-muted">Looks up track numbers, year, genre & more from MusicBrainz and writes them to downloaded files. Applies to scheduled playlists only — not custom imports.</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={enrichEnabled}
+          onClick={handleEnrichToggle}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${enrichEnabled ? 'bg-accent' : 'bg-[#383838]'}`}
+        >
+          <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${enrichEnabled ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
+        </button>
+      </div>
+
+      {/* Organize into folders toggle */}
+      <div className="flex items-start justify-between mt-3 mb-1 gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-white">Organize into folders</span>
+          <span className="text-[11px] text-muted">Sort downloads into subfolders by artist, album, etc.</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={templateEnabled}
+          onClick={handleTemplateToggle}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${templateEnabled ? 'bg-accent' : 'bg-[#383838]'}`}
+        >
+          <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${templateEnabled ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
+        </button>
+      </div>
+
+      {templateEnabled && (<>
+      {/* Current / pending path readout */}
+      <div className="flex items-baseline gap-2.5 overflow-x-auto py-1 mt-6">
+        <span className={`text-[11px] shrink-0 transition-colors ${dirty ? 'text-accent' : 'text-muted'}`}>
+          {dirty ? 'Preview:' : 'Active:'}
+        </span>
+        <div className="text-[13px] font-medium whitespace-nowrap">
+          <PathLine template={previewTemplate} />
+        </div>
+      </div>
+
+      {/* Profile card grid */}
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-2">
+        {profiles.map((profile, i) => {
+          const isSelected = i === selectedIdx
+          return (
+            <div
+              key={i}
+              onClick={() => setSelectedIdx(i)}
+              className={`group relative flex flex-col gap-2.5 p-4 bg-transparent rounded-[8px] cursor-pointer select-none transition-all duration-[120ms] border
+                ${isSelected
+                  ? 'border-accent'
+                  : 'border-ui-border hover:border-[#404040] hover:-translate-y-px'}`}
+              style={{ minHeight: 112, ...(isSelected ? { boxShadow: '0 0 0 3px rgba(30,215,96,0.14)' } : {}) }}
+            >
+              <div className="flex items-start justify-between gap-1.5">
+                <span className="text-[14px] font-medium text-white leading-snug">{profile.name}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {!profile.seed && (
+                    <div className="relative" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={e => { e.stopPropagation(); setOpenMenuIdx(openMenuIdx === i ? null : i) }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-muted hover:text-white text-[15px] leading-none cursor-pointer px-1 py-0"
+                        title="Options"
+                      >
+                        ···
+                      </button>
+                      {openMenuIdx === i && (
+                        <div className="absolute right-0 top-full mt-1 bg-well border border-ui-border rounded-[6px] z-10 py-1 min-w-[80px]"
+                          style={{ boxShadow: '0 8px 24px #00000066' }}
+                        >
+                          <button
+                            onClick={() => handleDeleteProfile(i)}
+                            className="w-full text-left px-3 py-1.5 text-[12px] text-danger hover:bg-well transition-colors cursor-pointer bg-transparent border-none whitespace-nowrap"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-auto pt-2.5 border-t border-dashed border-ui-border">
+                <div className="text-[11px] leading-relaxed">
+                  <PathLine template={profile.template} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* New template card */}
+        <div
+          onClick={() => setShowModal(true)}
+          className="flex flex-col items-center justify-center gap-2 p-4 bg-transparent rounded-[8px] border border-dashed border-ui-border cursor-pointer transition-colors text-muted hover:text-accent hover:border-accent"
+          style={{ minHeight: 112 }}
+        >
+          <span className="text-[26px] leading-none">+</span>
+          <span className="text-[13px]">New template</span>
+        </div>
+      </div>
+
+      {/* Confirm bar */}
+      <AnimatePresence>
+        {dirty && (
+          <motion.div
+            key="confirmbar"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center gap-4 mt-5"
+          >
+            <span className="mr-auto text-[12px] text-muted">
+              {saveStatus || 'Preview only — not applied yet.'}
+            </span>
+            <button
+              onClick={() => setSelectedIdx(appliedIdx)}
+              className="bg-transparent border-none text-muted text-[13px] cursor-pointer p-0 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <Button onClick={handleSave}>
+              Save folder structure
+            </Button>
+          </motion.div>
+        )}
+        {!dirty && saveStatus && (
+          <motion.p
+            key="savestatus"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-[12px] text-accent mt-4"
+          >
+            {saveStatus}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      </>)}
+
+      <AnimatePresence>
+        {showModal && (
+          <PathTemplateModal
+            onClose={() => setShowModal(false)}
+            onSave={handleSavePreset}
+            enrichEnabled={enrichEnabled}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ── Config Tab ────────────────────────────────────────────────────────────────
 // Raw .env file viewer/editor, plus wizard re-run and full reset actions.
 // Fetches its own raw config text from the API.
@@ -545,7 +835,7 @@ function ConfigSection({ onWizard }) {
         {!editing ? (
           <pre
             className="bg-well border border-ui-border rounded-[6px] w-full h-[420px] overflow-y-auto p-3.5 font-mono text-[12px] leading-relaxed whitespace-pre break-normal"
-            dangerouslySetInnerHTML={{ __html: highlightEnv(rawConfig) }}
+            dangerouslySetInnerHTML={{ __html: highlightEnv(rawConfig, true) }}
           />
         ) : (
           <textarea
@@ -559,6 +849,8 @@ function ConfigSection({ onWizard }) {
           />
         )}
       </div>
+
+      <DownloadPathSection />
 
       <div className="mt-6">
         <SectionLabel>Setup</SectionLabel>

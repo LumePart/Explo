@@ -66,7 +66,7 @@ func (j *Jobs) RegisterCustomPlaylistRefresh(cfgDir, envPath string) error {
 
 	for _, p := range playlists {
 		p := p
-		prefix := customEnvPrefix(p.ID)
+		prefix := customEnvPrefix(p.Name)
 		flags := envValues[prefix+"_FLAGS"]
 		if flags == "" {
 			continue // disabled
