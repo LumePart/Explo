@@ -14,7 +14,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist,
+  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata,
+  fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks } from '../lib/listenbrainz'
@@ -23,6 +24,7 @@ import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
 import { ImportModal } from './ui/ImportModal'
+import { SEED_PRESETS, PathLine, PathTemplateModal } from './ui/PathTemplateModal'
 import { UpdateNotification } from './ui/UpdateNotification'
 
 const tabBtnCls = active =>
@@ -833,7 +835,7 @@ function ConfigSection({ onWizard }) {
         {!editing ? (
           <pre
             className="bg-well border border-ui-border rounded-[6px] w-full h-[420px] overflow-y-auto p-3.5 font-mono text-[12px] leading-relaxed whitespace-pre break-normal"
-            dangerouslySetInnerHTML={{ __html: highlightEnv(rawConfig) }}
+            dangerouslySetInnerHTML={{ __html: highlightEnv(rawConfig, true) }}
           />
         ) : (
           <textarea
@@ -847,6 +849,8 @@ function ConfigSection({ onWizard }) {
           />
         )}
       </div>
+
+      <DownloadPathSection />
 
       <div className="mt-6">
         <SectionLabel>Setup</SectionLabel>
