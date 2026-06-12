@@ -603,7 +603,7 @@ func (s *Server) handleSavePathTemplate(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleSaveEnrichMetadata writes ENRICH_METADATA=true/false to the .env file.
+// handleSaveEnrichMetadata writes ENRICH_TRACK_METADATA=true/false to the .env file.
 func (s *Server) handleSaveEnrichMetadata(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
