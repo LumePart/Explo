@@ -620,7 +620,7 @@ function DownloadPathSection() {
   return (
     <div className="mt-6">
       <SectionLabel>Folder Structure</SectionLabel>
-      {/* ENRICH_METADATA toggle */}
+      {/* ENRICH_TRACK_METADATA toggle */}
       <div className="flex items-start justify-between mt-3 mb-1 gap-4">
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] text-white">Auto-tag songs</span>

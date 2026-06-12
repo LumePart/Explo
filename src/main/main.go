@@ -97,7 +97,7 @@ func setup(cfg *config.Config) {
 	cfg.HandleDeprecation()
 	notifyClient := logging.InitNotify(cfg.NotifyCfg)
 	logging.Init(cfg.LogLevel, notifyClient)
-	cfg.GenPlaylistName()
+	cfg.GenPlaylistDetails()
 }
 func runSearchTest(cfg *config.Config, httpClient *util.HttpClient) {
 	lb := discovery.NewListenBrainz(cfg.DiscoveryCfg, httpClient)

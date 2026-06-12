@@ -264,7 +264,8 @@ func (cfg *Config) HandleDeprecation() { //
 	}
 }
 
-func (cfg *Config) GenPlaylistName() { // Generate playlist name and description
+// Generate playlist name and description
+func (cfg *Config) GenPlaylistDetails() {
 
 	cfg.ClientCfg.PlaylistName = getPlaylistName(cfg.Flags.Playlist, cfg.ClientCfg.PlaylistNFormat, cfg.Persist)
 	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf(
@@ -280,16 +281,17 @@ func (cfg *Config) GenPlaylistName() { // Generate playlist name and description
 }
 
 func getPlaylistName(playlistType, format string, persist bool) string {
-	now := time.Now()
+
 
 	toTitle := cases.Title(language.Und)
 	base := toTitle.String(playlistType)
 
-	// Non-persistent playlists always use base name
-	if !persist {
+	// Non-persistent or custom playlists always use base name
+	if !persist || strings.HasPrefix(playlistType, "custom-") {
 		return base
 	}
 
+	now := time.Now()
 	// Explicit date-based naming
 	if format == "date" {
 		return fmt.Sprintf(

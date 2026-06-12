@@ -131,7 +131,7 @@ func (c *Emby) CheckRefreshState() bool {
 
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
+		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path,ProviderIDs", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -143,14 +143,13 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
-		normalizedTrackTitle := util.NormalizeTitle(track.Title)
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 		for _, item := range results.Items {
 
 			normalizedItemTitle := util.NormalizeTitle(item.Name)
 
 			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
-			titleMatch := normalizedItemTitle == normalizedTrackTitle || normalizedItemTitle == normalizedCleanTitle
+			titleMatch := normalizedItemTitle == normalizedCleanTitle
 			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
 			pathMatch := util.ContainsFold(item.Path,track.File)
 

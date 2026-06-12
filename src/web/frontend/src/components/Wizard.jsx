@@ -54,8 +54,7 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
     <div>
       <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 1 of 3 — Discovery</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
-        Explo uses your ListenBrainz listening history to find music
-        recommendations.
+        Explo uses your ListenBrainz listening history to find music recommendations.
       </p>
 
       <div className="flex flex-col gap-5">
@@ -64,33 +63,6 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
           <input id="lb-user" type="text" className={inputCls} placeholder="e.g. musiclover42"
             autoComplete="off" spellCheck={false} value={user} onChange={e => setField('user', e.target.value)}
             disabled={isLocked('LISTENBRAINZ_USER')} />
-          label="ListenBrainz username"
-          labelFor="lb-user"
-          hint={
-            <>
-              Don't have an account?{" "}
-              <a
-                href="https://listenbrainz.org"
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent"
-              >
-                Sign up free.
-              </a>
-            </>
-          }
-        >
-          <input
-            id="lb-user"
-            type="text"
-            className={inputCls}
-            placeholder="e.g. musiclover42"
-            autoComplete="off"
-            spellCheck={false}
-            value={user}
-            onChange={(e) => setField("user", e.target.value)}
-            disabled={isLocked("LISTENBRAINZ_USER")}
-          />
         </TextField>
 
         <div className="flex flex-col gap-2">

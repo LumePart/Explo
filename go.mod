@@ -13,6 +13,7 @@ require (
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/text v0.32.0
+	golang.org/x/time v0.15.0
 	maunium.net/go/mautrix v0.26.0
 )
 
@@ -43,7 +44,6 @@ require (
 	go.mau.fi/util v0.9.3 // indirect
 	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
 	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3 // indirect
 )

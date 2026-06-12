@@ -133,8 +133,8 @@ func (c *Client) systemSetup() error {
 		return c.API.GetAuth()
 
 	case "jellyfin":
-		if c.Cfg.Creds.APIKey == "" {
-			return fmt.Errorf("Jellyfin API_KEY is required")
+		if c.Cfg.Creds.APIKey == "" && c.Cfg.AdminCreds.APIKey == "" {
+			return fmt.Errorf("Jellyfin API_KEY or ADMIN_API_KEY is required")
 		}
 		if c.Cfg.Creds.User == "" {
 			slog.Warn("It is recommended to set SYSTEM_USERNAME for Jellyfin")

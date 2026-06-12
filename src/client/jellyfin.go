@@ -81,11 +81,15 @@ func (c *Jellyfin) AddHeader() error {
 		c.Cfg.Creds.Headers = make(map[string]string)
 	}
 
-	if c.Cfg.Creds.APIKey != "" {
-		c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", c.Cfg.Creds.APIKey, c.Cfg.ClientID)
-		return nil
+	apiKey := c.resolveAPIKey()
+
+	if apiKey == "" {
+		return fmt.Errorf("API_KEY or ADMIN_API_KEY not set")
 	}
-	return fmt.Errorf("API_KEY not set")
+
+	c.Cfg.Creds.Headers["Authorization"] = fmt.Sprintf("MediaBrowser Token=%s, Client=%s", apiKey, c.Cfg.ClientID)
+
+	return nil
 }
 
 func (c *Jellyfin) GetAuth() error {
@@ -146,7 +150,7 @@ func (c *Jellyfin) CheckRefreshState() bool {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path,ProviderIDs", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -157,14 +161,13 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		if err = util.ParseResp(body, &results); err != nil {
 			return err
 		}
-		normalizedTrackTitle := util.NormalizeTitle(track.Title)
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 		for _, item := range results.Items {
 
 			normalizedItemTitle := util.NormalizeTitle(item.Name)
 
 			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
-			titleMatch := normalizedItemTitle == normalizedTrackTitle || normalizedItemTitle == normalizedCleanTitle
+			titleMatch := normalizedItemTitle == normalizedCleanTitle
 			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
 			pathMatch := util.ContainsFold(item.Path,track.File)
 			
@@ -216,13 +219,14 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	}
 	var userID string
 	isPublic := c.Cfg.PublicPlaylist
+
 	if c.Cfg.Creds.User != "" {
 		userID, err = c.ResolveUserID()
 		if err != nil {
 			return err
 		}
 	} else {
-		userID = c.Cfg.Creds.APIKey
+		userID = c.resolveAPIKey()
 		isPublic = true
 	}
 
@@ -319,4 +323,12 @@ func (c *Jellyfin) ResolveUserID() (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to find Jellyfin user %q", c.Cfg.Creds.User)
+}
+
+// Check which API Key variable is used
+func (c *Jellyfin) resolveAPIKey() string {
+	if c.Cfg.AdminCreds.APIKey != "" {
+		return c.Cfg.AdminCreds.APIKey
+	}
+	return c.Cfg.Creds.APIKey
 }
