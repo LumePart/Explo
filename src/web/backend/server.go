@@ -210,110 +210,6 @@ func spaFS() (fs.FS, []byte) {
 	return embedded, index
 }
 
-func (s *Server) registerRoutes() {
-	distFS, indexHTML := spaFS()
-	fileServer := http.FileServer(http.FS(distFS))
-
-	// SPA fallback: serve static assets when they exist, otherwise serve index.html.
-	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path != "" {
-			if _, err := fs.Stat(distFS, path); err == nil {
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if _, err := w.Write(indexHTML); err != nil {
-			slog.Error("failed writing to http", "msg", err.Error())
-		}
-	})
-
-	// /api/ui/config — GET = read, POST = save (both require auth)
-	s.mux.HandleFunc("/api/ui/config", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfig)).ServeHTTP(w, r)
-		case http.MethodPost:
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveConfig)).ServeHTTP(w, r)
-		default:
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-	s.mux.Handle("/api/ui/config/raw", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetConfigRaw)))
-	s.mux.Handle("/api/ui/config/reset", s.authStore.RequireAuth(http.HandlerFunc(s.handleResetConfig)))
-	s.mux.Handle("/api/ui/config/schedules", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveSchedule)))
-	s.mux.Handle("/api/ui/config/path-template", s.authStore.RequireAuth(http.HandlerFunc(s.handleSavePathTemplate)))
-	s.mux.Handle("/api/ui/config/enrich-metadata", s.authStore.RequireAuth(http.HandlerFunc(s.handleSaveEnrichMetadata)))
-
-	// Path template presets: GET list, POST add; DELETE per name under prefix
-	s.mux.HandleFunc("/api/ui/path-templates", func(w http.ResponseWriter, r *http.Request) {
-		s.authStore.RequireAuth(http.HandlerFunc(s.handlePathTemplates)).ServeHTTP(w, r)
-	})
-	s.mux.HandleFunc("/api/ui/path-templates/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleDeletePathTemplate)).ServeHTTP(w, r)
-			return
-		}
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	})
-
-	// Wizard steps (POST) — require auth
-	s.mux.Handle("/api/ui/wizard/step1", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep1)))
-	s.mux.Handle("/api/ui/wizard/step2", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep2)))
-	s.mux.Handle("/api/ui/wizard/step3", s.authStore.RequireAuth(http.HandlerFunc(s.handleWizardStep3)))
-
-	s.mux.Handle("/api/ui/browse", s.authStore.RequireAuth(http.HandlerFunc(s.handleBrowse)))
-	s.mux.Handle("/api/ui/run", s.authStore.RequireAuth(http.HandlerFunc(s.handleRun)))
-	s.mux.Handle("/api/ui/run/events", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunEvents)))
-	s.mux.Handle("/api/ui/run/stop", s.authStore.RequireAuth(http.HandlerFunc(s.handleStopRun)))
-	s.mux.Handle("/api/ui/run/status", s.authStore.RequireAuth(http.HandlerFunc(s.handleRunStatus)))
-
-	s.mux.Handle("/api/ui/logs", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetLog)))
-	s.mux.Handle("/api/ui/playlists", s.authStore.RequireAuth(http.HandlerFunc(s.handleGetPlaylist)))
-	s.mux.Handle("/api/ui/playlists/prefetch", s.authStore.RequireAuth(http.HandlerFunc(s.handlePrefetchCovers)))
-
-	// TODO: Uncomment when jeffs branch is in
-	// custom playlists: GET list, POST import (same path); per-ID actions under prefix
-	s.mux.HandleFunc("/api/ui/custom-playlists", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleGetCustomPlaylists)).ServeHTTP(w, r)
-		case http.MethodPost:
-			s.authStore.RequireAuth(http.HandlerFunc(s.handleImportCustomPlaylist)).ServeHTTP(w, r)
-		default:
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-	// ID-specific routes: DELETE /api/ui/custom-playlists/{id} and POST .../{id}/refresh
-	s.mux.HandleFunc("/api/ui/custom-playlists/{id}/refresh", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.authStore.RequireAuth(http.HandlerFunc(s.handleRefreshCustomPlaylist)).ServeHTTP(w, r)
-	})
-	s.mux.HandleFunc("/api/ui/custom-playlists/{id}", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		s.authStore.RequireAuth(http.HandlerFunc(s.handleDeleteCustomPlaylist)).ServeHTTP(w, r)
-	})
-
-	s.mux.Handle("/api/ui/logout", s.authStore.RequireAuth(http.HandlerFunc(s.handleLogout)))
-
-	// public/special routes
-	s.mux.HandleFunc("/api/ui/csrf", s.csrfHandler)
-	s.mux.HandleFunc("/api/ui/login", s.handleLogin)
-	s.mux.HandleFunc("/api/ui/auth/status", s.handleAuthStatus)
-	s.mux.HandleFunc("/api/ui/background-art", s.handleBackgroundArt)
-	s.mux.HandleFunc("/api/ui/setup-status", s.handleSetupStatus)
-
-	coversDir := filepath.Join(s.cfg.WebDataDir, "cache", "covers")
-	s.mux.Handle("/api/covers/", http.StripPrefix("/api/covers/", http.FileServer(http.Dir(coversDir))))
-}
-
 // ── Logging ────────────────────────────────────────────────────────────────
 
 // logPath returns the path to the single rolling log file.
@@ -426,7 +322,6 @@ func (s *Server) csrfHandler(w http.ResponseWriter, r *http.Request) {
 // ── Config ─────────────────────────────────────────────────────────────────
 
 // parseEnvText parses key=value lines, ignoring comments, blanks and unquotes variables
-// .
 func parseEnvText(text string) map[string]string {
 	out := map[string]string{}
 	for line := range strings.SplitSeq(text, "\n") {
