@@ -19,6 +19,7 @@ final JSON line for the Go side to parse.
 import sys
 import os
 import json
+import asyncio
 import contextlib
 
 
@@ -74,7 +75,14 @@ def _run(p):
             kwargs["qobuz_token"] = qobuz_token
 
         try:
-            res = provider.download_track(meta, output_dir, **kwargs)
+            # download_track (<=1.2.0) became the async download_track_async (>=1.2.1)
+            if hasattr(provider, "download_track"):
+                res = provider.download_track(meta, output_dir, **kwargs)
+            elif hasattr(provider, "download_track_async"):
+                res = asyncio.run(provider.download_track_async(meta, output_dir, **kwargs))
+            else:
+                errors.append(f"{name}: provider exposes no download method")
+                continue
         except Exception as e:  # noqa: BLE001 - a failing provider must not abort the chain
             errors.append(f"{name}: {e}")
             continue
