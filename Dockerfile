@@ -33,16 +33,17 @@ RUN apk add --no-cache \
     shadow \
     su-exec
 
-# Install ytmusicapi in the container
-RUN pip install --no-cache-dir ytmusicapi
+# Install ytmusicapi (youtube fallback search) and SpotiFLAC (FLAC download source)
+RUN pip install --no-cache-dir ytmusicapi SpotiFLAC==1.2.0
 
 # Set working directory
 WORKDIR /opt/explo/
 
-# Copy entrypoint, binary, python helper
+# Copy entrypoint, binary, python helpers
 COPY ./docker/start.sh /start.sh
 COPY --from=builder /app/explo .
 COPY src/downloader/youtube_music/search_ytmusic.py .
+COPY src/downloader/spotiflac/spotiflac_dl.py .
 
 
 RUN chmod +x /start.sh ./explo

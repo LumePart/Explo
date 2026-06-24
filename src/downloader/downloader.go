@@ -44,6 +44,8 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
+		case "spotiflac":
+			downloader = append(downloader, NewSpotiflac(cfg.Spotiflac, cfg.DownloadDir))
 		default:
 			return nil, fmt.Errorf("downloader '%s' not supported", service)
 		}
@@ -120,7 +122,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 }
 func (c *DownloadClient) needsDownloadDir() bool {
 	for _, svc := range c.Cfg.Services {
-		if svc == "youtube" || svc == "youtube-music" {
+		if svc == "youtube" || svc == "youtube-music" || svc == "spotiflac" {
 			return true
 		}
 	}

@@ -99,6 +99,7 @@ type DownloadConfig struct {
 	Youtube           Youtube
 	YoutubeMusic      YoutubeMusic
 	Slskd             Slskd
+	Spotiflac         Spotiflac
 	ExcludeLocal      bool
 	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
 	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
@@ -132,6 +133,18 @@ type YoutubeMusic struct {
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath  string `env:"YTDLP_PATH"`
 	Filters    Filters
+}
+
+// Spotiflac configures the 'spotiflac' download service. Sources is the list of
+// FLAC providers to try in priority order; see sample.env for the full reference.
+type Spotiflac struct {
+	Sources        []string `env:"SPOTIFLAC_SOURCES" env-default:"deezer,tidal,qobuz,amazon"`
+	Quality        string   `env:"SPOTIFLAC_QUALITY" env-default:"LOSSLESS"`
+	PythonPath     string   `env:"SPOTIFLAC_PYTHON_PATH" env-default:"python3"`
+	ScriptPath     string   `env:"SPOTIFLAC_SCRIPT_PATH" env-default:"spotiflac_dl.py"`
+	Timeout        int      `env:"SPOTIFLAC_TIMEOUT" env-default:"180"`
+	FilenameFormat string   `env:"SPOTIFLAC_FILENAME_FORMAT" env-default:"{title} - {artist}"`
+	QobuzToken     string   `env:"SPOTIFLAC_QOBUZ_TOKEN"`
 }
 
 type Slskd struct {
