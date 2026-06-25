@@ -99,6 +99,7 @@ type DownloadConfig struct {
 	Youtube           Youtube
 	YoutubeMusic      YoutubeMusic
 	Slskd             Slskd
+	Spotiflac         Spotiflac
 	ExcludeLocal      bool
 	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
 	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
@@ -132,6 +133,22 @@ type YoutubeMusic struct {
 	FfmpegPath string `env:"FFMPEG_PATH"`
 	YtdlpPath  string `env:"YTDLP_PATH"`
 	Filters    Filters
+}
+
+// Spotiflac configures the 'spotiflac' download service. It has two paths:
+// tracks that carry a streaming URL (e.g. Spotify imports) are downloaded via the
+// official SpotiFLAC CLI (BinPath); tracks matched by ISRC/title-artist (e.g.
+// ListenBrainz discovery) are downloaded via the bundled module helper
+// (PythonPath + ScriptPath). Sources is the list of FLAC providers to try in
+// priority order; see sample.env for the full reference.
+type Spotiflac struct {
+	Sources    []string `env:"SPOTIFLAC_SOURCES" env-default:"deezer,tidal,qobuz,amazon"`
+	Quality    string   `env:"SPOTIFLAC_QUALITY" env-default:"LOSSLESS"`
+	BinPath    string   `env:"SPOTIFLAC_BIN" env-default:"spotiflac"`
+	PythonPath string   `env:"SPOTIFLAC_PYTHON_PATH" env-default:"python3"`
+	ScriptPath string   `env:"SPOTIFLAC_SCRIPT_PATH" env-default:"spotiflac_dl.py"`
+	Timeout    int      `env:"SPOTIFLAC_TIMEOUT" env-default:"180"`
+	Retries    int      `env:"SPOTIFLAC_RETRIES" env-default:"2"`
 }
 
 type Slskd struct {

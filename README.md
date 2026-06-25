@@ -25,7 +25,7 @@ Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine t
   - Apple Music
   - ListenBrainz
   - Spotify
-- Request tracks from YouTube, Soulseek, or both
+- Request tracks from YouTube, Soulseek, or SpotiFLAC (lossless FLAC)
 - Add metadata to downloaded tracks
 - Create playlists in your music system
 - Keep previous playlists for later listening
@@ -54,6 +54,8 @@ Explo uses the following 3rd-party libraries:
 - [godotenv](https://github.com/joho/godotenv): Load configuration from `.env` files
 
 - [ytmusicapi](https://github.com/sigma67/ytmusicapi): Unofficial Youtube Music API
+
+- [SpotiFLAC](https://github.com/ShuShuzinhuu/SpotiFLAC-Module-Version): Lossless FLAC downloader (official CLI)
 
 - [notify](https://github.com/nikoksr/notify): Module for sending notifications to different services
 

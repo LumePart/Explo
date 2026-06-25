@@ -33,16 +33,24 @@ RUN apk add --no-cache \
     shadow \
     su-exec
 
-# Install ytmusicapi in the container
-RUN pip install --no-cache-dir ytmusicapi
+# SpotiFLAC version to install (FLAC download source). Installs from PyPI and puts
+# the `spotiflac` CLI on PATH. Override at build time, e.g.:
+#   --build-arg SPOTIFLAC_VERSION=1.2.4
+ARG SPOTIFLAC_VERSION=1.2.3
+
+# Install ytmusicapi (youtube fallback search) and SpotiFLAC (FLAC download source).
+# This provides both the `spotiflac` CLI (URL-based imports) and the importable
+# SpotiFLAC module used by spotiflac_dl.py (ISRC/title-artist matching).
+RUN pip install --no-cache-dir ytmusicapi "SpotiFLAC==${SPOTIFLAC_VERSION}"
 
 # Set working directory
 WORKDIR /opt/explo/
 
-# Copy entrypoint, binary, python helper
+# Copy entrypoint, binary, python helpers
 COPY ./docker/start.sh /start.sh
 COPY --from=builder /app/explo .
 COPY src/downloader/youtube_music/search_ytmusic.py .
+COPY src/downloader/spotiflac/spotiflac_dl.py .
 
 
 RUN chmod +x /start.sh ./explo
