@@ -26,6 +26,7 @@ type Track struct {
 	OriginalYear              int
 	Genres                    string
 	ISRCs                     []string
+	SourceURL                 string // Streaming URL (e.g. Spotify track link) captured from a URL-based import; used by the spotiflac downloader
 	Media                     string // Media format (e.g., CD, Digital Media)
 	TrackNumber               int    // Track position in media
 	TrackTotal                int    // Total tracks in media

@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Bundled wrapper that downloads a single track via the SpotiFLAC module.
+"""Bundled helper that downloads a single track via the SpotiFLAC module's
+provider API, used by Explo's spotiflac downloader for tracks that have no
+streaming URL (e.g. ListenBrainz discovery).
 
-Explo invokes this as a subprocess (mirroring how youtube_music/search_ytmusic.py
-shells out to ytmusicapi). It receives the track metadata as a JSON object on
-argv[1] (or stdin), tries each configured source/provider in priority order, and
-prints a single JSON result line to stdout:
+This mirrors how youtube_music/search_ytmusic.py shells out to ytmusicapi: it
+resolves a track by ISRC (falling back to a title/artist text search inside each
+provider) and downloads it from one of the configured FLAC sources in priority
+order. The official `spotiflac` CLI handles URL-based imports (e.g. Spotify); this
+helper handles the metadata-search path the CLI cannot do.
+
+It receives the track metadata as a JSON object on argv[1] (or stdin) and prints a
+single JSON result line to stdout:
 
     {"success": true, "file": "Song.flac", "path": "/abs/Song.flac",
      "provider": "deezer", "format": "flac"}
@@ -36,12 +42,13 @@ def _run(p):
     except Exception as e:  # noqa: BLE001 - report import failure to caller as JSON
         return {"success": False, "error": f"SpotiFLAC import failed: {e}"}
 
+    artists = p.get("artists") or ""
     meta = TrackMetadata(
         id=str(p.get("id") or p.get("isrc") or "explo"),
         title=p.get("title", ""),
-        artists=p.get("artists", ""),
-        album=p.get("album", ""),
-        album_artist=p.get("album_artist") or p.get("artists", ""),
+        artists=artists,
+        album=p.get("album") or "",
+        album_artist=p.get("album_artist") or artists,
         isrc=p.get("isrc") or "",
         track_number=int(p.get("track_number") or 0),
         duration_ms=int(p.get("duration_ms") or 0),
@@ -52,9 +59,7 @@ def _run(p):
     os.makedirs(output_dir, exist_ok=True)
 
     sources = p.get("sources") or ["deezer", "tidal", "qobuz", "amazon"]
-    quality = p.get("quality") or ""
     filename_format = p.get("filename_format") or "{title} - {artist}"
-    qobuz_token = p.get("qobuz_token") or ""
     timeout_s = int(p.get("timeout_s") or 0) or None
 
     errors = []
@@ -68,21 +73,18 @@ def _run(p):
         except TypeError:
             provider = cls()
 
-        kwargs = {"allow_fallback": True, "filename_format": filename_format}
-        if quality:
-            kwargs["quality"] = quality
-        if qobuz_token:
-            kwargs["qobuz_token"] = qobuz_token
-
         try:
-            # download_track (<=1.2.0) became the async download_track_async (>=1.2.1)
-            if hasattr(provider, "download_track"):
-                res = provider.download_track(meta, output_dir, **kwargs)
-            elif hasattr(provider, "download_track_async"):
-                res = asyncio.run(provider.download_track_async(meta, output_dir, **kwargs))
-            else:
-                errors.append(f"{name}: provider exposes no download method")
-                continue
+            # Each provider matches by ISRC first, then a title/artist text search.
+            # allow_fallback=False keeps this provider self-contained so our own
+            # source loop controls the priority order.
+            res = asyncio.run(
+                provider.download_track_async(
+                    meta,
+                    output_dir,
+                    filename_format=filename_format,
+                    allow_fallback=False,
+                )
+            )
         except Exception as e:  # noqa: BLE001 - a failing provider must not abort the chain
             errors.append(f"{name}: {e}")
             continue

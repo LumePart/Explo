@@ -33,15 +33,15 @@ RUN apk add --no-cache \
     shadow \
     su-exec
 
-# SpotiFLAC python module version to install (FLAC download source). Pulled from the
-# project's matching GitHub version-branch archive, since 1.2.1 (which restored the
-# upstream endpoint registry) is not on PyPI yet. Override at build time, e.g.:
-#   --build-arg SPOTIFLAC_VERSION=1.2.2
-ARG SPOTIFLAC_VERSION=1.2.1
+# SpotiFLAC version to install (FLAC download source). Installs from PyPI and puts
+# the `spotiflac` CLI on PATH. Override at build time, e.g.:
+#   --build-arg SPOTIFLAC_VERSION=1.2.4
+ARG SPOTIFLAC_VERSION=1.2.3
 
-# Install ytmusicapi (youtube fallback search) and SpotiFLAC (FLAC download source)
-RUN pip install --no-cache-dir ytmusicapi \
-    "https://github.com/ShuShuzinhuu/SpotiFLAC-Module-Version/archive/${SPOTIFLAC_VERSION}.tar.gz"
+# Install ytmusicapi (youtube fallback search) and SpotiFLAC (FLAC download source).
+# This provides both the `spotiflac` CLI (URL-based imports) and the importable
+# SpotiFLAC module used by spotiflac_dl.py (ISRC/title-artist matching).
+RUN pip install --no-cache-dir ytmusicapi "SpotiFLAC==${SPOTIFLAC_VERSION}"
 
 # Set working directory
 WORKDIR /opt/explo/

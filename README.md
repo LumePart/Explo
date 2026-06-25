@@ -55,7 +55,7 @@ Explo uses the following 3rd-party libraries:
 
 - [ytmusicapi](https://github.com/sigma67/ytmusicapi): Unofficial Youtube Music API
 
-- [SpotiFLAC](https://github.com/ShuShuzinhuu/SpotiFLAC-Module-Version): Lossless FLAC download module
+- [SpotiFLAC](https://github.com/ShuShuzinhuu/SpotiFLAC-Module-Version): Lossless FLAC downloader (official CLI)
 
 - [notify](https://github.com/nikoksr/notify): Module for sending notifications to different services
 

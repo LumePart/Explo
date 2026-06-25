@@ -540,6 +540,7 @@ type partnerItem struct {
 
 type partnerTrackData struct {
 	Typename string `json:"__typename"`
+	URI      string `json:"uri"` // e.g. "spotify:track:<id>" — used to build a track URL for SpotiFLAC
 	Name     string `json:"name"`
 	Artists  struct {
 		Items []struct {
@@ -706,9 +707,22 @@ func extractTracks(items []partnerItem) []PlaylistTrack {
 			MainArtist: mainArtist,
 			Album:      t.AlbumOfTrack.Name,
 			CoverURL:   coverURL,
+			SourceURL:  spotifyTrackURL(t.URI),
 		})
 	}
 	return tracks
+}
+
+// spotifyTrackURL converts a Spotify track URI ("spotify:track:<id>") into an
+// open.spotify.com track URL, which the SpotiFLAC CLI accepts as input.
+// Returns "" for anything that isn't a track URI (e.g. local/episode items).
+func spotifyTrackURL(uri string) string {
+	const prefix = "spotify:track:"
+	id := strings.TrimPrefix(uri, prefix)
+	if id == uri || id == "" {
+		return ""
+	}
+	return "https://open.spotify.com/track/" + id
 }
 
 // pickBestSource returns the image URL closest to targetSize pixels.
