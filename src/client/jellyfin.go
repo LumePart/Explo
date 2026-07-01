@@ -41,7 +41,8 @@ type Audios struct {
 }
 
 type ProviderIds struct {
-	MusicBrainzTrack        string `json:"MusicBrainzTrack"`
+	MusicBrainzTrack     string `json:"MusicBrainzTrack"`
+	MusicBrainzRecording string `json:"MusicBrainzRecording"`
 }
 
 type Items struct {
@@ -162,21 +163,31 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
+		normalizedMainArtist := util.NormalizeArtist(track.MainArtist)
+		
 		for _, item := range results.Items {
-
 			normalizedItemTitle := util.NormalizeTitle(item.Name)
-
-			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
+		
+			// track.MusicBrainzTrackID holds a recording MBID; Jellyfin exposes that
+			// as MusicBrainzRecording. Check MusicBrainzTrack too as a fallback.
+			musicBrainzMatch := track.MusicBrainzTrackID != "" &&
+				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
+					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
+		
 			titleMatch := normalizedItemTitle == normalizedCleanTitle
-			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
-			pathMatch := util.ContainsFold(item.Path,track.File)
-			
+		
+			artistMatch := normalizedMainArtist != "" &&
+				(util.NormalizeArtist(item.AlbumArtist) == normalizedMainArtist ||
+					(len(item.Artists) > 0 && util.NormalizeArtist(item.Artists[0]) == normalizedMainArtist))
+		
+			pathMatch := util.ContainsFold(item.Path, track.File)
+		
 			if musicBrainzMatch || (titleMatch && artistMatch) {
 				track.ID = item.ID
 				track.Present = true
 				break
 			}
-
+		
 			if track.File != "" && artistMatch && pathMatch {
 				track.ID = item.ID
 				track.Present = true
