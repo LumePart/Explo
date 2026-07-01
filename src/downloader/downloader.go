@@ -33,6 +33,23 @@ type Downloader interface {
 	Monitor
 }
 
+// retry runs fn up to attempts times with linear backoff, returning nil on the
+// first success. Used for transient network failures on query/download.
+func retry(attempts int, baseDelay time.Duration, label string, fn func() error) error {
+	var err error
+	for i := 1; i <= attempts; i++ {
+		if err = fn(); err == nil {
+			return nil
+		}
+		if i < attempts {
+			slog.Warn("retrying after failure",
+				"step", label, "attempt", i, "max", attempts, "context", err.Error())
+			time.Sleep(time.Duration(i) * baseDelay)
+		}
+	}
+	return err
+}
+
 // get download services from config and append them to DownloadClient
 func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterLocal bool) (*DownloadClient, error) {
 	var downloader []Downloader
@@ -86,20 +103,31 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 					return err
 				}
 
-				if err := d.QueryTrack(track); err != nil {
+				attempts := c.Cfg.DownloadAttempts
+				if attempts < 1 {
+					attempts = 1
+				}
+	
+				if err := retry(attempts, 3*time.Second, "query", func() error {
+					if werr := limiter.Wait(ctx); werr != nil {
+						return werr
+					}
+					return d.QueryTrack(track)
+				}); err != nil {
 					slog.Warn(err.Error())
 					return nil
 				}
-
-				if err := limiter.Wait(ctx); err != nil {
-					return err
-				}
-
-				if err := d.GetTrack(track); err != nil {
+	
+				if err := retry(attempts, 3*time.Second, "download", func() error {
+					if werr := limiter.Wait(ctx); werr != nil {
+						return werr
+					}
+					return d.GetTrack(track)
+				}); err != nil {
 					slog.Warn(err.Error())
 					return nil
 				}
-
+	
 				return nil
 			})
 		}
