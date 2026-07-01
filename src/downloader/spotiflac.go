@@ -34,7 +34,7 @@ const spotiflacMinBytes = 64 * 1024
 //     title/artist text-search fallback — mirroring how the youtube service shells
 //     out to ytmusicapi.
 //
-// Either way SpotiFLAC tries the configured sources (deezer, tidal, qobuz, amazon)
+// Either way SpotiFLAC tries the configured sources (deezer, tidal, qobuz, amazon, netease, joox)
 // in priority order. Tracks with neither a URL nor enough metadata are skipped so
 // the other configured services (slskd/youtube) can take over.
 type Spotiflac struct {

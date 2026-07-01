@@ -142,7 +142,7 @@ type YoutubeMusic struct {
 // (PythonPath + ScriptPath). Sources is the list of FLAC providers to try in
 // priority order; see sample.env for the full reference.
 type Spotiflac struct {
-	Sources    []string `env:"SPOTIFLAC_SOURCES" env-default:"deezer,tidal,qobuz,amazon"`
+	Sources    []string `env:"SPOTIFLAC_SOURCES" env-default:"deezer,tidal,qobuz,amazon,netease,joox"`
 	Quality    string   `env:"SPOTIFLAC_QUALITY" env-default:"LOSSLESS"`
 	BinPath    string   `env:"SPOTIFLAC_BIN" env-default:"spotiflac"`
 	PythonPath string   `env:"SPOTIFLAC_PYTHON_PATH" env-default:"python3"`

@@ -33,15 +33,14 @@ RUN apk add --no-cache \
     shadow \
     su-exec
 
-# SpotiFLAC version to install (FLAC download source). Installs from PyPI and puts
-# the `spotiflac` CLI on PATH. Override at build time, e.g.:
-#   --build-arg SPOTIFLAC_VERSION=1.2.4
-ARG SPOTIFLAC_VERSION=1.2.3
-
-# Install ytmusicapi (youtube fallback search) and SpotiFLAC (FLAC download source).
-# This provides both the `spotiflac` CLI (URL-based imports) and the importable
-# SpotiFLAC module used by spotiflac_dl.py (ISRC/title-artist matching).
-RUN pip install --no-cache-dir ytmusicapi "SpotiFLAC==${SPOTIFLAC_VERSION}"
+# Always install the LATEST SpotiFLAC (the FLAC download source — provides both the `spotiflac`
+# CLI and the importable module used by spotiflac_dl.py). SpotiFLAC's reverse-engineered Deezer/
+# Qobuz/etc. backends break often and are fixed upstream, so pinning goes stale fast. The ADD of
+# PyPI's release metadata busts THIS layer's build cache whenever a new SpotiFLAC version ships, so
+# a rebuild (`app.redeploy music`) re-resolves to the newest release; unchanged → fast cache hit.
+# ytmusicapi = youtube fallback search. To pin instead, use `SpotiFLAC==<ver>` below.
+ADD https://pypi.org/pypi/SpotiFLAC/json /tmp/spotiflac-pypi.json
+RUN pip install --no-cache-dir --upgrade ytmusicapi SpotiFLAC && rm -f /tmp/spotiflac-pypi.json
 
 # Set working directory
 WORKDIR /opt/explo/
