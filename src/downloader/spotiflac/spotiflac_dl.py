@@ -58,7 +58,7 @@ def _run(p):
     output_dir = p["output_dir"]
     os.makedirs(output_dir, exist_ok=True)
 
-    sources = p.get("sources") or ["deezer", "tidal", "qobuz", "amazon"]
+    sources = p.get("sources") or ["deezer", "tidal", "qobuz", "amazon", "netease", "joox"]
     filename_format = p.get("filename_format") or "{title} - {artist}"
     timeout_s = int(p.get("timeout_s") or 0) or None
 
