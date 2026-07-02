@@ -151,7 +151,25 @@ func (c *Jellyfin) CheckRefreshState() bool {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path,ProviderIDs", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
+		// Fix 1: Strip punctuation like curly apostrophes from the Title search parameter
+		cleanTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
+		cleanTitle = util.CleanSearchTitle(cleanTitle)
+
+		// Fix 2: Isolate the absolute primary artist keyword (e.g., "Linkin Park" instead of the whole reinterpreted string)
+		// We split on common breaking words to ensure Jellyfin's search engine isn't confused
+		primaryArtist := track.MainArtist
+		for _, delimiter := range []string{" feat", " ft", " featuring", " &", " reinterpreted", " with", " x ", " and "} {
+			if idx := strings.Index(strings.ToLower(primaryArtist), delimiter); idx != -1 {
+				primaryArtist = primaryArtist[:idx]
+				break
+			}
+		}
+
+		// Fix 3: Use Jellyfin's explicit Artist and Name filters instead of a loose global SearchTerm
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&ArtistType=Artist&Artists=%s&Name=%s&Recursive=true&Fields=Path,ProviderIDs", 
+			url.QueryEscape(strings.TrimSpace(primaryArtist)), 
+			url.QueryEscape(strings.TrimSpace(cleanTitle)),
+		)
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
