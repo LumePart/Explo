@@ -150,13 +150,19 @@ func (c *Jellyfin) CheckRefreshState() bool {
 }
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
-	for _, track := range tracks {
-		// Clean typography drift from the search parameters
-		cleanSearchTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
-		cleanSearchTitle = util.CleanSearchTitle(cleanSearchTitle)
+	// Match anything inside parentheses or brackets, along with the brackets themselves
+	parenthesesRe := regexp.MustCompile(`[\(\[\{].*?[\)\]\}]`)
 
-		// Added Limit=300 to ensure generic terms like "heavy metal" aren't cut off by Jellyfin's default limits
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(cleanSearchTitle))
+	for _, track := range tracks {
+		// 1. Sanitize the raw SearchTerm completely to prevent Jellyfin syntax errors
+		cleanSearchTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
+		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "`", "'")
+		cleanSearchTitle = parenthesesRe.ReplaceAllString(cleanSearchTitle, "") // Strip (Air Raid Vehicle), etc.
+		cleanSearchTitle = util.CleanSearchTitle(cleanSearchTitle)
+		cleanSearchTitle = strings.ToLower(cleanSearchTitle) // Force lowercase for reliable matching
+
+		// Query using our stripped down, safe search string
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(strings.TrimSpace(cleanSearchTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -169,36 +175,33 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		}
 
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
-		
-		// Keep a lowercase version of the raw incoming artist string for substring fallback checks
 		rawIncomingArtist := strings.ToLower(track.MainArtist)
-		
-		// Clean the primary artist down to an alphanumeric string
 		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
 		
 		for _, item := range results.Items {
-			normalizedItemTitle := util.NormalizeTitle(strings.ReplaceAll(item.Name, "’", "'"))
+			// Normalize punctuation and layout of the current item title from Jellyfin
+			itemTitleCleaned := strings.ReplaceAll(item.Name, "’", "'")
+			itemTitleCleaned = strings.ReplaceAll(itemTitleCleaned, "`", "'")
+			normalizedItemTitle := util.NormalizeTitle(itemTitleCleaned)
 		
-			// 1. Strict MusicBrainz Recording/Track ID Match
+			// Strict MusicBrainz Recording/Track ID Match
 			musicBrainzMatch := track.MusicBrainzTrackID != "" &&
 				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
 					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
 		
-			// 2. Title Match
+			// Title Match
 			titleMatch := normalizedItemTitle == normalizedCleanTitle
 		
-			// 3. Substring-Aware Artist Matching
+			// Substring-Aware Artist Matching
 			artistMatch := false
 			if normalizedMainArtist != "" {
 				normalizedAlbumArtist := util.NormalizeArtist(item.AlbumArtist)
 				
-				// Direct match or check if one is a substring of the other (handles "A & B" vs "A")
 				if normalizedAlbumArtist == normalizedMainArtist || 
 				   strings.Contains(normalizedMainArtist, normalizedAlbumArtist) || 
 				   strings.Contains(normalizedAlbumArtist, normalizedMainArtist) {
 					artistMatch = true
 				} else {
-					// Check individual entries in Jellyfin's artist array
 					for _, individualArtist := range item.Artists {
 						normalizedIndiv := util.NormalizeArtist(individualArtist)
 						if normalizedIndiv == normalizedMainArtist || 
