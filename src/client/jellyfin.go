@@ -154,7 +154,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	parenthesesRe := regexp.MustCompile(`[\(\[\{].*?[\)\]\}]`)
 
 	for _, track := range tracks {
-		// Sanitize the raw SearchTerm completely to prevent Jellyfin syntax errors
+		// Clean typography drift from the search parameters
 		cleanSearchTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
 		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "`", "'")
 		cleanSearchTitle = parenthesesRe.ReplaceAllString(cleanSearchTitle, "") 
@@ -174,6 +174,9 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
+		// DIAGNOSTIC LOG: See exactly what Jellyfin returned for this specific search term
+		slog.Debug(fmt.Sprintf("[EXPLO-DIAG] Search for '%s' returned %d results from Jellyfin", cleanSearchTitle, results.TotalRecordCount))
+
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
 		rawIncomingArtist := strings.ToLower(track.MainArtist)
 		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
@@ -183,15 +186,16 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			itemTitleCleaned = strings.ReplaceAll(itemTitleCleaned, "`", "'")
 			normalizedItemTitle := util.NormalizeTitle(itemTitleCleaned)
 		
-			// 1. Strict MusicBrainz Recording/Track ID Match
+			// DIAGNOSTIC LOG FOR EACH ITEM: See what text strings are actually being compared
+			slog.Debug(fmt.Sprintf("[EXPLO-DIAG] Comparing Track: '%s' vs Item: '%s' | Artist: '%s' vs AlbumArtist: '%s'", 
+				normalizedCleanTitle, normalizedItemTitle, normalizedMainArtist, util.NormalizeArtist(item.AlbumArtist)))
+
 			musicBrainzMatch := track.MusicBrainzTrackID != "" &&
 				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
 					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
 		
-			// 2. Title Match
 			titleMatch := normalizedItemTitle == normalizedCleanTitle
 		
-			// 3. Substring-Aware Artist Matching
 			artistMatch := false
 			if normalizedMainArtist != "" {
 				normalizedAlbumArtist := util.NormalizeArtist(item.AlbumArtist)
@@ -213,15 +217,12 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 				}
 			}
 		
-			// NEW FIXED MATCH ACTION: If Title and Artist match perfectly, accept it!
-			// This completely bypasses any missing album subtitles or path checking constraints.
 			if musicBrainzMatch || (titleMatch && artistMatch) {
 				track.ID = item.ID
 				track.Present = true
 				break
 			}
 		
-			// Broad fallback matching using path strings if track.File happens to be populated
 			pathMatch := track.File != "" && util.ContainsFold(item.Path, track.File)
 			if artistMatch && pathMatch {
 				track.ID = item.ID
