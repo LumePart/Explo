@@ -168,18 +168,20 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
-		// 2. Safe Fallback: If primary search returns 0 results, 
-		// search using just the first complete word of the song title.
+		// 2. Robust Root-Word Fallback: If primary search returns 0 results,
+		// isolate the very first continuous block of alphanumeric characters (stops at spaces, apostrophes, etc.)
 		if len(results.Items) == 0 && len(cleanSearchTitle) > 0 {
-			firstWord := cleanSearchTitle
-			if spaceIdx := strings.Index(cleanSearchTitle, " "); spaceIdx != -1 {
-				firstWord = cleanSearchTitle[:spaceIdx]
+			endIdx := 0
+			for i, r := range cleanSearchTitle {
+				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+					endIdx = i + 1
+				} else if endIdx > 0 {
+					break
+				}
 			}
 			
-			// Strip common trailing punctuation like apostrophes or dashes from the single word
-			firstWord = strings.NewReplacer("'", "", "`", "", "-", "", ",", "", "(", "", "[", "").Replace(firstWord)
-
-			if len(firstWord) >= 1 {
+			if endIdx > 0 {
+				firstWord := cleanSearchTitle[:endIdx]
 				broadParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(firstWord))
 				broadBody, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+broadParam, nil, c.Cfg.Creds.Headers)
 				if err == nil {
