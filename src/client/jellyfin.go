@@ -167,17 +167,17 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		if err = util.ParseResp(body, &results); err != nil {
 			return err
 		}
-		// 2. Precise Word-Isolation Fallback: If primary search returns 0 results, 
-		// fetch using just the first complete word of the song title to avoid index truncation.
+
+		// 2. Safe Fallback: If primary search returns 0 results, 
+		// search using just the first complete word of the song title.
 		if len(results.Items) == 0 && len(cleanSearchTitle) > 0 {
-			firstWord := strings.Split(cleanSearchTitle, " ")[0]
-			// Strip common trailing punctuation if the first word is short or holds a symbol
-			firstWord = strings.Map(func(r rune) rune {
-				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-					return r
-				}
-				return -1
-			}, firstWord)
+			firstWord := cleanSearchTitle
+			if spaceIdx := strings.Index(cleanSearchTitle, " "); spaceIdx != -1 {
+				firstWord = cleanSearchTitle[:spaceIdx]
+			}
+			
+			// Strip common trailing punctuation like apostrophes or dashes from the single word
+			firstWord = strings.NewReplacer("'", "", "`", "", "-", "", ",", "", "(", "", "[", "").Replace(firstWord)
 
 			if len(firstWord) >= 1 {
 				broadParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(firstWord))
@@ -188,14 +188,11 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			}
 		}
 
-		// Use your existing AlnumOnly logic to boil both sides down to a pure comparison blob
-		// This turns "Rollin’ (Air Raid Vehicle)" and "rollin" both into "rollin"
 		targetAlnumTitle := util.NormalizeTitle(track.CleanTitle)
 		rawIncomingArtist := strings.ToLower(track.MainArtist)
 		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
 		
 		for _, item := range results.Items {
-			// Boil the Jellyfin item name down to pure alphanumeric text
 			currentAlnumItemTitle := util.NormalizeTitle(item.Name)
 		
 			// 1. Strict MusicBrainz Recording/Track ID Match
@@ -203,7 +200,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
 					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
 		
-			// 2. Pure Alphanumeric Title Match (Bypasses all punctuation, casing, and bracket text)
+			// 2. Pure Alphanumeric Title Match
 			titleMatch := currentAlnumItemTitle == targetAlnumTitle
 		
 			// 3. Substring-Aware Artist Matching
