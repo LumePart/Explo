@@ -163,30 +163,42 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
-		normalizedMainArtist := util.NormalizeArtist(track.MainArtist)
+		// 1. Keep things clean by using your StripFeat logic to isolate the true primary artist
+		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
 		
 		for _, item := range results.Items {
-			normalizedItemTitle := util.NormalizeTitle(item.Name)
+		    normalizedItemTitle := util.NormalizeTitle(item.Name)
 		
-			// track.MusicBrainzTrackID holds a recording MBID; Jellyfin exposes that
-			// as MusicBrainzRecording. Check MusicBrainzTrack too as a fallback.
-			musicBrainzMatch := track.MusicBrainzTrackID != "" &&
-				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
-					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
+		    musicBrainzMatch := track.MusicBrainzTrackID != "" &&
+		        (item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
+		            item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
 		
-			titleMatch := normalizedItemTitle == normalizedCleanTitle
+		    titleMatch := normalizedItemTitle == normalizedCleanTitle
 		
-			artistMatch := normalizedMainArtist != "" &&
-				(util.NormalizeArtist(item.AlbumArtist) == normalizedMainArtist ||
-					(len(item.Artists) > 0 && util.NormalizeArtist(item.Artists[0]) == normalizedMainArtist))
+		    // 2. Updated Fuzzy Artist Matching Logic
+		    artistMatch := false
+		    if normalizedMainArtist != "" {
+		        // Check if MainArtist matches AlbumArtist cleanly
+		        if util.NormalizeArtist(item.AlbumArtist) == normalizedMainArtist {
+		            artistMatch = true
+		        } else {
+		            // Loop through all artists returned by Jellyfin to find a match for the main artist
+		            for _, individualArtist := range item.Artists {
+		                if util.NormalizeArtist(individualArtist) == normalizedMainArtist {
+		                    artistMatch = true
+		                    break
+		                }
+		            }
+		        }
+		    }
 		
-			pathMatch := util.ContainsFold(item.Path, track.File)
+		    pathMatch := util.ContainsFold(item.Path, track.File)
 		
-			if musicBrainzMatch || (titleMatch && artistMatch) {
-				track.ID = item.ID
-				track.Present = true
-				break
-			}
+		    if musicBrainzMatch || (titleMatch && artistMatch) {
+		        track.ID = item.ID
+		        track.Present = true
+		        break
+		    }
 		
 			if track.File != "" && artistMatch && pathMatch {
 				track.ID = item.ID
