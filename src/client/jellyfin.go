@@ -167,15 +167,24 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		if err = util.ParseResp(body, &results); err != nil {
 			return err
 		}
+		// 2. Precise Word-Isolation Fallback: If primary search returns 0 results, 
+		// fetch using just the first complete word of the song title to avoid index truncation.
+		if len(results.Items) == 0 && len(cleanSearchTitle) > 0 {
+			firstWord := strings.Split(cleanSearchTitle, " ")[0]
+			// Strip common trailing punctuation if the first word is short or holds a symbol
+			firstWord = strings.Map(func(r rune) rune {
+				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+					return r
+				}
+				return -1
+			}, firstWord)
 
-		// 2. Fail-safe: If Jellyfin returns 0 results, query by the first letter of the title.
-		// This forces Jellyfin to give us the raw data pool so we can parse it in memory.
-		if len(results.Items) == 0 && len(cleanSearchTitle) >= 1 {
-			broadQuery := strings.ToLower(cleanSearchTitle[:1])
-			broadParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(broadQuery))
-			broadBody, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+broadParam, nil, c.Cfg.Creds.Headers)
-			if err == nil {
-				_ = util.ParseResp(broadBody, &results)
+			if len(firstWord) >= 1 {
+				broadParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(firstWord))
+				broadBody, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+broadParam, nil, c.Cfg.Creds.Headers)
+				if err == nil {
+					_ = util.ParseResp(broadBody, &results)
+				}
 			}
 		}
 
