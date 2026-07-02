@@ -151,18 +151,16 @@ func (c *Jellyfin) CheckRefreshState() bool {
 }
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
-	parenthesesRe := regexp.MustCompile(`[\(\[\{].*?[\)\]\}]`)
-
 	for _, track := range tracks {
-		// Clean typography drift from the search parameters
+		// Clean ONLY the problematic typography drift before hitting the API.
+		// Leave the actual words, brackets, and spaces alone so Jellyfin's index matches.
 		cleanSearchTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
 		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "`", "'")
-		cleanSearchTitle = parenthesesRe.ReplaceAllString(cleanSearchTitle, "") 
-		cleanSearchTitle = util.CleanSearchTitle(cleanSearchTitle)
+		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "“", "\"")
+		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "”", "\"")
 
-		// FIX: Use explicit Name lookup instead of volatile SearchTerm. 
-		// This bypasses the search indexing bugs that cause Jellyfin to return 0 results.
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&Name=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(strings.TrimSpace(cleanSearchTitle)))
+		// Revert to the indexed SearchTerm query that successfully found your tracks
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(strings.TrimSpace(cleanSearchTitle)))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -179,6 +177,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
 		
 		for _, item := range results.Items {
+			// Normalize punctuation for the database items we are evaluating
 			itemTitleCleaned := strings.ReplaceAll(item.Name, "’", "'")
 			itemTitleCleaned = strings.ReplaceAll(itemTitleCleaned, "`", "'")
 			normalizedItemTitle := util.NormalizeTitle(itemTitleCleaned)
