@@ -151,15 +151,13 @@ func (c *Jellyfin) CheckRefreshState() bool {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		// Clean problematic typography drift before hitting the API
+		// Clean typography drift from the search parameters
 		cleanSearchTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
 		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "`", "'")
-		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "“", "\"")
-		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "”", "\"")
+		cleanSearchTitle = strings.TrimSpace(cleanSearchTitle)
 
-		// 1. Primary Request: Use the reliable SearchTerm query
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(strings.TrimSpace(cleanSearchTitle)))
-
+		// 1. Fetch candidates using the standard search term
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(cleanSearchTitle))
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
 			return err
@@ -170,33 +168,36 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
-		// 2. Fallback Request: If SearchTerm returned 0 items, try a direct Name lookup instead
-		if len(results.Items) == 0 {
-			fallbackParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&Name=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(strings.TrimSpace(cleanSearchTitle)))
-			fallbackBody, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+fallbackParam, nil, c.Cfg.Creds.Headers)
+		// 2. Fail-safe: If Jellyfin returns 0 results, query by the first letter of the title.
+		// This forces Jellyfin to give us the raw data pool so we can parse it in memory.
+		if len(results.Items) == 0 && len(cleanSearchTitle) >= 1 {
+			broadQuery := strings.ToLower(cleanSearchTitle[:1])
+			broadParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(broadQuery))
+			broadBody, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+broadParam, nil, c.Cfg.Creds.Headers)
 			if err == nil {
-				_ = util.ParseResp(fallbackBody, &results)
+				_ = util.ParseResp(broadBody, &results)
 			}
 		}
 
-		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
+		// Use your existing AlnumOnly logic to boil both sides down to a pure comparison blob
+		// This turns "Rollin’ (Air Raid Vehicle)" and "rollin" both into "rollin"
+		targetAlnumTitle := util.NormalizeTitle(track.CleanTitle)
 		rawIncomingArtist := strings.ToLower(track.MainArtist)
 		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
 		
 		for _, item := range results.Items {
-			itemTitleCleaned := strings.ReplaceAll(item.Name, "’", "'")
-			itemTitleCleaned = strings.ReplaceAll(itemTitleCleaned, "`", "'")
-			normalizedItemTitle := util.NormalizeTitle(itemTitleCleaned)
+			// Boil the Jellyfin item name down to pure alphanumeric text
+			currentAlnumItemTitle := util.NormalizeTitle(item.Name)
 		
-			// Strict MusicBrainz Recording/Track ID Match
+			// 1. Strict MusicBrainz Recording/Track ID Match
 			musicBrainzMatch := track.MusicBrainzTrackID != "" &&
 				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
 					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
 		
-			// Title Match
-			titleMatch := normalizedItemTitle == normalizedCleanTitle
+			// 2. Pure Alphanumeric Title Match (Bypasses all punctuation, casing, and bracket text)
+			titleMatch := currentAlnumItemTitle == targetAlnumTitle
 		
-			// Substring-Aware Artist Matching
+			// 3. Substring-Aware Artist Matching
 			artistMatch := false
 			if normalizedMainArtist != "" {
 				normalizedAlbumArtist := util.NormalizeArtist(item.AlbumArtist)
