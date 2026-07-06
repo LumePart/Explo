@@ -182,13 +182,20 @@ type MBRecording struct {
 
 type ListenBrainz struct {
 	HttpClient *util.HttpClient
+	Headers    map[string]string
 	cfg        cfg.Listenbrainz
 	Separator  string
 }
 
 func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *ListenBrainz {
+	authHeader := make(map[string]string)
+	if cfg.Listenbrainz.UserToken != "" {
+		authHeader["Authorization"] = fmt.Sprintf("Token %s", cfg.Listenbrainz.UserToken)
+	}
+	
 	return &ListenBrainz{
 		cfg:        cfg.Listenbrainz,
+		Headers:    authHeader,
 		HttpClient: httpClient,
 	}
 }
@@ -725,7 +732,7 @@ func (c *ListenBrainz) parsePlaylist(identifier string, singleArtist bool) (stri
 func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 
 	reqURL := fmt.Sprintf("https://api.listenbrainz.org/1/%s", path)
-	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
+	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, c.Headers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to ListenBrainz API: %s", err)
 	}

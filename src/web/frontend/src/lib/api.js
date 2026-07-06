@@ -82,11 +82,11 @@ export async function saveSchedule(name, enabled, day, hour, minute) {
   if (!res.ok) throw new Error(await res.text())
 }
 
-export async function wizardStep1(user, playlists, discovery_mode) {
+export async function wizardStep1(user, userToken, playlists, discovery_mode) {
   const res = await apiFetch('/api/ui/wizard/step1', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user, playlists, discovery_mode }),
+    body: JSON.stringify({ user, userToken, playlists, discovery_mode }),
   })
   if (!res.ok) throw new Error(await res.text())
 }

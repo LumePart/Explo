@@ -46,9 +46,9 @@ const PLAYLISTS = [
 ];
 
 function Step1({ fields, setField, envSources, onNext, saving }) {
-  const { user, discoveryMode, checked } = fields
+  const { user, userToken, discoveryMode, checked } = fields
   const isLocked = key => envSources[key] === 'env'
-  const valid = user.trim() !== '' && (discoveryMode !== 'playlist' || Object.values(checked).some(Boolean))
+  const valid = user.trim() !== '' && userToken.trim() !== '' && (discoveryMode !== 'playlist' || Object.values(checked).some(Boolean))
 
   return (
     <div>
@@ -63,6 +63,13 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
           <input id="lb-user" type="text" className={inputCls} placeholder="e.g. musiclover42"
             autoComplete="off" spellCheck={false} value={user} onChange={e => setField('user', e.target.value)}
             disabled={isLocked('LISTENBRAINZ_USER')} />
+        </TextField>
+
+        <TextField label="ListenBrainz user token" labelFor="lb-user-token"
+          hint={<>Copy it from ListenBrainz{' '}<a href="https://listenbrainz.org/settings/" target="_blank" rel="noreferrer" className="text-accent">settings page</a></>}>
+          <input id="lb-user-token" type="text" className={inputCls}
+            autoComplete="off" spellCheck={false} value={userToken} onChange={e => setField('userToken', e.target.value)}
+            disabled={isLocked('LISTENBRAINZ_USER_TOKEN')} />
         </TextField>
 
         <div className="flex flex-col gap-2">
@@ -627,6 +634,7 @@ export default function Wizard({
     return {
       // Step 1
       user: config.LISTENBRAINZ_USER || "",
+      userToken: config.LISTENBRAINZ_USER_TOKEN || "",
       discoveryMode: config.LISTENBRAINZ_DISCOVERY || "playlist",
       checked: {
         "weekly-exploration": !!config.WEEKLY_EXPLORATION_SCHEDULE,
@@ -679,7 +687,7 @@ export default function Wizard({
       const playlists = Object.entries(fields.checked)
         .filter(([, v]) => v)
         .map(([k]) => k);
-      await wizardStep1(fields.user.trim(), playlists, fields.discoveryMode);
+      await wizardStep1(fields.user.trim(), fields.userToken.trim(), playlists, fields.discoveryMode);
       if (playlists.length > 0) {
         prefetchPlaylists(fields.user.trim(), playlists, {
           source: "wizard",

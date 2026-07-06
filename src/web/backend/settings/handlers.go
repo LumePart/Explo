@@ -195,6 +195,7 @@ func (s *Settings) HandleSaveEnrichMetadata(w http.ResponseWriter, r *http.Reque
 func (s *Settings) HandleWizardStep1(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		User          string   `json:"user"`
+		UserToken     string   `json:"userToken"`
 		Playlists     []string `json:"playlists"`
 		DiscoveryMode string   `json:"discovery_mode"`
 	}
@@ -214,6 +215,7 @@ func (s *Settings) HandleWizardStep1(w http.ResponseWriter, r *http.Request) {
 
 	updates := map[string]string{
 		"LISTENBRAINZ_USER":      body.User,
+		"LISTENBRAINZ_USER_TOKEN": body.UserToken,
 		"LISTENBRAINZ_DISCOVERY": body.DiscoveryMode,
 	}
 	for name, def := range defs.PlaylistDefs {

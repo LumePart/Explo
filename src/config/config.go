@@ -160,6 +160,7 @@ type DiscoveryConfig struct {
 type Listenbrainz struct {
 	Discovery              string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	User                   string `env:"LISTENBRAINZ_USER"`
+	UserToken              string `env:"LISTENBRAINZ_USER_TOKEN"`
 	ImportPlaylist         string
 	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
 	CoverArtSize           string `env:"COVER_ART_SIZE" env-default:"250"`
@@ -260,6 +261,10 @@ func (cfg *Config) HandleDeprecation() { //
 	}
 	if cfg.Flags.PersistSet {
 		slog.Warn("--persist flag now only handles playlist deletion, use toggle in UI or --clean-downloads to delete tracks")
+	}
+
+	if cfg.DiscoveryCfg.Listenbrainz.UserToken == "" {
+		slog.Warn("Provide a ListenBrainz user token via Wizard or env (LISTENBRAINZ_USER_TOKEN)")
 	}
 
 	if cfg.Flags.CleanDownloads && !cfg.DownloadCfg.UseSubDir {
