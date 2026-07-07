@@ -105,6 +105,7 @@ type Data struct {
 }
 
 type RootFolder struct {
+	Name                     string `json:"name"`
 	Path                     string `json:"path"`
 	DefaultMetadataProfileId int    `json:"defaultMetadataProfileId"`
 	DefaultQualityProfileId  int    `json:"defaultQualityProfileId"`
@@ -456,8 +457,12 @@ func (c Lidarr) getRootDirectory() (*RootFolder, error) {
 	if len(rootFolders) == 0 {
 		return nil, fmt.Errorf("no root folders found in Lidarr")
 	}
-	rootFolder := rootFolders[0]
-	return &rootFolder, nil
+	for _, folder := range rootFolders {
+		if folder.Name == c.Cfg.RootFolder {
+			return &folder, nil
+		}
+	}
+	return nil, fmt.Errorf("no root folder named '%s' found, please create one in Lidarr or point explo to a correct folder", c.Cfg.RootFolder)
 }
 
 func (c Lidarr) getReleaseGroupId(track *models.Track) error {
