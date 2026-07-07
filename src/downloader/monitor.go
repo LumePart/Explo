@@ -49,6 +49,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 
 	for range ticker.C {
 		statuses, err := m.GetDownloadStatus(tracks)
+		fmt.Println(statuses)
 		if err != nil {
 			return fmt.Errorf("[%s/monitor] error fetching download status: %s", monCfg.Service, err.Error())
 		}

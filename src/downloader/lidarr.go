@@ -253,7 +253,7 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 			return fmt.Errorf("failed to trigger album search: %w", err)
 		}
 
-		if err := c.searchStatus(albumID, 0); err != nil {
+		if err := c.searchStatus(albumID, 1); err != nil {
 			return fmt.Errorf("album search failed: %w", err)
 		}
 		track.File = track.Title
@@ -299,13 +299,13 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		return fmt.Errorf("failed to unmarshal lidarr album: %w", err)
 	}
 
-	if err := c.searchStatus(album.ID, 0); err != nil {
+	if err := c.searchStatus(album.ID, 1); err != nil {
 			return fmt.Errorf("album search failed: %w", err)
 	}
 
 	track.ID = strconv.Itoa(album.ID)
 	track.File = track.CleanTitle
-	slog.Info("download started")
+	slog.Info("download started", "AlbumID", track.ID)
 	return nil
 }
 // Check whether album search is completed
@@ -336,36 +336,28 @@ func (c *Lidarr) searchStatus(AlbumID, count int) error {
 		return fmt.Errorf("search wasn't completed after %d retries, skipping album %d", count, AlbumID)
 	}
 	slog.Debug("waiting for Lidarr album search", "albumID", AlbumID, "attempt", count, "maxAttempts", c.Cfg.Retry)
-	time.Sleep(10 * time.Second)
+	time.Sleep(15 * time.Second)
 	return c.searchStatus(AlbumID, count+1)
 }
 
 func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
-	req := "/api/v1/queue"
-
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, c.Headers)
-	if err != nil {
-		return nil, err
-	}
-
-	var queue LidarrQueue
-	if err := util.ParseResp(body, &queue); err != nil {
-		return nil, err
-	}
-
+	
 	statuses := make(map[string]FileStatus)
+	requested := make(map[string]struct{})
+	// check for completed downloads and build map of tracks that might be in queue
 	for _, track := range tracks {
 		if track.ID == "" || track.Present {
 			continue
 		}
-	
+		
+		requested[track.ID] = struct{}{}
+		
 		file, err := c.checkHistory(*track)
 		if err != nil {
 			slog.Warn("failed to check download history", "err", err)
 		}
 
 		if file != "" {
-			fmt.Printf("lidarr downloaded: %s, %s\n",track.Album, file)
 			statuses[track.ID] = FileStatus{
 			ID:               track.ID,
 			Filename:         file,
@@ -378,20 +370,44 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 		}
 	
 	}
+	var totalPages = 1
+	pageSize := 50
+	var queues []LidarrQueue
+	for page := 1; page <= totalPages; page++ {
+		req := fmt.Sprintf("/api/v1/queue?pageSize=%d&page=%d", pageSize, page)
 
-	for _, record := range queue.Records {
-		ID := strconv.Itoa(record.AlbumID)
-		if _, e := statuses[ID]; e {
-			continue
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, c.Headers)
+		if err != nil {
+			return nil, err
 		}
-		
-		statuses[ID] = FileStatus{
-			ID:               ID,
-			State:            record.Status,
-			BytesRemaining:   int(record.SizeLeft),
-			BytesTransferred: int(record.Size - record.SizeLeft),
-			PercentComplete:  percent(record.Size, record.SizeLeft),
-			QueueID:          strconv.Itoa(record.ID),
+
+		var queue LidarrQueue
+		if err := util.ParseResp(body, &queue); err != nil {
+			return nil, err
+		}
+		queues = append(queues, queue)
+		if page == 1 {
+        totalPages = (queue.TotalRecords + pageSize - 1) / pageSize
+    }
+	}
+	for _, queue := range queues {
+		for _, record := range queue.Records {
+			ID := strconv.Itoa(record.AlbumID)
+			if _, ok := requested[ID]; !ok {
+				continue
+			}
+			if _, e := statuses[ID]; e {
+				continue
+			}
+			
+			statuses[ID] = FileStatus{
+				ID:               ID,
+				State:            record.Status,
+				BytesRemaining:   int(record.SizeLeft),
+				BytesTransferred: int(record.Size - record.SizeLeft),
+				PercentComplete:  percent(record.Size, record.SizeLeft),
+				QueueID:          strconv.Itoa(record.ID),
+			}
 		}
 	}
 
