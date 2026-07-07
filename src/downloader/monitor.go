@@ -32,6 +32,7 @@ type FileStatus struct {
 	BytesTransferred int       `json:"bytesTransferred"`
 	BytesRemaining   int       `json:"bytesRemaining"`
 	PercentComplete  float64   `json:"percentComplete"`
+	QueueID 		 string    `json:"queueID"`
 }
 
 func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) error {
@@ -70,7 +71,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 					LastUpdated:          currentTime,
 				}
 			}
-			fileStatus, exists := statuses[track.File]
+			fileStatus, exists := statuses[track.ID]
 			tracker := progressMap[key]
 			if !exists {
 				tracker.Counter++
@@ -97,7 +98,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				}
 				delete(progressMap, key)
 				successDownloads += 1
-				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
+				if err = m.Cleanup(*track, fileStatus.QueueID); err != nil {
 					slog.Debug("cleanup failed", logging.RuntimeAttr(err.Error()))
 				}
 				continue
@@ -111,7 +112,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 			} else if monitoredTime > monCfg.MonitorDuration || fileStatus.State == "Errored" {
 				slog.Info("[monitor] no download progress for file, skipping", "service", monCfg.Service, "file", track.File, "state", fileStatus.State, "duration", monitoredTime,)
 				tracker.Skipped = true
-				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
+				if err = m.Cleanup(*track, fileStatus.QueueID); err != nil {
 					slog.Debug("cleanup failed", logging.RuntimeAttr(err.Error()))
 				}
 				continue

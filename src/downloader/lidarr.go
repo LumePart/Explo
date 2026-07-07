@@ -69,8 +69,38 @@ type LidarrQueueItem struct {
 	EstimatedCompletionTime time.Time           `json:"estimatedCompletionTime"`
 	Added                   time.Time           `json:"added"`
 	Status                  string              `json:"status"`
-	ID                      int64               `json:"id"`
+	ID                      int                 `json:"id"`
 	Artist                  []LidarrQueueArtist `json:"artist"`
+}
+
+type LidarrHistory struct {
+	Page          int            `json:"page"`
+	PageSize      int            `json:"pageSize"`
+	SortKey       string         `json:"sortKey"`
+	SortDirection string         `json:"sortDirection"`
+	TotalRecords  int            `json:"totalRecords"`
+	Records       []LidarrRecord `json:"records"`
+}
+
+type LidarrRecord struct {
+	AlbumID             int         `json:"albumId"`
+	ArtistID            int         `json:"artistId"`
+	TrackID             int         `json:"trackId"`
+	SourceTitle         string      `json:"sourceTitle"`
+	QualityCutoffNotMet bool        `json:"qualityCutoffNotMet"`
+	Data                Data        `json:"data"`
+	Track               LidarrTrack `json:"track"`
+	ID                  int         `json:"id"`
+}
+
+type Data struct {
+	FileID         string `json:"fileId"`
+	DroppedPath    string `json:"droppedPath"`
+	ImportedPath   string `json:"importedPath"`
+	DownloadClient string `json:"downloadClient"`
+	ReleaseGroup   any    `json:"releaseGroup"`
+	Size           string `json:"size"`
+	IndexerFlags   string `json:"indexerFlags"`
 }
 
 type RootFolder struct {
@@ -212,12 +242,13 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		},
 	}
 
-	body, err := json.Marshal(payload)
+	payloadBody, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal error: %w", err)
 	}
 	queryURL := fmt.Sprintf("%s/api/v1/album", c.Cfg.URL)
-	_, err = c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(body), c.Headers)
+
+	body, err := c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(payloadBody), c.Headers)
 	if err != nil {
 		if strings.Contains(err.Error(), "got 409") {
 			slog.Debug("album already in Lidarr, skipping", "album", track.MusicBrainzReleaseGroupID)
@@ -225,7 +256,14 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		}
 		return fmt.Errorf("failed to add album: %w", err)
 	}
-	track.File = track.Title
+	var album Album
+
+	if err = util.ParseResp(body, &album); err != nil {
+		return fmt.Errorf("failed to unmarshal lidarr album: %w", err)
+	}
+
+	track.ID = strconv.Itoa(album.ID)
+	track.File = track.CleanTitle
 	slog.Info("download started")
 	return nil
 }
@@ -244,19 +282,74 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 	}
 
 	statuses := make(map[string]FileStatus)
+	for _, track := range tracks {
+		if track.ID == "" || track.Present {
+			continue
+		}
+	
+		file, err := c.checkHistory(*track)
+		if err != nil {
+			slog.Warn("failed to check download history", "err", err)
+		}
+
+		if file != "" {
+			fmt.Printf("lidarr downloaded: %s, %s\n",track.Album, file)
+			statuses[track.ID] = FileStatus{
+			ID:               track.ID,
+			Filename:         file,
+			State:            "Succeeded",
+			BytesTransferred: 1,
+			BytesRemaining:   0,
+			PercentComplete:  100,
+			QueueID:          "",
+			}
+		}
+	
+	}
 
 	for _, record := range queue.Records {
-		// MVP assumption: record.Title matches track.File closely enough
-		statuses[record.Title] = FileStatus{
-			ID:               strconv.FormatInt(record.ID, 10),
+		ID := strconv.Itoa(record.AlbumID)
+		if _, e := statuses[ID]; e {
+			continue
+		}
+		
+		statuses[ID] = FileStatus{
+			ID:               ID,
 			State:            record.Status,
 			BytesRemaining:   int(record.SizeLeft),
 			BytesTransferred: int(record.Size - record.SizeLeft),
 			PercentComplete:  percent(record.Size, record.SizeLeft),
+			QueueID:          strconv.Itoa(record.ID),
 		}
 	}
 
 	return statuses, nil
+}
+
+// Checks Lidarr history to see if album is downloaded. Returns file path if found
+func (c *Lidarr) checkHistory(track models.Track) (string, error) {
+	req := fmt.Sprintf("/api/v1/history?albumId=%s&pageSize=1111", track.ID)
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, c.Headers)
+	if err != nil {
+		return "", err
+	}
+	var history LidarrHistory
+	if err := util.ParseResp(body, &history); err != nil {
+		return "", err
+	}
+
+	mbTrack := track.MusicBrainzTrackID
+	mbReleaseTrack := track.MusicBrainzReleaseTrackID
+	for _, r := range history.Records {
+
+		mbIDMatch := (mbTrack != "" && mbTrack == r.Track.ForeignTrackID) || (mbReleaseTrack != "" && mbReleaseTrack == r.Track.ForeignTrackID)
+		titleMatch := strings.Contains(strings.ToLower(r.SourceTitle), strings.ToLower(track.CleanTitle)) || strings.Contains(strings.ToLower(r.Track.Title), strings.ToLower(track.CleanTitle))
+		if (mbIDMatch || titleMatch) && r.Data.ImportedPath != "" {
+			return r.Data.ImportedPath, nil
+		}
+	}
+	return "", nil
+
 }
 
 func (c Lidarr) getRootDirectory() (*RootFolder, error) {
