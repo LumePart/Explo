@@ -84,7 +84,8 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 			}
 			monitoredTime := currentTime.Sub(tracker.LastUpdated)
 
-			if fileStatus.BytesRemaining == 0 || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {		
+			if (fileStatus.BytesRemaining == 0 && fileStatus.BytesTransferred != 0) || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {		
+				track.File = fileStatus.Filename
 				track.Present = true
 				slog.Info("[monitor] file downloaded successfully", "service", monCfg.Service, "file", track.File)
 				var path string

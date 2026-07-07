@@ -213,7 +213,7 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	}
 
 	for _, t := range lidarrTracks {
-		if strings.Contains(strings.ToLower(t.Title), strings.ToLower(track.Title)) && t.HasFile {
+		if util.ContainsFold(t.Title, track.Title) && t.HasFile {
 			track.Present = true
 			slog.Info("track already present in Lidarr", "track", trackDetails)
 			return nil
@@ -415,7 +415,7 @@ func (c *Lidarr) checkHistory(track models.Track) (string, error) {
 	for _, r := range history.Records {
 
 		mbIDMatch := (mbTrack != "" && mbTrack == r.Track.ForeignTrackID) || (mbReleaseTrack != "" && mbReleaseTrack == r.Track.ForeignTrackID)
-		titleMatch := strings.Contains(strings.ToLower(r.SourceTitle), strings.ToLower(track.CleanTitle)) || strings.Contains(strings.ToLower(r.Track.Title), strings.ToLower(track.CleanTitle))
+		titleMatch := util.ContainsFold(r.SourceTitle, track.CleanTitle) || util.ContainsFold(r.Track.Title, track.CleanTitle)
 		if (mbIDMatch || titleMatch) && r.Data.ImportedPath != "" {
 			return r.Data.ImportedPath, nil
 		}
