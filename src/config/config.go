@@ -154,9 +154,8 @@ type SlskdMon struct {
 type Lidarr struct {
 	APIKey           string `env:"LIDARR_API_KEY"`
 	Retry            int    `env:"LIDARR_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
-	DownloadAttempts int    `env:"LIDARR_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
 	LidarrDir        string `env:"LIDARR_DIR" env-default:"/lidarr/"`
-	MigrateDL        bool   `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
+	MigrateDL        bool   `env:"LIDARR_MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
 	Timeout          int    `env:"LIDARR_TIMEOUT" env-default:"20"`
 	URL              string `env:"LIDARR_URL"`
 	Filters          Filters
@@ -164,8 +163,8 @@ type Lidarr struct {
 }
 
 type LidarrMon struct {
-	Interval time.Duration `env:"LIDARR_MONITOR_INTERVAL" env-default:"1m"`
-	Duration time.Duration `env:"LIDARR_MONITOR_DURATION" env-default:"15m"`
+	Interval int `env:"LIDARR_MONITOR_INTERVAL" env-default:"1"`
+	Duration int `env:"LIDARR_MONITOR_DURATION" env-default:"20"`
 }
 
 type DiscoveryConfig struct {
