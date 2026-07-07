@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -113,6 +114,39 @@ type AddOptions struct {
 	SearchForNewAlbum bool `json:"searchForNewAlbum"`
 }
 
+type LidarrCommands []struct {
+	Name                string       `json:"name"`
+	CommandName         string       `json:"commandName"`
+	Message             string       `json:"message,omitempty"`
+	Body                CommandsBody `json:"body,omitempty"`
+	Priority            string       `json:"priority"`
+	Status              string       `json:"status"`
+	Result              string       `json:"result"`
+	Queued              time.Time    `json:"queued"`
+	Started             time.Time    `json:"started,omitempty"`
+	Trigger             string       `json:"trigger"`
+	StateChangeTime     time.Time    `json:"stateChangeTime,omitempty"`
+	SendUpdatesToClient bool         `json:"sendUpdatesToClient"`
+	UpdateScheduledTask bool         `json:"updateScheduledTask"`
+	ID                  int          `json:"id"`
+	Ended               time.Time    `json:"ended,omitempty"`
+	Duration            string       `json:"duration,omitempty"`
+	LastExecutionTime   time.Time    `json:"lastExecutionTime,omitempty"`
+}
+
+type CommandsBody struct {
+	AlbumIds            []int  `json:"albumIds"`
+	SendUpdatesToClient bool   `json:"sendUpdatesToClient"`
+	UpdateScheduledTask bool   `json:"updateScheduledTask"`
+	RequiresDiskAccess  bool   `json:"requiresDiskAccess"`
+	IsExclusive         bool   `json:"isExclusive"`
+	IsTypeExclusive     bool   `json:"isTypeExclusive"`
+	IsLongRunning       bool   `json:"isLongRunning"`
+	Name                string `json:"name"`
+	Trigger             string `json:"trigger"`
+	SuppressMessages    bool   `json:"suppressMessages"`
+}
+
 func NewLidarr(cfg cfg.Lidarr, downloadDir string) *Lidarr { // init downloader cfg for lidarr
 	return &Lidarr{
 		Cfg:         cfg,
@@ -218,6 +252,10 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		if err != nil {
 			return fmt.Errorf("failed to trigger album search: %w", err)
 		}
+
+		if err := c.searchStatus(albumID, 0); err != nil {
+			return fmt.Errorf("album search failed: %w", err)
+		}
 		track.File = track.Title
 		return nil
 	}
@@ -257,15 +295,49 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		return fmt.Errorf("failed to add album: %w", err)
 	}
 	var album Album
-
 	if err = util.ParseResp(body, &album); err != nil {
 		return fmt.Errorf("failed to unmarshal lidarr album: %w", err)
+	}
+
+	if err := c.searchStatus(album.ID, 0); err != nil {
+			return fmt.Errorf("album search failed: %w", err)
 	}
 
 	track.ID = strconv.Itoa(album.ID)
 	track.File = track.CleanTitle
 	slog.Info("download started")
 	return nil
+}
+// Check whether album search is completed
+func (c *Lidarr) searchStatus(AlbumID, count int) error {
+	reqParams := "/api/v1/command"
+		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParams, nil, c.Headers)
+	if err != nil {
+		return err
+	}
+
+	var commands LidarrCommands
+	if err := util.ParseResp(body, &commands); err != nil {
+		return err
+	}
+	for _, command := range commands {
+		if command.Name != "AlbumSearch" ||
+        	!slices.Contains(command.Body.AlbumIds, AlbumID) {
+        		continue
+    		}
+		switch command.Status {
+		case "completed":
+			return nil
+		case "failed", "aborted", "cancelled", "orphaned":
+			return fmt.Errorf("index search %s, skipping album", command.Status)
+		}
+	}
+	if count >= c.Cfg.Retry {
+		return fmt.Errorf("search wasn't completed after %d retries, skipping album %d", count, AlbumID)
+	}
+	slog.Debug("waiting for Lidarr album search", "albumID", AlbumID, "attempt", count, "maxAttempts", c.Cfg.Retry)
+	time.Sleep(10 * time.Second)
+	return c.searchStatus(AlbumID, count+1)
 }
 
 func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
