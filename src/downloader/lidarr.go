@@ -408,9 +408,6 @@ func percent(total, remaining int64) float64 {
 func (c Lidarr) deleteDownload(ID string) error {
 	reqParams := fmt.Sprintf("/api/v1/queue/%s", ID)
 
-	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?removeFromClient=false", nil, c.Headers); err != nil {
-		return fmt.Errorf("soft delete failed: %w", err)
-	}
 	time.Sleep(1 * time.Second)
 	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParams+"?removeFromClient=true", nil, c.Headers); err != nil {
 		return fmt.Errorf("hard delete failed: %w", err)
@@ -418,8 +415,11 @@ func (c Lidarr) deleteDownload(ID string) error {
 	return nil
 }
 
-func (c *Lidarr) Cleanup(track models.Track, fileID string) error {
-	if err := c.deleteDownload(fileID); err != nil {
+func (c *Lidarr) Cleanup(track models.Track, queueID string) error {
+	if track.Present { // dont clear downloaded files from download client
+		return nil
+	}
+	if err := c.deleteDownload(queueID); err != nil {
 		slog.Info(fmt.Sprintf("[lidarr] failed to delete download: %v", err))
 	}
 	return nil
