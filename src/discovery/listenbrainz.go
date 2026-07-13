@@ -658,6 +658,13 @@ func FetchTopRecordings(httpClient *util.HttpClient, user string) ([]*models.Tra
 	return lb.getTopRecordings(user)
 }
 
+// EnrichTracks fetches MusicBrainz metadata for tracks that have recording MBIDs,
+// populating fields like MusicBrainzReleaseGroupID and MusicBrainzArtistID.
+func EnrichTracks(httpClient *util.HttpClient, lbCfg cfg.Listenbrainz, tracks []*models.Track) ([]*models.Track, error) {
+	lb := &ListenBrainz{HttpClient: httpClient, cfg: lbCfg}
+	return lb.enrichTracks(tracks, lbCfg.SingleArtist)
+}
+
 // FetchMostRecentPlaylistByType finds and fetches the most recent LB-generated playlist of the given type for the user.
 func FetchMostRecentPlaylistByType(httpClient *util.HttpClient, user, playlistType string) ([]*models.Track, error) {
 	lb := &ListenBrainz{HttpClient: httpClient, cfg: cfg.Listenbrainz{ImportPlaylist: playlistType}}

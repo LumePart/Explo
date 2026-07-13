@@ -35,7 +35,8 @@ func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, erro
 		MainArtist string `json:"mainArtist"`
 		Release    string `json:"release"`
 		CoverURL   string `json:"coverUrl"`
-		CoverPath  string `json:"coverPath"`
+		CoverPath          string `json:"coverPath"`
+		MusicBrainzTrackID string `json:"mbTrackId,omitempty"`
 	}
 	type cacheFile struct {
 		Tracks []cachedTrack `json:"tracks"`
@@ -81,7 +82,8 @@ func loadCustomTracks(dataDir, playlistID string) ([]*models.Track, string, erro
 			MainArtist: mainArtist,
 			Album:      t.Release,
 			CoverURL:   t.CoverURL,
-			CoverPath:  t.CoverPath,
+			CoverPath:          t.CoverPath,
+			MusicBrainzTrackID: t.MusicBrainzTrackID,
 		}
 	}
 	return tracks, name, nil
@@ -174,6 +176,22 @@ func main() {
 		tracks, playlistName, err = loadCustomTracks(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist)
 		if err == nil {
 			cfg.ClientCfg.PlaylistName = playlistName
+			hasMBIDs := func() bool {
+				for _, t := range tracks {
+					if t.MusicBrainzTrackID != "" {
+						return true
+					}
+				}
+				return false
+			}()
+			if cfg.DiscoveryCfg.Listenbrainz.EnrichTrackMetadata && hasMBIDs {
+				enriched, enrichErr := discovery.EnrichTracks(httpClient, cfg.DiscoveryCfg.Listenbrainz, tracks)
+				if enrichErr != nil {
+					slog.Warn("failed to enrich custom playlist metadata", "error", enrichErr)
+				} else {
+					tracks = enriched
+				}
+			}
 		}
 	} else {
 		disc := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)

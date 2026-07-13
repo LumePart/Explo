@@ -31,7 +31,8 @@ type PlaylistTrack struct {
 	Artist     string
 	MainArtist string
 	Album      string
-	CoverURL   string
+	CoverURL           string
+	MusicBrainzTrackID string
 }
 
 
@@ -86,7 +87,8 @@ func modelTracksToPlaylistTracks(tracks []*models.Track) []PlaylistTrack {
 			Artist:     t.Artist,
 			MainArtist: t.MainArtist,
 			Album:      t.Album,
-			CoverURL:   t.CoverURL,
+			CoverURL:           t.CoverURL,
+			MusicBrainzTrackID: t.MusicBrainzTrackID,
 		}
 	}
 	return out
@@ -169,7 +171,8 @@ type cachedPrefetchTrack struct {
 	MainArtist string `json:"mainArtist,omitempty"`
 	Release    string `json:"release"`
 	CoverURL   string `json:"coverUrl,omitempty"`
-	CoverPath  string `json:"coverPath,omitempty"`
+	CoverPath          string `json:"coverPath,omitempty"`
+	MusicBrainzTrackID string `json:"mbTrackId,omitempty"`
 }
 
 // writePreliminaryCache writes the track cache with remote cover URLs immediately.
@@ -177,7 +180,7 @@ type cachedPrefetchTrack struct {
 func writePreliminaryCache(cfgDir, playlistType string, tracks []PlaylistTrack) bool {
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
-		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: t.CoverURL}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: t.CoverURL, MusicBrainzTrackID: t.MusicBrainzTrackID}
 	}
 	if !writeTrackCache(cfgDir, playlistType, ct) {
 		return false
@@ -197,7 +200,7 @@ func downloadAndCacheCovers(cfgDir, playlistType string, tracks []PlaylistTrack)
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
 		APIPath, coverPath := util.DownloadCover(t.CoverURL, coversDir)
-		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: APIPath, CoverPath: coverPath}
+		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: APIPath, CoverPath: coverPath, MusicBrainzTrackID: t.MusicBrainzTrackID}
 	}
 	if writeTrackCache(cfgDir, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
