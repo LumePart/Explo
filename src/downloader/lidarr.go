@@ -28,6 +28,9 @@ type Album struct {
 	Title          string `json:"title"`
 	ArtistID       int    `json:"artistId"`
 	ForeignAlbumID string `json:"foreignAlbumId"`
+	Artist         struct {
+		ForeignArtistID string `json:"foreignArtistId"`
+	} `json:"artist"`
 }
 
 type LidarrTrack struct {
@@ -466,7 +469,7 @@ func (c Lidarr) getRootDirectory() (*RootFolder, error) {
 }
 
 func (c Lidarr) getReleaseGroupId(track *models.Track) error {
-	if track.MusicBrainzReleaseGroupID != "" {
+	if track.MusicBrainzReleaseGroupID != "" && track.MusicBrainzArtistID != "" {
 		return nil
 	}
 
@@ -488,6 +491,7 @@ func (c Lidarr) getReleaseGroupId(track *models.Track) error {
 	}
 
 	track.MusicBrainzReleaseGroupID = albums[0].ForeignAlbumID
+	track.MusicBrainzArtistID = albums[0].Artist.ForeignArtistID
 	return nil
 }
 
