@@ -94,6 +94,7 @@ type SubsonicConfig struct {
 type DownloadConfig struct {
 	DownloadDir       string `env:"DOWNLOAD_DIR" env-default:"/data/"`
 	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	DownloadAttempts  int    `env:"DOWNLOAD_ATTEMPTS" env-default:"3"`
 	Youtube           Youtube
 	YoutubeMusic      YoutubeMusic
 	Slskd             Slskd

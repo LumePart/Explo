@@ -41,7 +41,8 @@ type Audios struct {
 }
 
 type ProviderIds struct {
-	MusicBrainzTrack        string `json:"MusicBrainzTrack"`
+	MusicBrainzTrack     string `json:"MusicBrainzTrack"`
+	MusicBrainzRecording string `json:"MusicBrainzRecording"`
 }
 
 type Items struct {
@@ -150,8 +151,13 @@ func (c *Jellyfin) CheckRefreshState() bool {
 
 func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path,ProviderIDs", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
+		// Clean typography drift from the search parameters
+		cleanSearchTitle := strings.ReplaceAll(track.CleanTitle, "’", "'")
+		cleanSearchTitle = strings.ReplaceAll(cleanSearchTitle, "`", "'")
+		cleanSearchTitle = strings.TrimSpace(cleanSearchTitle)
 
+		// 1. Fetch candidates using the standard search term
+		reqParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(cleanSearchTitle))
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
 			return err
@@ -161,23 +167,67 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 		if err = util.ParseResp(body, &results); err != nil {
 			return err
 		}
-		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
-		for _, item := range results.Items {
 
-			normalizedItemTitle := util.NormalizeTitle(item.Name)
-
-			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
-			titleMatch := normalizedItemTitle == normalizedCleanTitle
-			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
-			pathMatch := util.ContainsFold(item.Path,track.File)
-			
-			if musicBrainzMatch || (titleMatch && artistMatch) {
-				track.ID = item.ID
-				track.Present = true
-				break
+		// 2. Robust Root-Word Fallback: If primary search returns 0 results,
+		// isolate the very first continuous block of alphanumeric characters (stops at spaces, apostrophes, etc.)
+		if len(results.Items) == 0 && len(cleanSearchTitle) > 0 {
+			endIdx := 0
+			for i, r := range cleanSearchTitle {
+				if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+					endIdx = i + 1
+				} else if endIdx > 0 {
+					break
+				}
 			}
+			
+			if endIdx > 0 {
+				firstWord := cleanSearchTitle[:endIdx]
+				broadParam := fmt.Sprintf("/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Limit=300&Fields=Path,ProviderIDs", url.QueryEscape(firstWord))
+				broadBody, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+broadParam, nil, c.Cfg.Creds.Headers)
+				if err == nil {
+					_ = util.ParseResp(broadBody, &results)
+				}
+			}
+		}
 
-			if track.File != "" && artistMatch && pathMatch {
+		targetAlnumTitle := util.NormalizeTitle(track.CleanTitle)
+		rawIncomingArtist := strings.ToLower(track.MainArtist)
+		normalizedMainArtist := util.NormalizeArtist(util.StripFeat(track.MainArtist))
+		
+		for _, item := range results.Items {
+			currentAlnumItemTitle := util.NormalizeTitle(item.Name)
+		
+			// 1. Strict MusicBrainz Recording/Track ID Match
+			musicBrainzMatch := track.MusicBrainzTrackID != "" &&
+				(item.ProviderIds.MusicBrainzRecording == track.MusicBrainzTrackID ||
+					item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID)
+		
+			// 2. Pure Alphanumeric Title Match
+			titleMatch := currentAlnumItemTitle == targetAlnumTitle
+		
+			// 3. Substring-Aware Artist Matching
+			artistMatch := false
+			if normalizedMainArtist != "" {
+				normalizedAlbumArtist := util.NormalizeArtist(item.AlbumArtist)
+				
+				if normalizedAlbumArtist == normalizedMainArtist || 
+				   strings.Contains(normalizedMainArtist, normalizedAlbumArtist) || 
+				   strings.Contains(normalizedAlbumArtist, normalizedMainArtist) {
+					artistMatch = true
+				} else {
+					for _, individualArtist := range item.Artists {
+						normalizedIndiv := util.NormalizeArtist(individualArtist)
+						if normalizedIndiv == normalizedMainArtist || 
+						   strings.Contains(normalizedMainArtist, normalizedIndiv) ||
+						   util.ContainsFold(rawIncomingArtist, individualArtist) {
+							artistMatch = true
+							break
+						}
+					}
+				}
+			}
+		
+			if musicBrainzMatch || (titleMatch && artistMatch) {
 				track.ID = item.ID
 				track.Present = true
 				break
