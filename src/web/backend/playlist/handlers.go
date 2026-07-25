@@ -380,9 +380,12 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 			}
 			var tracks []PlaylistTrack
 			var err error
-			if pt == "on-repeat" {
+			switch pt {
+			case "on-repeat":
 				tracks, err = fetchOnRepeatTracks(body.User)
-			} else {
+			case "fresh-releases":
+				tracks, err = fetchFreshReleaseTracks(body.User)
+			default:
 				tracks, err = fetchMostRecentLBPlaylist(body.User, pt)
 			}
 			if err != nil {

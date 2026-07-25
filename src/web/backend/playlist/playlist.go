@@ -70,6 +70,14 @@ func fetchOnRepeatTracks(username string) ([]PlaylistTrack, error) {
 	return modelTracksToPlaylistTracks(tracks), nil
 }
 
+func fetchFreshReleaseTracks(username string) ([]PlaylistTrack, error) {
+	tracks, err := discovery.FetchFreshReleaseTracks(util.NewHttp(util.HttpClientConfig{Timeout: 60}), username)
+	if err != nil {
+		return nil, err
+	}
+	return modelTracksToPlaylistTracks(tracks), nil
+}
+
 func fetchMostRecentLBPlaylist(username, playlistType string) ([]PlaylistTrack, error) {
 	tracks, err := discovery.FetchMostRecentPlaylistByType(util.NewHttp(util.HttpClientConfig{Timeout: 30}), username, playlistType)
 	if err != nil {
