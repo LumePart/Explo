@@ -246,19 +246,35 @@ func buildTrackPath(template string, track *models.Track) string {
 	return filepath.Clean(result)
 }
 
-func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
-	trackDir := filepath.Join(srcDir, trackPath)
-	srcFile := filepath.Join(trackDir, track.File)
+func (c *DownloadClient) FinalizeDownload(monCfg MonitorConfig, trackPath string, track *models.Track) error {
+	srcFile := filepath.Join(monCfg.FromDir, trackPath, track.File)
 
-	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
-		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
-	}
 	if c.Cfg.OverwriteMetadata {
-		metadata := util.BuildffmpegMetadata(*track)
-		if err := overwriteMetadata(metadata, srcFile); err != nil {
+		slog.Info(fmt.Sprintf("Writing clean metadata - %s", track.CleanTitle))
+		if err := overwriteMetadata(util.BuildffmpegMetadata(*track), track.CoverPath, srcFile); err != nil {
 			slog.Warn("problem overwriting metadata", "msg", err.Error())
 		}
 	}
+
+	if c.Cfg.RenameTrack {
+		newFile := getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
+		if newFile != track.File {
+			if err := os.Rename(srcFile, filepath.Join(monCfg.FromDir, trackPath, newFile)); err != nil {
+				return fmt.Errorf("failed to rename track: %w", err)
+			}
+			track.File = newFile
+		}
+	}
+
+	if monCfg.MigrateDownload {
+		return c.MoveDownload(monCfg.FromDir, monCfg.ToDir, trackPath, track)
+	}
+	return nil
+}
+
+func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
+	trackDir := filepath.Join(srcDir, trackPath)
+	srcFile := filepath.Join(trackDir, track.File)
 
 	in, err := os.Open(srcFile)
 	if err != nil {
@@ -338,26 +354,35 @@ func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *
 	return nil
 }
 
-func overwriteMetadata(metadata []string, srcFile string) error {
+func overwriteMetadata(metadata []string, coverPath, srcFile string) error {
 	opts := ffmpeg.KwArgs{
-			"c": "copy",
-			"metadata": metadata,
-			"loglevel": "error",
-		}
-		streams := []*ffmpeg.Stream{
-    		ffmpeg.Input(srcFile),
-		}
+		"c":            "copy",
+		"map_metadata": "-1",
+		"metadata":     metadata,
+		"loglevel":     "error",
+	}
+	streams := []*ffmpeg.Stream{ffmpeg.Input(srcFile)}
 
-		tmpFile := tempAudioFile(srcFile)
-
-		if err := util.WriteMetadata(streams, "", tmpFile, opts); err != nil {
-			return fmt.Errorf("failed to overwrite metadata: %w", err)
-		} else {
-			if err := os.Rename(tmpFile, srcFile); err != nil {
-				return fmt.Errorf("failed to rename tmp file: %w", err)
+	if coverPath != "" {
+		if _, err := os.Stat(coverPath); err == nil {
+			streams = append(streams, ffmpeg.Input(coverPath))
+			opts["map"] = "-0:v?"
+			opts["disposition:v"] = "attached_pic"
+			if strings.EqualFold(filepath.Ext(srcFile), ".mp3") {
+				opts["id3v2_version"] = "3"
 			}
 		}
-		return nil
+	}
+
+	tmpFile := tempAudioFile(srcFile)
+
+	if err := util.WriteMetadata(streams, "", tmpFile, opts); err != nil {
+		return fmt.Errorf("failed to overwrite metadata: %w", err)
+	}
+	if err := os.Rename(tmpFile, srcFile); err != nil {
+		return fmt.Errorf("failed to rename tmp file: %w", err)
+	}
+	return nil
 }
 
 func tempAudioFile(path string) string {
