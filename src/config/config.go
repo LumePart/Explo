@@ -100,7 +100,7 @@ type DownloadConfig struct {
 	Slskd             Slskd
 	ExcludeLocal      bool
 	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
-	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
+	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"true"` // rewrite clean tags on every finished download
 	KeepPermissions   bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	RenameTrack       bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
 	UseSubDir         bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
