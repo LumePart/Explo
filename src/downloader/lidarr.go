@@ -32,6 +32,8 @@ type AlbumMetadata struct {
 	ArtistID 		 string
 	ReleaseGroupMBID string
 	ArtistMBID 		 string
+
+	Tracks  func()   []LidarrTrack
 }
 
 type Album struct {
@@ -318,6 +320,57 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 	slog.Info("download started", "AlbumID", track.ID)
 	return nil
 }
+
+func (c *Lidarr) getAlbumTracks(albumID string, artistID string) []LidarrTrack {
+	queryURL := fmt.Sprintf("%s/api/v1/track?albumId=%s&artistId=%s", c.Cfg.URL, albumID, artistID)
+	for attempt := 1; attempt <= 3; attempt++ {
+		body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
+		if err == nil {
+			var tracks []LidarrTrack
+			if err := util.ParseResp(body, &tracks); err == nil {
+				return tracks
+			}
+		}
+		slog.Warn("failed loading album tracks", "attempt", attempt, "err", err)
+
+		if attempt < 3 {
+			time.Sleep(time.Second)
+		}
+	}
+	return nil
+}
+
+func (c *Lidarr) findTrackID(track *models.Track) error {
+	key := c.cacheKey(track)
+
+	c.CacheMu.RLock()
+	a, ok := c.AlbumCache[key]
+	c.CacheMu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("album not cached")
+	}
+
+	alnumTrackTitle := util.AlnumOnly(track.CleanTitle)
+	for _, t := range a.Tracks() {
+		mbIDMatch := (track.MusicBrainzReleaseTrackID != "" && track.MusicBrainzReleaseTrackID == t.ForeignTrackID) ||
+			(track.MusicBrainzTrackID != "" && track.MusicBrainzTrackID == t.ForeignRecordingID)
+		alnumLidarrTitle := util.AlnumOnly(t.Title)
+		fmt.Printf("comparing Lidarr title: %s\n track title: %s\n Lidarr TrackID: %s\nTrack MBID: %s", alnumLidarrTitle, alnumTrackTitle, t.ForeignRecordingID, track.MusicBrainzTrackID)
+		titleMatch := util.ContainsFold(alnumLidarrTitle, alnumTrackTitle)
+
+		if mbIDMatch || titleMatch {
+			if t.HasFile {
+				track.Present = true
+				slog.Info("track already present in Lidarr", "track", track.CleanTitle, "album", track.Album, "artist", track.MainArtist)
+			}
+			track.ID = strconv.Itoa(t.ID)
+			return nil
+		}
+	}
+	return fmt.Errorf("could not find track '%s' from Album: %s", track.CleanTitle, track.Album)
+}
+
 // Check whether album search is completed
 func (c *Lidarr) searchStatus(AlbumID, count int) error {
 	reqParams := "/api/v1/command"
@@ -562,6 +615,10 @@ func (c *Lidarr) cacheAlbum(track *models.Track) {
         ArtistMBID:       track.MusicBrainzArtistID,
         AlbumID:          track.AlbumID,
         ArtistID:         track.MainArtistID,
+
+		Tracks: sync.OnceValue(func() []LidarrTrack {
+    		return c.getAlbumTracks(track.AlbumID, track.MainArtistID)
+		}),
 	}
 }
 // Checks if album is cached. Populates track fields if it is
