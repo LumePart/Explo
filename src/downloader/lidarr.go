@@ -240,8 +240,7 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	return nil
 }
 
-func (c Lidarr) GetTrack(track *models.Track) error {
-
+func (c *Lidarr) GetTrack(track *models.Track) error {
 	slog.Info("downloading track",
 		"title", track.Title,
 		"artist", track.Artist,
@@ -251,31 +250,45 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		return nil
 	}
 
-	if track.ID != "" {
-		albumID, err := strconv.Atoi(track.ID)
+	if c.populateFromCache(track) {
+    	return c.findTrackID(track)
+	}
+
+	if track.AlbumID != "" {
+		albumID, err := strconv.Atoi(track.AlbumID)
 		if err != nil {
 			return fmt.Errorf("invalid lidarr album ID: %w", err)
 		}
 		slog.Info("album in library but track missing, triggering search", "album", track.Album, "id", albumID)
-		payload := map[string]any{
-			"name":     "AlbumSearch",
-			"albumIds": []int{albumID},
-		}
-		body, err := json.Marshal(payload)
-		if err != nil {
-			return fmt.Errorf("marshal error: %w", err)
-		}
-		_, err = c.HttpClient.MakeRequest("POST", fmt.Sprintf("%s/api/v1/command", c.Cfg.URL), bytes.NewReader(body), c.Headers)
-		if err != nil {
+		
+		if err = c.triggerAlbumSearch(albumID); err != nil {
 			return fmt.Errorf("failed to trigger album search: %w", err)
 		}
+
+		c.cacheAlbum(track)
 
 		if err := c.searchStatus(albumID, 1); err != nil {
 			return fmt.Errorf("album search failed: %w", err)
 		}
-		track.File = track.Title
+
+		track.File = track.CleanTitle
 		return nil
 	}
+
+	if err := c.addNewAlbum(track); err != nil {
+		return fmt.Errorf("failed to add album: %w", err)
+	}
+
+	if c.populateFromCache(track) {
+    	return c.findTrackID(track)
+	}
+	track.File = track.CleanTitle
+
+	slog.Info("download started", "AlbumID", track.AlbumID)
+	return nil
+}
+
+func (c *Lidarr) addNewAlbum(track *models.Track) error {
 
 	payload := map[string]any{
 		"foreignAlbumId": track.MusicBrainzReleaseGroupID,
@@ -300,24 +313,41 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 
 	body, err := c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(payloadBody), c.Headers)
 	if err != nil {
-		if strings.Contains(err.Error(), "got 409") {
-			slog.Debug("album already in Lidarr, skipping", "album", track.MusicBrainzReleaseGroupID)
-			return nil
+		if strings.Contains(err.Error(), "got 409") || strings.Contains(string(body), "has already been added") {
+			if _, ok := c.AlbumCache[c.cacheKey(track)]; ok {
+				slog.Debug("album already in Lidarr", "album", track.MusicBrainzReleaseGroupID)
+				return nil
+			}
+			return fmt.Errorf("album present in lidarr but explo couldn't find it")
 		}
-		return fmt.Errorf("failed to add album: %w", err)
+		return err
 	}
 	var album Album
 	if err = util.ParseResp(body, &album); err != nil {
 		return fmt.Errorf("failed to unmarshal lidarr album: %w", err)
 	}
-
+	track.AlbumID = strconv.Itoa(album.ID)
+	track.MainArtistID = strconv.Itoa(album.ArtistID)
+	c.cacheAlbum(track)
 	if err := c.searchStatus(album.ID, 1); err != nil {
 			return fmt.Errorf("album search failed: %w", err)
 	}
+	return nil
+}
 
-	track.ID = strconv.Itoa(album.ID)
-	track.File = track.CleanTitle
-	slog.Info("download started", "AlbumID", track.ID)
+func (c *Lidarr) triggerAlbumSearch(albumID int) error {
+	payload := map[string]any{
+		"name":     "AlbumSearch",
+		"albumIds": []int{albumID},
+		}
+	payloadBody, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal error: %w", err)
+	}
+	_, err = c.HttpClient.MakeRequest("POST", fmt.Sprintf("%s/api/v1/command", c.Cfg.URL), bytes.NewReader(payloadBody), c.Headers)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
