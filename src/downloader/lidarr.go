@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	cfg "explo/src/config"
@@ -21,7 +22,16 @@ type Lidarr struct {
 	DownloadDir string
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Lidarr
-	RootFolder RootFolder
+	AlbumCache	map[string]*AlbumMetadata
+	CacheMu   	sync.RWMutex
+	RootFolder 	RootFolder
+}
+
+type AlbumMetadata struct {
+	AlbumID 		 string
+	ArtistID 		 string
+	ReleaseGroupMBID string
+	ArtistMBID 		 string
 }
 
 type Album struct {
@@ -537,4 +547,36 @@ func (c *Lidarr) Cleanup(track models.Track, queueID string) error {
 		slog.Info(fmt.Sprintf("[lidarr] failed to delete download: %v", err))
 	}
 	return nil
+}
+
+func (c *Lidarr) cacheKey(track *models.Track) string {
+    return track.MainArtist + "|" + track.Album
+}
+
+func (c *Lidarr) cacheAlbum(track *models.Track) {
+	key := c.cacheKey(track)
+	c.CacheMu.Lock()
+	defer c.CacheMu.Unlock()
+    c.AlbumCache[key] = &AlbumMetadata{
+        ReleaseGroupMBID: track.MusicBrainzReleaseGroupID,
+        ArtistMBID:       track.MusicBrainzArtistID,
+        AlbumID:          track.AlbumID,
+        ArtistID:         track.MainArtistID,
+	}
+}
+// Checks if album is cached. Populates track fields if it is
+func (c *Lidarr) populateFromCache(track *models.Track) bool {
+	c.CacheMu.RLock()
+    a, ok := c.AlbumCache[c.cacheKey(track)]
+	c.CacheMu.RUnlock()
+
+    if !ok {
+        return false
+    }
+
+    track.MusicBrainzReleaseGroupID = a.ReleaseGroupMBID
+    track.MusicBrainzArtistID = a.ArtistMBID
+    track.AlbumID = a.AlbumID
+    track.MainArtistID = a.ArtistID
+    return true
 }
