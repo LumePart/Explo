@@ -194,6 +194,10 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	trackDetails := fmt.Sprintf("%s - %s", track.Title, track.Artist)
 	slog.Info("initiating search", "track", trackDetails)
 
+	if c.populateFromCache(track) {
+    	return c.findTrackID(track)
+}
+
 	if err := c.getReleaseGroupId(track); err != nil {
 		return fmt.Errorf("failed to get release group id for %s - %s: %w", track.Title, track.Artist, err)
 	}
@@ -215,28 +219,16 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 	}
 
 	libraryAlbum := libraryAlbums[0]
+
+	track.AlbumID = strconv.Itoa(libraryAlbum.ID)
+	track.MainArtistID = strconv.Itoa(libraryAlbum.ArtistID)
+	
+	c.cacheAlbum(track)
+		
 	slog.Info("album found in Lidarr library", "album", libraryAlbum.Title, "id", libraryAlbum.ID)
-	track.ID = strconv.Itoa(libraryAlbum.ID)
-
-	queryURL = fmt.Sprintf("%s/api/v1/track?artistId=%v&albumId=%v", c.Cfg.URL, libraryAlbum.ArtistID, libraryAlbum.ID)
-	body, err = c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
-	if err != nil {
-		return fmt.Errorf("failed to check existing tracks: %w", err)
+	if err := c.findTrackID(track); err != nil {
+		return fmt.Errorf("failed to get track ID: %w", err)
 	}
-
-	var lidarrTracks []LidarrTrack
-	if err = util.ParseResp(body, &lidarrTracks); err != nil {
-		return fmt.Errorf("failed to unmarshal lidarr tracks: %w", err)
-	}
-
-	for _, t := range lidarrTracks {
-		if util.ContainsFold(t.Title, track.Title) && t.HasFile {
-			track.Present = true
-			slog.Info("track already present in Lidarr", "track", trackDetails)
-			return nil
-		}
-	}
-
 	return nil
 }
 
