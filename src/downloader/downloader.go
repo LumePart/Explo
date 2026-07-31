@@ -47,6 +47,9 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 		case "lidarr":
 			lidarrClient := NewLidarr(cfg.Lidarr, cfg.DownloadDir)
 			lidarrClient.AddHeader()
+			if err := lidarrClient.getRootDirectory(); err != nil {
+				return nil, err
+			}
 			downloader = append(downloader, lidarrClient)
 		default:
 			return nil, fmt.Errorf("downloader '%s' not supported", service)

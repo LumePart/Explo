@@ -21,6 +21,7 @@ type Lidarr struct {
 	DownloadDir string
 	HttpClient  *util.HttpClient
 	Cfg         cfg.Lidarr
+	RootFolder RootFolder
 }
 
 type Album struct {
@@ -264,20 +265,15 @@ func (c Lidarr) GetTrack(track *models.Track) error {
 		return nil
 	}
 
-	rootFolder, err := c.getRootDirectory()
-	if err != nil {
-		return fmt.Errorf("could not look up root directory: %w", err)
-	}
-
 	payload := map[string]any{
 		"foreignAlbumId": track.MusicBrainzReleaseGroupID,
 		"monitored":      true,
 		"anyReleaseOk":   true,
 		"artist": map[string]any{
-			"qualityProfileId":  rootFolder.DefaultQualityProfileId,
-			"metadataProfileId": rootFolder.DefaultMetadataProfileId,
+			"qualityProfileId":  c.RootFolder.DefaultQualityProfileId,
+			"metadataProfileId": c.RootFolder.DefaultMetadataProfileId,
 			"foreignArtistId":   track.MusicBrainzArtistID,
-			"rootFolderPath":    rootFolder.Path,
+			"rootFolderPath":    c.RootFolder.Path,
 		},
 		"addOptions": AddOptions{
 			SearchForNewAlbum: true,
@@ -444,28 +440,29 @@ func (c *Lidarr) checkHistory(track models.Track) (string, error) {
 
 }
 
-func (c Lidarr) getRootDirectory() (*RootFolder, error) {
+func (c *Lidarr) getRootDirectory() error {
 	// Get the defaults from the root dir
 	queryURL := fmt.Sprintf("%s/api/v1/rootfolder", c.Cfg.URL)
 	body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup root folder: %w", err)
+		return fmt.Errorf("failed to lookup root folder: %w", err)
 	}
 
 	var rootFolders []RootFolder
 	if err = util.ParseResp(body, &rootFolders); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal query root folder: %w", err)
+		return fmt.Errorf("failed to unmarshal query root folder: %w", err)
 	}
 
 	if len(rootFolders) == 0 {
-		return nil, fmt.Errorf("no root folders found in Lidarr")
+		return fmt.Errorf("no root folders found in Lidarr")
 	}
 	for _, folder := range rootFolders {
 		if folder.Name == c.Cfg.RootFolder {
-			return &folder, nil
+			c.RootFolder = folder
+			return nil
 		}
 	}
-	return nil, fmt.Errorf("no root folder named '%s' found, please create one in Lidarr or point explo to a correct folder", c.Cfg.RootFolder)
+	return fmt.Errorf("no root folder named '%s' found, please create one in Lidarr or point explo to a correct folder", c.Cfg.RootFolder)
 }
 
 func (c Lidarr) getReleaseGroupId(track *models.Track) error {
