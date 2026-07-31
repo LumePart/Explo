@@ -341,35 +341,86 @@ func (c *Lidarr) searchStatus(AlbumID, count int) error {
 }
 
 func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
-	
-	statuses := make(map[string]FileStatus)
-	requested := make(map[string]struct{})
-	// check for completed downloads and build map of tracks that might be in queue
+
+	albums := make(map[string][]*models.Track)
+
 	for _, track := range tracks {
-		if track.ID == "" || track.Present {
+		if track.ID == "" || track.AlbumID == "" || track.Present {
 			continue
 		}
-		
-		requested[track.ID] = struct{}{}
-		
-		file, err := c.checkHistory(*track)
+    	albums[track.AlbumID] = append(albums[track.AlbumID], track)
+	}
+	statuses := make(map[string]FileStatus)
+	queues, err := c.getQueue()
 		if err != nil {
-			slog.Warn("failed to check download history", "err", err)
+			slog.Warn("[lidarr] failed to check queue", "err", err)
 		}
 
-		if file != "" {
-			statuses[track.ID] = FileStatus{
-			ID:               track.ID,
-			Filename:         file,
-			State:            "Succeeded",
-			BytesTransferred: 1,
-			BytesRemaining:   0,
-			PercentComplete:  100,
-			QueueID:          "",
+	queueMap := make(map[string]LidarrQueueItem)
+
+	for _, queue := range queues {
+    	for _, record := range queue.Records {
+        	queueMap[strconv.Itoa(record.AlbumID)] = record
+    	}
+	}
+
+	// check for completed downloads and build map of tracks that might be in queue
+	for albumID, albumTracks := range albums {
+
+		history ,err := c.getHistory(albumID)
+		if err != nil {
+			slog.Warn("[lidarr] failed to check download history", "err", err)
+		}
+
+		for _, r := range history.Records {
+			for _, track := range albumTracks {
+				if _, exists := statuses[track.ID]; exists {
+         		   continue
+        		}
+				trackIDMatch := track.ID == strconv.Itoa(r.TrackID)
+				mbTrack := track.MusicBrainzTrackID
+				mbReleaseTrack := track.MusicBrainzReleaseTrackID
+				mbIDMatch := (mbTrack != "" && mbTrack == r.Track.ForeignTrackID) || (mbReleaseTrack != "" && mbReleaseTrack == r.Track.ForeignTrackID)
+				if (mbIDMatch || trackIDMatch) && r.Data.ImportedPath != "" {
+					statuses[track.ID] = FileStatus{
+					ID:               track.ID,
+					Filename:         r.Data.ImportedPath,
+					State:            "Succeeded",
+					BytesTransferred: 1,
+					BytesRemaining:   0,
+					PercentComplete:  100,
+					QueueID:          "",
+					}
+				}
 			}
 		}
-	
+
+		record, ok := queueMap[albumID]
+		if !ok {
+			continue
+		}
+
+		for _, track := range albumTracks {
+			if _, e := statuses[track.ID]; e {
+				continue
+			}
+			// assign all tracks in an album the same state
+			statuses[track.ID] = FileStatus{
+				ID:               track.ID,
+				State:            record.Status,
+				BytesRemaining:   int(record.SizeLeft),
+				BytesTransferred: int(record.Size - record.SizeLeft),
+				PercentComplete:  percent(record.Size, record.SizeLeft),
+				QueueID:          strconv.Itoa(record.ID),
+			}
+		}
+
 	}
+	return statuses, nil
+}
+
+func (c *Lidarr) getQueue() ([]LidarrQueue, error) {
+
 	var totalPages = 1
 	pageSize := 50
 	var queues []LidarrQueue
@@ -388,56 +439,25 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 		queues = append(queues, queue)
 		if page == 1 {
         totalPages = (queue.TotalRecords + pageSize - 1) / pageSize
-    }
+    	}
 	}
-	for _, queue := range queues {
-		for _, record := range queue.Records {
-			ID := strconv.Itoa(record.AlbumID)
-			if _, ok := requested[ID]; !ok {
-				continue
-			}
-			if _, e := statuses[ID]; e {
-				continue
-			}
-			
-			statuses[ID] = FileStatus{
-				ID:               ID,
-				State:            record.Status,
-				BytesRemaining:   int(record.SizeLeft),
-				BytesTransferred: int(record.Size - record.SizeLeft),
-				PercentComplete:  percent(record.Size, record.SizeLeft),
-				QueueID:          strconv.Itoa(record.ID),
-			}
-		}
-	}
-
-	return statuses, nil
+	return queues, nil
 }
 
-// Checks Lidarr history to see if album is downloaded. Returns file path if found
-func (c *Lidarr) checkHistory(track models.Track) (string, error) {
-	req := fmt.Sprintf("/api/v1/history?albumId=%s&pageSize=1111", track.ID)
+// Queries Lidarr history for specified album
+func (c *Lidarr) getHistory(albumID string) (LidarrHistory, error) {
+
+	req := fmt.Sprintf("/api/v1/history?albumId=%s&pageSize=1111", albumID)
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, c.Headers)
 	if err != nil {
-		return "", err
+		return LidarrHistory{}, err
 	}
 	var history LidarrHistory
 	if err := util.ParseResp(body, &history); err != nil {
-		return "", err
+		return LidarrHistory{}, err
 	}
 
-	mbTrack := track.MusicBrainzTrackID
-	mbReleaseTrack := track.MusicBrainzReleaseTrackID
-	for _, r := range history.Records {
-
-		mbIDMatch := (mbTrack != "" && mbTrack == r.Track.ForeignTrackID) || (mbReleaseTrack != "" && mbReleaseTrack == r.Track.ForeignTrackID)
-		titleMatch := util.ContainsFold(r.SourceTitle, track.CleanTitle) || util.ContainsFold(r.Track.Title, track.CleanTitle)
-		if (mbIDMatch || titleMatch) && r.Data.ImportedPath != "" {
-			return r.Data.ImportedPath, nil
-		}
-	}
-	return "", nil
-
+	return history, nil
 }
 
 func (c *Lidarr) getRootDirectory() error {
