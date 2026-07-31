@@ -659,3 +659,8 @@ func (c *Lidarr) populateFromCache(track *models.Track) bool {
     track.MainArtistID = a.ArtistID
     return true
 }
+
+
+func (c *Lidarr) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
+	return nil
+}

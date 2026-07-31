@@ -12,6 +12,7 @@ import (
 type Monitor interface {
 	GetDownloadStatus([]*models.Track) (map[string]FileStatus, error)
 	GetConf() (MonitorConfig, error)
+	MoveDownload(string, string, string, *models.Track) error
 	Cleanup(models.Track, string) error
 }
 
@@ -89,10 +90,10 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				track.File = fileStatus.Filename
 				track.Present = true
 				slog.Info("[monitor] file downloaded successfully", "service", monCfg.Service, "file", track.File)
-				var path string
-				track.File, path = parsePath(track.File)
+				var filePath string
+				track.File, filePath = parsePath(track.File)
 				if monCfg.MigrateDownload {
-					if err = c.MoveDownload(monCfg.FromDir, monCfg.ToDir, path, track); err != nil {
+					if err = m.MoveDownload(monCfg.FromDir, monCfg.ToDir, filePath, track); err != nil {
 						slog.Error("error while moving file", "err", err.Error())
 					} else {
 						slog.Info("track moved successfully", "service", monCfg.Service)
