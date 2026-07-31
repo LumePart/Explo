@@ -570,7 +570,7 @@ func (c *Lidarr) getRootDirectory() error {
 	return fmt.Errorf("no root folder named '%s' found, please create one in Lidarr or point explo to a correct folder", c.Cfg.RootFolder)
 }
 
-func (c Lidarr) getReleaseGroupId(track *models.Track) error {
+func (c *Lidarr) getReleaseGroupId(track *models.Track) error {
 	if track.MusicBrainzReleaseGroupID != "" && track.MusicBrainzArtistID != "" {
 		return nil
 	}
@@ -604,7 +604,7 @@ func percent(total, remaining int64) float64 {
 	return float64(total-remaining) / float64(total) * 100
 }
 
-func (c Lidarr) deleteDownload(ID string) error {
+func (c *Lidarr) deleteDownload(ID string) error {
 	reqParams := fmt.Sprintf("/api/v1/queue/%s", ID)
 
 	time.Sleep(1 * time.Second)
