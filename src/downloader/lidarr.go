@@ -378,7 +378,6 @@ func (c *Lidarr) findTrackID(track *models.Track) error {
 		mbIDMatch := (track.MusicBrainzReleaseTrackID != "" && track.MusicBrainzReleaseTrackID == t.ForeignTrackID) ||
 			(track.MusicBrainzTrackID != "" && track.MusicBrainzTrackID == t.ForeignRecordingID)
 		alnumLidarrTitle := util.AlnumOnly(t.Title)
-		fmt.Printf("comparing Lidarr title: %s\n track title: %s\n Lidarr TrackID: %s\nTrack MBID: %s", alnumLidarrTitle, alnumTrackTitle, t.ForeignRecordingID, track.MusicBrainzTrackID)
 		titleMatch := util.ContainsFold(alnumLidarrTitle, alnumTrackTitle)
 
 		if mbIDMatch || titleMatch {
