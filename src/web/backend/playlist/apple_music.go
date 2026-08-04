@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"regexp"
 
 	"golang.org/x/net/html"
 )
+
+var albumSuffixRe = regexp.MustCompile(`(?i)\s*[-–]\s*(single|ep)\s*$`)
 
 // appleServerData mirrors the top-level shape of the
 // <script id="serialized-server-data"> JSON blob on Apple Music pages.
@@ -148,7 +151,11 @@ func extractServerData(htmlStr string) (string, string, []PlaylistTrack, error) 
 			for _, item := range sec.Items {
 				album := ""
 				if len(item.TertiaryLinks) > 0 {
-					album = item.TertiaryLinks[0].Title
+					album = albumSuffixRe.ReplaceAllString(item.TertiaryLinks[0].Title, "")
+					// if RemoveAMModifiers {
+					// 	var re := regexp.MustCompile(`(?i)\s*[-–]\s*(single|ep)\s*$`)
+					// 	album := re.ReplaceAllString(album, "")
+					// }
 				}
 				coverURL := ""
 				if item.Artwork != nil {
