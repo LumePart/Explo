@@ -536,6 +536,7 @@ function DownloadPathSection() {
         ...SEED_PRESETS.map(p => ({ ...p, seed: true })),
         ...jsonPresets,
       ]
+      setSuffixRemoval(values.SUFFIX_REMOVAL === 'true')
       setEnrichEnabled(values.ENRICH_TRACK_METADATA === 'true')
       const anyFlags = values.WEEKLY_EXPLORATION_FLAGS || values.WEEKLY_JAMS_FLAGS || values.DAILY_JAMS_FLAGS || values.ON_REPEAT_FLAGS || ''
       setCleanDownloads(anyFlags.includes('--clean-downloads'))
