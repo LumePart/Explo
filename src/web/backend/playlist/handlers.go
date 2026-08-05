@@ -229,10 +229,21 @@ func (p *Playlist) HandleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	var envValues map[string]string
+	var AMSuffixRe = false
+	if data, err := os.ReadFile(p.cfg.WebEnvPath); err == nil {
+		envValues = p.settings.ParseEnvText(string(data))
+	} else {
+		envValues = map[string]string{}
+	}
+	if envValues["SUFFIX_REMOVAL"] == "true" {
+		AMSuffixRe = true
+	}
+
 	plist := playlists[idx]
 	slog.Info("custom-playlists: manual refresh", "id", id, "source", plist.Source)
 
-	result, err := fetchCustomPlaylistTracks(plist)
+	result, err := fetchCustomPlaylistTracks(plist, AMSuffixRe)
 	if err != nil {
 		slog.Error("custom-playlists: refresh fetch failed", "id", id, "err", err)
 		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)

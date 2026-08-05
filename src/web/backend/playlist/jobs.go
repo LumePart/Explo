@@ -1,11 +1,11 @@
 package playlist
 
 import (
+	"explo/src/util"
+	"explo/src/web/backend/jobs"
 	"log/slog"
 	"os"
 	"time"
-	"explo/src/util"
-	"explo/src/web/backend/jobs"
 
 	"github.com/go-co-op/gocron/v2"
 )
@@ -19,10 +19,14 @@ func (p *Playlist) RegisterCustomPlaylistRefresh(j *jobs.Jobs) error {
 	}
 
 	var envValues map[string]string
+	var AMSuffixRe = false
 	if data, err := os.ReadFile(p.cfg.WebEnvPath); err == nil {
 		envValues = p.settings.ParseEnvText(string(data))
 	} else {
 		envValues = map[string]string{}
+	}
+	if envValues["SUFFIX_REMOVAL"] == "true" {
+		AMSuffixRe = true
 	}
 
 	for _, plist := range playlists {
@@ -46,7 +50,7 @@ func (p *Playlist) RegisterCustomPlaylistRefresh(j *jobs.Jobs) error {
 					return
 				}
 				slog.Info("custom-playlists: refreshing", "id", plist.ID, "name", plist.Name, "source", plist.Source)
-				result, err := fetchCustomPlaylistTracks(plist)
+				result, err := fetchCustomPlaylistTracks(plist, AMSuffixRe)
 				if err != nil {
 					slog.Warn("custom-playlists: refresh fetch failed", "id", plist.ID, "err", err)
 					return
