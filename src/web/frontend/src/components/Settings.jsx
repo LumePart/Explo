@@ -696,7 +696,7 @@ function DownloadPathSection() {
         </button>
       </div>
 
-      {/* Remove "- Single/ - EP from album names for Apple Music"*/}
+      {/* Remove suffixes from album names for Apple Music*/}
       <div className="flex items-start justify-between mt-3 mb-1 gap-4">
         <div className="flex flex-col gap-0.5">
           <span className="text-[13px] text-white">Remove suffixes from album names from Apple Music</span>
