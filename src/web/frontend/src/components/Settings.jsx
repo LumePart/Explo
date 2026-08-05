@@ -15,7 +15,7 @@ import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
   fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata,
-  saveReplacePlaylist, saveCleanDownloads,
+  saveReplacePlaylist, saveCleanDownloads, saveSuffixRemoval,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
@@ -525,6 +525,7 @@ function DownloadPathSection() {
   const [enrichEnabled, setEnrichEnabled] = useState(false)
   const [cleanDownloads, setCleanDownloads] = useState(false)
   const [templateEnabled, setTemplateEnabled] = useState(false)
+  const [suffixRemoval, setSuffixRemoval] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -581,6 +582,12 @@ function DownloadPathSection() {
       setTemplateEnabled(true)
       if (selectedIdx === null) setSelectedIdx(0)
     }
+  }
+
+  const handleSuffixToggle = async () => {
+    const next = !suffixRemoval
+    setSuffixRemoval(next)
+    try { await saveSuffixRemoval(next) } catch { setSuffixRemoval(!next) }
   }
 
   useEffect(() => {
@@ -688,6 +695,22 @@ function DownloadPathSection() {
         </button>
       </div>
 
+      {/* Remove "- Single/ - EP from album names for Apple Music"*/}
+      <div className="flex items-start justify-between mt-3 mb-1 gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-white">Remove suffixes from album names from Apple Music</span>
+          <span className="text-[13px] text-muted">Removes the additional suffixes (e.g " - EP", " - Single") Apple Music generates when importing playlists.</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={suffixRemoval}
+          onClick={handleSuffixToggle}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${suffixRemoval ? 'bg-accent' : 'bg-[#383838]'}`}
+          >
+            <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${suffixRemoval ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
+          </button>
+      </div>
+
       {templateEnabled && (<>
       {/* Current / pending path readout */}
       <div className="flex items-baseline gap-2.5 overflow-x-auto py-1 mt-6">
@@ -698,6 +721,9 @@ function DownloadPathSection() {
           <PathLine template={previewTemplate} />
         </div>
       </div>
+
+      
+      
 
       {/* Profile card grid */}
       <div className="grid grid-cols-1 min-[520px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-2">

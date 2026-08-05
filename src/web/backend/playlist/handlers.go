@@ -2,22 +2,21 @@ package playlist
 
 import (
 	"encoding/json"
-	"net/http"
 	"fmt"
-	"os"
 	"log/slog"
-	"path/filepath"
 	"math/rand/v2"
+	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"explo/src/util"
-	"explo/src/web/backend/defs"
 	"explo/src/web"
+	"explo/src/web/backend/defs"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
-
 
 // handleGetCustomPlaylists returns all saved custom playlists with a track_count
 // derived from their cache file (if present) and the current sync schedule from .env.
@@ -85,7 +84,19 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	result, err := fetchCustomPlaylistTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL})
+	// Read .env
+	var envValues map[string]string
+	var enabled = false
+	if data, err := os.ReadFile(p.cfg.WebEnvPath); err == nil {
+		envValues = p.settings.ParseEnvText(string(data))
+	} else {
+		envValues = map[string]string{}
+	}
+	if envValues["SUFFIX_REMOVAL"] == "true" {
+		enabled = true
+	}
+
+	result, err := fetchCustomPlaylistTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL}, enabled)
 	if err != nil {
 		slog.Error("custom-playlists: fetch failed", "source", body.Source, "err", err)
 		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
