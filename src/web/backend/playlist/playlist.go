@@ -3,6 +3,7 @@ package playlist
 import (
 	"bytes"
 	"encoding/json"
+	cfg "explo/src/config"
 	"explo/src/discovery"
 	"explo/src/models"
 	"explo/src/util"
@@ -18,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -70,8 +72,32 @@ func fetchOnRepeatTracks(username string) ([]PlaylistTrack, error) {
 	return modelTracksToPlaylistTracks(tracks), nil
 }
 
-func fetchFreshReleaseTracks(username string) ([]PlaylistTrack, error) {
-	tracks, err := discovery.FetchFreshReleaseTracks(util.NewHttp(util.HttpClientConfig{Timeout: 60}), username)
+func (p *Playlist) fetchFreshReleaseTracks(username string) ([]PlaylistTrack, error) {
+	config := cfg.Listenbrainz{
+		User:              username,
+		CoverArtSize:      "250",
+		FreshReleaseDays:  30,
+		FreshReleaseLimit: 8,
+	}
+	values := map[string]string{}
+	if data, err := os.ReadFile(p.cfg.WebEnvPath); err == nil {
+		values = p.settings.ParseEnvText(string(data))
+	}
+	for _, key := range []string{"COVER_ART_SIZE", "FRESH_RELEASES_DAYS", "FRESH_RELEASES_MAX_RELEASES"} {
+		if value, ok := os.LookupEnv(key); ok {
+			values[key] = value
+		}
+	}
+	if value := values["COVER_ART_SIZE"]; value != "" {
+		config.CoverArtSize = value
+	}
+	if value, err := strconv.Atoi(values["FRESH_RELEASES_DAYS"]); err == nil {
+		config.FreshReleaseDays = value
+	}
+	if value, err := strconv.Atoi(values["FRESH_RELEASES_MAX_RELEASES"]); err == nil {
+		config.FreshReleaseLimit = value
+	}
+	tracks, err := discovery.FetchFreshReleaseTracks(util.NewHttp(util.HttpClientConfig{Timeout: 60}), config)
 	if err != nil {
 		return nil, err
 	}

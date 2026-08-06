@@ -162,6 +162,8 @@ type Listenbrainz struct {
 	ImportPlaylist         string
 	SingleArtist           bool   `env:"SINGLE_ARTIST" env-default:"true"`
 	CoverArtSize           string `env:"COVER_ART_SIZE" env-default:"250"`
+	FreshReleaseDays       int    `env:"FRESH_RELEASES_DAYS" env-default:"30"`
+	FreshReleaseLimit      int    `env:"FRESH_RELEASES_MAX_RELEASES" env-default:"8"`
 	EnrichTrackMetadata	   bool   `env:"ENRICH_TRACK_METADATA" env-default:"false"`
 }
 
