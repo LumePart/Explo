@@ -96,10 +96,16 @@ function nextUpdateLabel(playlistType) {
   if (playlistType === 'on-repeat') {
     return 'Updates as you listen'
   }
-  if (playlistType === 'daily-jams' || playlistType === 'fresh-releases') {
+  if (playlistType === 'daily-jams') {
     const tomorrow = new Date(now)
     tomorrow.setDate(tomorrow.getDate() + 1)
     return `Next update tomorrow (${tomorrow.toLocaleDateString([], { weekday: 'long' })})`
+  }
+  if (playlistType === 'fresh-releases') {
+    const daysUntilWednesday = (3 - now.getDay() + 7) % 7 || 7
+    const nextWednesday = new Date(now)
+    nextWednesday.setDate(now.getDate() + daysUntilWednesday)
+    return `Next update ${nextWednesday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
   }
   // Weekly playlists: LB generates on Mondays
   const daysUntilMonday = (8 - now.getDay()) % 7 || 7
@@ -267,7 +273,7 @@ const PRESETS = {
   'fresh-releases': {
     background: cardGradient('#0d9488', '#14b8a6', '#5eead4'),
     accent: '#2dd4bf',
-    label: 'DAILY',
+    label: 'WEEKLY',
   },
 }
 

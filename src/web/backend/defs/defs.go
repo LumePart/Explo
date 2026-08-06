@@ -167,7 +167,7 @@ var PlaylistDefs = map[string]playlistDef{
 	"weekly-jams":        {"WEEKLY_JAMS", "30 00 * * 1", "--playlist weekly-jams"},
 	"daily-jams":         {"DAILY_JAMS", "15 01 * * *", "--playlist daily-jams"},
 	"on-repeat":          {"ON_REPEAT", "0 12 1 * *", "--playlist on-repeat"},
-	"fresh-releases":     {"FRESH_RELEASES", "30 08 * * *", "--playlist fresh-releases"},
+	"fresh-releases":     {"FRESH_RELEASES", "30 08 * * 3", "--playlist fresh-releases"},
 }
 
 // allConfigKeys is the complete set of env keys the web UI reads and writes.
