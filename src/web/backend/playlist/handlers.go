@@ -384,7 +384,7 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 			case "on-repeat":
 				tracks, err = fetchOnRepeatTracks(body.User)
 			case "fresh-releases":
-				tracks, err = fetchFreshReleaseTracks(body.User)
+				tracks, err = p.fetchFreshReleaseTracks(body.User)
 			default:
 				tracks, err = fetchMostRecentLBPlaylist(body.User, pt)
 			}

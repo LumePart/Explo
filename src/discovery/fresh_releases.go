@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	freshDays        = 30
-	freshMaxReleases = 8
 	freshArtistCount = 100
 	mbMinInterval    = 1100 * time.Millisecond
 )
@@ -72,11 +70,11 @@ type mbRelease struct {
 }
 
 // FetchFreshReleaseTracks loads Fresh Releases tracks for UI prefetch.
-func FetchFreshReleaseTracks(httpClient *util.HttpClient, user string) ([]*models.Track, error) {
+func FetchFreshReleaseTracks(httpClient *util.HttpClient, config cfg.Listenbrainz) ([]*models.Track, error) {
 	return (&ListenBrainz{
 		HttpClient: httpClient,
-		cfg:        cfg.Listenbrainz{User: user, CoverArtSize: "250"},
-	}).getFreshReleaseTracks(user)
+		cfg:        config,
+	}).getFreshReleaseTracks(config.User)
 }
 
 func (c *ListenBrainz) getFreshReleaseTracks(user string) ([]*models.Track, error) {
@@ -110,11 +108,11 @@ func (c *ListenBrainz) getFreshReleaseTracks(user string) ([]*models.Track, erro
 func (c *ListenBrainz) resolveFreshReleases(user string) ([]freshRelease, error) {
 	path := fmt.Sprintf(
 		"user/%s/fresh_releases?days=%d&past=true&future=false&sort=confidence",
-		url.PathEscape(user), freshDays,
+		url.PathEscape(user), c.cfg.FreshReleaseDays,
 	)
 	if releases, err := c.fetchFreshReleases(path); err != nil {
 		slog.Debug("fresh-releases: personalized unavailable", "err", err)
-	} else if picked := pickFreshReleases(releases); len(picked) > 0 {
+	} else if picked := pickFreshReleases(releases, c.cfg.FreshReleaseLimit); len(picked) > 0 {
 		return picked, nil
 	}
 
@@ -122,7 +120,7 @@ func (c *ListenBrainz) resolveFreshReleases(user string) ([]freshRelease, error)
 	if err != nil {
 		return nil, err
 	}
-	return pickFreshReleases(releases), nil
+	return pickFreshReleases(releases, c.cfg.FreshReleaseLimit), nil
 }
 
 func (c *ListenBrainz) fetchFreshReleases(path string) ([]freshRelease, error) {
@@ -166,7 +164,7 @@ func (c *ListenBrainz) fetchMatchedFreshReleases(user string) ([]freshRelease, e
 
 	releases, err := c.fetchFreshReleases(fmt.Sprintf(
 		"explore/fresh-releases/?days=%d&past=true&future=false&sort=release_date",
-		freshDays,
+		c.cfg.FreshReleaseDays,
 	))
 	if err != nil {
 		return nil, err
@@ -195,7 +193,7 @@ func normalizeName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
-func pickFreshReleases(in []freshRelease) []freshRelease {
+func pickFreshReleases(in []freshRelease, limit int) []freshRelease {
 	ranked := append([]freshRelease(nil), in...)
 	sort.SliceStable(ranked, func(i, j int) bool {
 		pi, pj := typeRank(ranked[i].ReleaseGroupPrimaryType), typeRank(ranked[j].ReleaseGroupPrimaryType)
@@ -208,7 +206,7 @@ func pickFreshReleases(in []freshRelease) []freshRelease {
 		return ranked[i].ReleaseDate > ranked[j].ReleaseDate
 	})
 
-	out := make([]freshRelease, 0, freshMaxReleases)
+	out := make([]freshRelease, 0, len(ranked))
 	seen := map[string]struct{}{}
 	for _, rel := range ranked {
 		if rel.ReleaseMbid == "" {
@@ -223,7 +221,7 @@ func pickFreshReleases(in []freshRelease) []freshRelease {
 		}
 		seen[key] = struct{}{}
 		out = append(out, rel)
-		if len(out) >= freshMaxReleases {
+		if limit > 0 && len(out) >= limit {
 			break
 		}
 	}
@@ -272,7 +270,7 @@ func (c *ListenBrainz) tracksFromRelease(rel freshRelease) ([]*models.Track, err
 	}
 
 	coverID := firstNonEmpty(rel.CaaReleaseMbid, rel.ReleaseMbid)
-	coverURL := fmt.Sprintf("https://coverartarchive.org/release/%s/front-250", coverID)
+	coverURL := fmt.Sprintf("https://coverartarchive.org/release/%s/front-%s", coverID, c.cfg.CoverArtSize)
 
 	tracks := make([]*models.Track, 0)
 	for _, media := range mb.Media {
