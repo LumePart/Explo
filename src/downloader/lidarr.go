@@ -169,6 +169,7 @@ func NewLidarr(cfg cfg.Lidarr, downloadDir string) *Lidarr { // init downloader 
 		Cfg:         cfg,
 		HttpClient:  util.NewHttp(util.HttpClientConfig{Timeout: cfg.Timeout}),
 		DownloadDir: downloadDir,
+		AlbumCache: make(map[string]*AlbumMetadata),
 	}
 }
 
