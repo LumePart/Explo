@@ -236,6 +236,8 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 			}
 		}
 		opts = ffmpeg.KwArgs{
+			"c:v": "copy",
+			"disposition:v:0": "attached_pic",
 			"metadata": metadata,
 			"loglevel": "error",
 		}
