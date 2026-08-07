@@ -588,7 +588,11 @@ func (c *Lidarr) getRootDirectory() error {
 			return nil
 		}
 	}
-	return fmt.Errorf("no root folder named '%s' found, please create one in Lidarr or point explo to a correct folder", c.Cfg.RootFolder)
+
+	slog.Warn("specified root folder not found, please create one in Lidarr or point explo to a correct folder, falling back to first available folder", "expectedRootFolder", c.Cfg.RootFolder)
+	c.RootFolder = rootFolders[0]
+
+	return nil
 }
 
 func (c *Lidarr) getReleaseGroupId(track *models.Track) error {
