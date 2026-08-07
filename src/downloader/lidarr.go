@@ -39,11 +39,32 @@ type AlbumMetadata struct {
 type Album struct {
 	ID             int    `json:"id"`
 	Title          string `json:"title"`
+	Disambiguation string `json:"disambiguation"`
 	ArtistID       int    `json:"artistId"`
 	ForeignAlbumID string `json:"foreignAlbumId"`
-	Artist         struct {
-		ForeignArtistID string `json:"foreignArtistId"`
-	} `json:"artist"`
+	Artist         LidarrAlbumArtist `json:"artist"`
+	Releases       []LidarrReleases `json:"releases"`
+}
+
+type LidarrAlbumArtist struct {
+	ForeignArtistID string `json:"foreignArtistId"`
+	ArtistName      string `json:"artistName"`
+
+}
+
+type LidarrReleases struct {
+	ID               int      `json:"id"`
+	AlbumID          int      `json:"albumId"`
+	ForeignReleaseID string   `json:"foreignReleaseId"`
+	Title            string   `json:"title"`
+	Status           string   `json:"status"`
+	Duration         int      `json:"duration"`
+	TrackCount       int      `json:"trackCount"`
+	MediumCount      int      `json:"mediumCount"`
+	Disambiguation   string   `json:"disambiguation"`
+	Country          []string `json:"country"`
+	Label            []string `json:"label"`
+	Format           string   `json:"format"`
 }
 
 type LidarrTrack struct {
@@ -588,13 +609,62 @@ func (c *Lidarr) getReleaseGroupId(track *models.Track) error {
 		return fmt.Errorf("failed to unmarshal lookup response: %w", err)
 	}
 
-	if len(albums) == 0 {
+	releaseMBID, artistMBID := c.filterAlbumSearch(track.Album, track.MainArtist, albums)
+	if releaseMBID == "" || artistMBID == ""  {
 		return fmt.Errorf("could not find album for track: %s - %s", track.Title, track.MainArtist)
 	}
 
-	track.MusicBrainzReleaseGroupID = albums[0].ForeignAlbumID
-	track.MusicBrainzArtistID = albums[0].Artist.ForeignArtistID
+	track.MusicBrainzReleaseGroupID = releaseMBID
+	track.MusicBrainzArtistID = artistMBID
 	return nil
+}
+
+func (c *Lidarr) filterAlbumSearch(albumName, mainArtist string, albums []Album) (string, string) {
+	cleanAlbum := util.AlnumOnly(albumName)
+	cleanArtist := util.AlnumOnly(mainArtist)
+
+	bestScore := -1
+	var bestAlbum *Album
+	for i := range albums {
+		album := &albums[i]
+
+		cleanAlbumTitle := util.AlnumOnly(album.Title)
+		cleanArtistName := util.AlnumOnly(album.Artist.ArtistName)
+		albumMatch := util.ContainsFold(cleanAlbumTitle, cleanAlbum) || util.ContainsFold(cleanAlbum, cleanAlbumTitle)
+		artistMatch := util.ContainsFold(cleanArtistName, cleanArtist) || util.ContainsFold(cleanArtist, cleanArtistName)
+
+		if !albumMatch || !artistMatch {
+			continue
+		}
+		albumScore := 0
+		for _, release := range album.Releases {
+			score := 0
+			if release.Format == "Digital Media" {
+				score++
+			}
+			if slices.Contains(release.Country, "[Worldwide]") {
+				score++
+			}
+			if strings.EqualFold(release.Status, "official") {
+				score++
+			}
+
+			if score > albumScore { 
+				
+				albumScore = score
+			}
+		}
+		if albumScore > bestScore {
+			bestScore = albumScore
+			bestAlbum = album
+		}
+
+	}
+
+	if bestAlbum != nil {
+		return bestAlbum.ForeignAlbumID, bestAlbum.Artist.ForeignArtistID
+	}
+	return "", ""
 }
 
 func percent(total, remaining int64) float64 {
