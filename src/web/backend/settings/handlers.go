@@ -560,3 +560,29 @@ func (s *Settings) HandleDeletePathTemplate(w http.ResponseWriter, r *http.Reque
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+// handleSaveSuffixRemoval handles toggling Suffix Removal for Apple Music.
+func (s *Settings) HandleSaveSuffixRemoval(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	val := "false"
+	if body.Enabled {
+		val = "true"
+	}
+	if err := s.UpdateEnvKeys(map[string]string{"SUFFIX_REMOVAL": val}, web.SampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}

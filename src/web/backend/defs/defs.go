@@ -3,8 +3,8 @@ package defs
 import (
 	"regexp"
 )
-// place for confs/variables in use by the UI or backend
 
+// place for confs/variables in use by the UI or backend
 
 // Custom playlist regex validation
 var CustomIDRe = regexp.MustCompile(`^custom-[a-z0-9]+$`)
@@ -181,5 +181,5 @@ var AllConfigKeys = []string{
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY", "PATH_TEMPLATE", "ENRICH_TRACK_METADATA",
 	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
 	"SLSKD_URL", "SLSKD_API_KEY",
-	"WIZARD_COMPLETE", "MIGRATE_DOWNLOADS", "EXTENSIONS", "LISTENBRAINZ_USER_TOKEN",
+	"WIZARD_COMPLETE", "MIGRATE_DOWNLOADS", "EXTENSIONS", "LISTENBRAINZ_USER_TOKEN", "SUFFIX_REMOVAL",
 }

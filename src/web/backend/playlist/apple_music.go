@@ -6,10 +6,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"golang.org/x/net/html"
 )
+
+var albumSuffixRe = regexp.MustCompile(`(?i)\s*[-–]\s*(single|ep)\s*$`)
 
 // appleServerData mirrors the top-level shape of the
 // <script id="serialized-server-data"> JSON blob on Apple Music pages.
@@ -53,7 +56,7 @@ func resolveArtworkURL(tpl string) string {
 // fetchAppleMusicPlaylist scrapes a public Apple Music playlist page and extracts
 // track info from the embedded server data.
 // Returns (playlistName, artworkURL, tracks, error) where tracks are [title, artist, album, coverURL].
-func fetchAppleMusicPlaylist(pageURL string) (string, string, []PlaylistTrack, error) {
+func fetchAppleMusicPlaylist(pageURL string, enabled bool) (string, string, []PlaylistTrack, error) {
 	req, err := http.NewRequest("GET", pageURL, nil)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("apple music: invalid URL: %w", err)
@@ -85,7 +88,7 @@ func fetchAppleMusicPlaylist(pageURL string) (string, string, []PlaylistTrack, e
 	htmlStr := string(body)
 
 	// Parse the serialized-server-data for everything: playlist name, artwork, tracks.
-	playlistName, artworkURL, tracks, err := extractServerData(htmlStr)
+	playlistName, artworkURL, tracks, err := extractServerData(htmlStr, enabled)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -104,7 +107,7 @@ func fetchAppleMusicPlaylist(pageURL string) (string, string, []PlaylistTrack, e
 
 // extractServerData parses the <script id="serialized-server-data"> blob for
 // the playlist name, playlist artwork URL (from the header section), and tracks with artwork.
-func extractServerData(htmlStr string) (string, string, []PlaylistTrack, error) {
+func extractServerData(htmlStr string, enabled bool) (string, string, []PlaylistTrack, error) {
 	scripts := extractScriptByID(htmlStr, "serialized-server-data")
 	if len(scripts) == 0 {
 		return "", "", nil, fmt.Errorf("apple music: no serialized-server-data found in page")
@@ -148,7 +151,7 @@ func extractServerData(htmlStr string) (string, string, []PlaylistTrack, error) 
 			for _, item := range sec.Items {
 				album := ""
 				if len(item.TertiaryLinks) > 0 {
-					album = item.TertiaryLinks[0].Title
+					album = suffixRegexRemoval(item.TertiaryLinks[0].Title, enabled)
 				}
 				coverURL := ""
 				if item.Artwork != nil {
@@ -169,6 +172,15 @@ func extractServerData(htmlStr string) (string, string, []PlaylistTrack, error) 
 		return "", "", nil, fmt.Errorf("apple music: no track data found in server data")
 	}
 	return playlistName, artworkURL, tracks, nil
+}
+
+// suffixRegexRemoval checks .env and removes the suffixes created my Apple Music using regex.
+func suffixRegexRemoval(albumName string, enabled bool) string {
+	if enabled {
+		var newAlbumName = albumSuffixRe.ReplaceAllString(albumName, "")
+		return newAlbumName
+	}
+	return albumName
 }
 
 // extractPlaylistNameFromJSONLD pulls the playlist title from the JSON-LD MusicPlaylist block.
