@@ -291,6 +291,10 @@ func (c *Youtube) GetDownloadStatus(tracks []*models.Track) (map[string]FileStat
 	return nil, fmt.Errorf("no monitoring required")
 }
 
+func (c *Youtube) RetryDownload(track *models.Track) (bool, error) {
+	return false, nil
+}
+
 func (c *Youtube) Cleanup(track models.Track, ID string) error {
 	return nil
 }

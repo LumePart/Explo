@@ -12,6 +12,7 @@ import (
 type Monitor interface {
 	GetDownloadStatus([]*models.Track) (map[string]FileStatus, error)
 	GetConf() (MonitorConfig, error)
+	RetryDownload(*models.Track) (bool, error)
 	Cleanup(models.Track, string) error
 }
 
@@ -88,12 +89,8 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				slog.Info("[monitor] file downloaded successfully", "service", monCfg.Service, "file", track.File)
 				var path string
 				track.File, path = parsePath(track.File)
-				if monCfg.MigrateDownload {
-					if err = c.MoveDownload(monCfg.FromDir, monCfg.ToDir, path, track); err != nil {
-						slog.Error("error while moving file", "err", err.Error())
-					} else {
-						slog.Info("track moved successfully", "service", monCfg.Service)
-					}
+				if err = c.FinalizeDownload(monCfg, path, track); err != nil {
+					slog.Error("error finalizing download", "service", monCfg.Service, "err", err.Error())
 				}
 				delete(progressMap, key)
 				successDownloads += 1
@@ -109,11 +106,19 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				continue
 
 			} else if monitoredTime > monCfg.MonitorDuration || fileStatus.State == "Errored" {
-				slog.Info("[monitor] no download progress for file, skipping", "service", monCfg.Service, "file", track.File, "state", fileStatus.State, "duration", monitoredTime,)
-				tracker.Skipped = true
 				if err = m.Cleanup(*track, fileStatus.ID); err != nil {
 					slog.Debug("cleanup failed", logging.RuntimeAttr(err.Error()))
 				}
+				if retried, _ := m.RetryDownload(track); retried {
+					slog.Info("[monitor] source failed, trying next", "service", monCfg.Service, "title", track.CleanTitle, "state", fileStatus.State)
+					// track.File changed, re-track under the new key
+					delete(progressMap, key)
+					newKey := fmt.Sprintf("%s|%s", track.ID, track.File)
+					progressMap[newKey] = &DownloadMonitor{LastUpdated: currentTime}
+					continue
+				}
+				slog.Info("[monitor] no more sources, skipping", "service", monCfg.Service, "file", track.File, "state", fileStatus.State, "duration", monitoredTime)
+				tracker.Skipped = true
 				continue
 			}
 		}

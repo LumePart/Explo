@@ -3,6 +3,7 @@ package util
 import (
 	"explo/src/models"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	ffmpeg "github.com/u2takey/ffmpeg-go"
@@ -41,7 +42,18 @@ func BuildffmpegMetadata(track models.Track) []string {
 
 	metadata = addStringTag(metadata, "title", track.Title)
 	metadata = addStringTag(metadata, "album", track.Album)
-	metadata = addStringTag(metadata, "albumartist", track.AlbumArtist)
+
+	albumArtist := track.AlbumArtist
+	if albumArtist == "" && len(track.Artists) > 0 {
+		albumArtist = track.Artists[0]
+	}
+	if albumArtist == "" {
+		albumArtist = track.MainArtist
+	}
+	if albumArtist == "" {
+		albumArtist = track.Artist
+	}
+	metadata = addStringTag(metadata, "albumartist", albumArtist)
 	metadata = addStringTag(metadata, "artistsort", track.ArtistSort)
 	metadata = addStringTag(metadata, "date", track.OriginalDate)
 	metadata = addStringTag(metadata, "genre", track.Genres)
@@ -70,7 +82,9 @@ func BuildffmpegMetadata(track models.Track) []string {
 
 func WriteMetadata(streams []*ffmpeg.Stream, ffmpegPath, filePath string, opts ffmpeg.KwArgs) error {
 
-	cmd := ffmpeg.Output(streams, filePath, opts).OverWriteOutput().ErrorToStdOut()
+	cmd := ffmpeg.Output(streams, filePath, opts).OverWriteOutput().ErrorToStdOut().Silent(true)
+
+	slog.Debug("ffmpeg command", "args", "ffmpeg "+strings.Join(cmd.GetArgs(), " "))
 
 	if ffmpegPath != "" {
 		cmd.SetFfmpegPath(ffmpegPath)
