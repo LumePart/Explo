@@ -200,7 +200,7 @@ func main() {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
-	if cfg.ReplacePlaylist {
+	if cfg.ReplacePlaylist && cfg.System != "subsonic" {
 		err := client.DeletePlaylist()
 		if err != nil {
 			slog.Warn(err.Error(), "notify", true)
