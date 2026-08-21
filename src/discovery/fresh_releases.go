@@ -15,7 +15,7 @@ import (
 
 const (
 	freshArtistCount = 100
-	mbMinInterval    = 1100 * time.Millisecond
+	mbMinInterval    = 1500 * time.Millisecond
 )
 
 type freshReleasesResp struct {
