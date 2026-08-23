@@ -283,6 +283,48 @@ func tempAudioFile(path string) string {
     return strings.TrimSuffix(path, ext) + ".tmp" + ext
 }
 
+func moveFile(srcFile, dstFile string, keepPermissions bool) error {
+    in, err := os.Open(srcFile)
+    if err != nil {
+        return fmt.Errorf("couldn't open source file: %w", err)
+    }
+    defer in.Close()
+	if err := os.MkdirAll(filepath.Dir(dstFile), 0755); err != nil {
+		return fmt.Errorf("couldn't create directory for file: %w", err)
+	}
+    out, err := os.Create(dstFile)
+    if err != nil {
+        return fmt.Errorf("couldn't create destination file: %w", err)
+    }
+
+    if _, err := io.Copy(out, in); err != nil {
+        out.Close()
+        return fmt.Errorf("copy failed: %w", err)
+    }
+
+    if err := out.Sync(); err != nil {
+        out.Close()
+        return fmt.Errorf("sync failed: %w", err)
+    }
+
+    if err := out.Close(); err != nil {
+        return fmt.Errorf("failed to close destination file: %w", err)
+    }
+
+    if keepPermissions {
+        info, err := os.Stat(srcFile)
+        if err != nil {
+            return fmt.Errorf("stat error: %w", err)
+        }
+
+        if err := os.Chmod(dstFile, info.Mode()); err != nil {
+            return fmt.Errorf("chmod failed: %w", err)
+        }
+    }
+
+    return os.Remove(srcFile)
+}
+
 func isDirEmpty(path string) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {

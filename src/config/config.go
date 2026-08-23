@@ -164,6 +164,8 @@ type Lidarr struct {
 	MigrateDL        bool   `env:"LIDARR_MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
 	Timeout          int    `env:"LIDARR_TIMEOUT" env-default:"20"`
 	RootFolder       string `env:"LIDARR_ROOT_FOLDER" env-default:"Music"` // Root folder name to use in Lidarr
+	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	KeepPermissions   bool   `env:"LIDARR_KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	Filters          Filters
 	MonitorConfig    LidarrMon
 }

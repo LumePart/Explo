@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 	"os"
-	"io"
 )
 
 type Search struct {
@@ -534,42 +533,9 @@ func (c *Slskd) MoveDownload(srcDir, destDir, trackPath string, track *models.Tr
 
 		dstFile = filepath.Join(destDir, track.File)
 	}
-	if err = os.MkdirAll(filepath.Dir(dstFile), os.ModePerm); err != nil {
-		return fmt.Errorf("couldn't make destination directory: %s", err.Error())
-	}
-
-	out, err := os.Create(dstFile)
-	if err != nil {
-		return fmt.Errorf("couldn't create destination file: %s", err.Error())
-	}
-
-	defer func() {
-		if cerr := out.Close(); cerr != nil {
-			slog.Error(fmt.Sprintf("failed to close destination file: %s", cerr.Error()))
+	if err := moveFile(srcFile, dstFile, c.Cfg.KeepPermissions); err != nil {
+			return fmt.Errorf("file move failed: %w", err)
 		}
-	}()
-
-	if _, err = io.Copy(out, in); err != nil {
-		return fmt.Errorf("copy failed: %s", err.Error())
-	}
-
-	if err = out.Sync(); err != nil {
-		return fmt.Errorf("sync failed: %s", err.Error())
-	}
-
-	if c.Cfg.KeepPermissions {
-		info, err := os.Stat(srcFile)
-		if err != nil {
-			return fmt.Errorf("stat error: %s", err.Error())
-		}
-		if err = os.Chmod(dstFile, info.Mode()); err != nil {
-			return fmt.Errorf("chmod failed: %s", err.Error())
-		}
-	}
-
-	if err = os.Remove(srcFile); err != nil {
-		return fmt.Errorf("failed to delete original file: %s", err.Error())
-	}
 
 	isEmpty, err := isDirEmpty(trackDir)
 	if err != nil {

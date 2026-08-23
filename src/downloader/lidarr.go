@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,19 +33,31 @@ type Lidarr struct {
 type AlbumMetadata struct {
 	AlbumID 		 string
 	ArtistID 		 string
+
+	MainArtist       string
+	Name             string
+	ReleaseYear      int
 	ReleaseGroupMBID string
 	ArtistMBID 		 string
+	Moved            bool
 
 	Tracks  func()   []LidarrTrack
+	Files map[int]AlbumFile
 }
 
-type Album struct {
+type AlbumFile struct {
+	Path string
+	Track LidarrTrack
+}
+
+type LidarrAlbum struct {
 	ID             int    `json:"id"`
 	Title          string `json:"title"`
 	Disambiguation string `json:"disambiguation"`
 	ArtistID       int    `json:"artistId"`
 	ForeignAlbumID string `json:"foreignAlbumId"`
 	Artist         LidarrAlbumArtist `json:"artist"`
+	ReleaseDate    time.Time       	 `json:"releaseDate"`
 	Releases       []LidarrReleases `json:"releases"`
 }
 
@@ -230,7 +245,7 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 		return fmt.Errorf("failed to check library for album: %w", err)
 	}
 
-	var libraryAlbums []Album
+	var libraryAlbums []LidarrAlbum
 	if err = util.ParseResp(body, &libraryAlbums); err != nil {
 		return fmt.Errorf("failed to unmarshal library albums: %w", err)
 	}
@@ -244,9 +259,10 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 
 	track.AlbumID = strconv.Itoa(libraryAlbum.ID)
 	track.MainArtistID = strconv.Itoa(libraryAlbum.ArtistID)
-	
+	track.OriginalYear = libraryAlbum.ReleaseDate.Year()
+
 	c.cacheAlbum(track)
-		
+
 	slog.Info("album found in Lidarr library", "album", libraryAlbum.Title, "id", libraryAlbum.ID)
 	if err := c.findTrackID(track); err != nil {
 		return fmt.Errorf("failed to get track ID: %w", err)
@@ -255,17 +271,22 @@ func (c *Lidarr) QueryTrack(track *models.Track) error {
 }
 
 func (c *Lidarr) GetTrack(track *models.Track) error {
+
+	if track.Present {
+		return nil
+	}
+	
 	slog.Info("downloading track",
 		"title", track.Title,
 		"artist", track.Artist,
 		"album", track.Album,
+		"albumID", track.AlbumID,
 	)
-	if track.Present {
-		return nil
-	}
 
 	if c.populateFromCache(track) {
-    	return c.findTrackID(track)
+    	if err := c.findTrackID(track); err == nil {
+        	return nil // track exists
+    	}
 	}
 
 	if track.AlbumID != "" {
@@ -336,12 +357,13 @@ func (c *Lidarr) addNewAlbum(track *models.Track) error {
 		}
 		return err
 	}
-	var album Album
+	var album LidarrAlbum
 	if err = util.ParseResp(body, &album); err != nil {
 		return fmt.Errorf("failed to unmarshal lidarr album: %w", err)
 	}
 	track.AlbumID = strconv.Itoa(album.ID)
 	track.MainArtistID = strconv.Itoa(album.ArtistID)
+	track.OriginalYear = album.ReleaseDate.Year()
 	c.cacheAlbum(track)
 	if err := c.searchStatus(album.ID, 1); err != nil {
 			return fmt.Errorf("album search failed: %w", err)
@@ -371,14 +393,17 @@ func (c *Lidarr) getAlbumTracks(albumID string, artistID string) []LidarrTrack {
 		body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
 		if err == nil {
 			var tracks []LidarrTrack
-			if err := util.ParseResp(body, &tracks); err == nil {
+			err = util.ParseResp(body, &tracks)
+			if err == nil && len(tracks) != 0 {
 				return tracks
+			} else if len(tracks) == 0 {
+				err = fmt.Errorf("no tracks loaded yet")
 			}
 		}
-		slog.Warn("failed loading album tracks", "attempt", attempt, "err", err)
+		slog.Warn("failed loading album tracks", "attempt", attempt, "albumID", albumID, "artistID", artistID, "ctx", err)
 
 		if attempt < 3 {
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 15)
 		}
 	}
 	return nil
@@ -407,6 +432,9 @@ func (c *Lidarr) findTrackID(track *models.Track) error {
 				track.Present = true
 				slog.Info("track already present in Lidarr", "track", track.CleanTitle, "album", track.Album, "artist", track.MainArtist)
 			}
+			track.MusicBrainzTrackID = t.ForeignRecordingID
+			track.MusicBrainzReleaseTrackID = t.ForeignTrackID
+
 			track.ID = strconv.Itoa(t.ID)
 			return nil
 		}
@@ -446,12 +474,19 @@ func (c *Lidarr) searchStatus(AlbumID, count int) error {
 	return c.searchStatus(AlbumID, count+1)
 }
 
+const invalidAlbumID = "invalid"
 func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus, error) {
 
 	albums := make(map[string][]*models.Track)
 
 	for _, track := range tracks {
-		if track.ID == "" || track.AlbumID == "" || track.Present {
+		if track.ID == "" && track.AlbumID != invalidAlbumID {
+			// check the track cache for potentially missed tracks
+			if err := c.findTrackID(track); err != nil {
+				track.AlbumID = invalidAlbumID
+			}
+		}
+		if track.ID == "" || track.AlbumID == "" || track.AlbumID == invalidAlbumID || track.Present {
 			continue
 		}
     	albums[track.AlbumID] = append(albums[track.AlbumID], track)
@@ -473,29 +508,47 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 	// check for completed downloads and build map of tracks that might be in queue
 	for albumID, albumTracks := range albums {
 
-		history ,err := c.getHistory(albumID)
+		history, err := c.getHistory(albumID)
 		if err != nil {
 			slog.Warn("[lidarr] failed to check download history", "err", err)
 		}
 
+		
+		cache := c.AlbumCache[c.cacheKey(albumTracks[0])]
 		for _, r := range history.Records {
+			if r.Data.ImportedPath == "" {
+				continue
+			}
+			historyTrackID := strconv.Itoa(r.TrackID)
+
+			c.CacheMu.Lock()
+			cache.Files[r.TrackID] = AlbumFile{
+				Path: r.Data.ImportedPath,
+				Track: r.Track}
+			c.CacheMu.Unlock()
+
 			for _, track := range albumTracks {
 				if _, exists := statuses[track.ID]; exists {
-         		   continue
-        		}
-				trackIDMatch := track.ID == strconv.Itoa(r.TrackID)
-				mbTrack := track.MusicBrainzTrackID
-				mbReleaseTrack := track.MusicBrainzReleaseTrackID
-				mbIDMatch := (mbTrack != "" && mbTrack == r.Track.ForeignTrackID) || (mbReleaseTrack != "" && mbReleaseTrack == r.Track.ForeignTrackID)
-				if (mbIDMatch || trackIDMatch) && r.Data.ImportedPath != "" {
+					continue
+				}
+
+				trackIDMatch := track.ID == historyTrackID
+
+				mbIDMatch :=
+					(track.MusicBrainzTrackID != "" &&
+						track.MusicBrainzTrackID == r.Track.ForeignRecordingID) ||
+					(track.MusicBrainzReleaseTrackID != "" &&
+						track.MusicBrainzReleaseTrackID == r.Track.ForeignTrackID)
+
+				if (trackIDMatch || mbIDMatch) {
 					statuses[track.ID] = FileStatus{
-					ID:               track.ID,
-					Filename:         r.Data.ImportedPath,
-					State:            "Succeeded",
-					BytesTransferred: 1,
-					BytesRemaining:   0,
-					PercentComplete:  100,
-					QueueID:          "",
+						ID:               track.ID,
+						Filename:         r.Data.ImportedPath,
+						State:            "Succeeded",
+						BytesTransferred: 1,
+						BytesRemaining:   0,
+						PercentComplete:  100,
+						QueueID:          "",
 					}
 				}
 			}
@@ -505,7 +558,6 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 		if !ok {
 			continue
 		}
-
 		for _, track := range albumTracks {
 			if _, e := statuses[track.ID]; e {
 				continue
@@ -520,7 +572,6 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 				QueueID:          strconv.Itoa(record.ID),
 			}
 		}
-
 	}
 	return statuses, nil
 }
@@ -553,7 +604,7 @@ func (c *Lidarr) getQueue() ([]LidarrQueue, error) {
 // Queries Lidarr history for specified album
 func (c *Lidarr) getHistory(albumID string) (LidarrHistory, error) {
 
-	req := fmt.Sprintf("/api/v1/history?albumId=%s&pageSize=1111", albumID)
+	req := fmt.Sprintf("/api/v1/history?albumId=%s&includeTrack=true&pageSize=1111", albumID)
 	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+req, nil, c.Headers)
 	if err != nil {
 		return LidarrHistory{}, err
@@ -608,7 +659,7 @@ func (c *Lidarr) getReleaseGroupId(track *models.Track) error {
 		return fmt.Errorf("failed to lookup album: %w", err)
 	}
 
-	var albums []Album
+	var albums []LidarrAlbum
 	if err = util.ParseResp(body, &albums); err != nil {
 		return fmt.Errorf("failed to unmarshal lookup response: %w", err)
 	}
@@ -623,12 +674,12 @@ func (c *Lidarr) getReleaseGroupId(track *models.Track) error {
 	return nil
 }
 
-func (c *Lidarr) filterAlbumSearch(albumName, mainArtist string, albums []Album) (string, string) {
+func (c *Lidarr) filterAlbumSearch(albumName, mainArtist string, albums []LidarrAlbum) (string, string) {
 	cleanAlbum := util.AlnumOnly(albumName)
 	cleanArtist := util.AlnumOnly(mainArtist)
 
 	bestScore := -1
-	var bestAlbum *Album
+	var bestAlbum *LidarrAlbum
 	for i := range albums {
 		album := &albums[i]
 
@@ -693,7 +744,7 @@ func (c *Lidarr) Cleanup(track models.Track, queueID string) error {
 		return nil
 	}
 	if err := c.deleteDownload(queueID); err != nil {
-		slog.Info(fmt.Sprintf("[lidarr] failed to delete download: %v", err))
+		slog.Info("[lidarr] failed to delete download", "err", err)
 	}
 	return nil
 }
@@ -709,12 +760,16 @@ func (c *Lidarr) cacheAlbum(track *models.Track) {
     c.AlbumCache[key] = &AlbumMetadata{
         ReleaseGroupMBID: track.MusicBrainzReleaseGroupID,
         ArtistMBID:       track.MusicBrainzArtistID,
+		Name:             track.Album,
+		MainArtist:       track.MainArtist,
         AlbumID:          track.AlbumID,
         ArtistID:         track.MainArtistID,
+		ReleaseYear:      track.OriginalYear,
 
 		Tracks: sync.OnceValue(func() []LidarrTrack {
     		return c.getAlbumTracks(track.AlbumID, track.MainArtistID)
 		}),
+		Files: make(map[int]AlbumFile),
 	}
 }
 // Checks if album is cached. Populates track fields if it is
@@ -735,6 +790,85 @@ func (c *Lidarr) populateFromCache(track *models.Track) bool {
 }
 
 
-func (c *Lidarr) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
+func (c *Lidarr) MoveDownload(srcDir, destDir, albumPath string, track *models.Track) error {
+
+	key := c.cacheKey(track)
+	c.CacheMu.RLock()
+	album := c.AlbumCache[key]
+	if album == nil {
+		c.CacheMu.RUnlock()
+		return fmt.Errorf("album not cached")
+	}
+	if album.Moved {
+		c.CacheMu.RUnlock()
+		return nil
+	}
+
+	albumFiles := maps.Clone(album.Files)
+	albumMeta := *album
+	c.CacheMu.RUnlock()
+	if len(albumFiles) == 0 {
+    	return fmt.Errorf("no downloaded files found for album")
+	}
+
+	slog.Info("moving album", "artist", track.MainArtist, "album", track.Album, "id", track.AlbumID)
+	var srcFile string
+	for _, file := range albumFiles {
+		relPath, err := filepath.Rel(c.RootFolder.Path, file.Path)
+		if err != nil || relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+			slog.Warn("track path does not belong to Lidarr RootFolder, skipping", "trackPath", file.Path, "rootFolder", c.RootFolder.Path)
+			continue
+		}
+
+		srcFile = filepath.Join(srcDir, relPath)
+		dstFile := filepath.Join(destDir, relPath)
+
+		if c.Cfg.PathTemplate != "" {
+			albumTrack := c.addMetadatafromCache(albumMeta, file)
+			relativePath := buildTrackPath(c.Cfg.PathTemplate, &albumTrack)
+			track.File = filepath.Base(relativePath)
+			if track.File == "." || track.File == string(filepath.Separator) {
+				track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(file.Path)
+				relativePath = filepath.Dir(relativePath) + string(filepath.Separator) + track.File
+				slog.Warn(fmt.Sprintf("invalid path template result for track '%s' by '%s', using filename '%s' instead", track.Title, track.Artist, track.File))
+			}
+			dstFile = filepath.Join(destDir, relativePath)
+	}
+		if err := moveFile(srcFile, dstFile, c.Cfg.KeepPermissions); err != nil {
+				return fmt.Errorf("file move failed: %w", err)
+		}
+		albumDir := filepath.Dir(srcFile)
+		if filepath.Base(albumDir) != albumPath {
+			return fmt.Errorf("file path parent dir does not match previously gotten album path: filePath=%s albumPath=%s", srcFile, albumPath)
+		}
+		isEmpty, err := isDirEmpty(albumDir)
+		if err != nil {
+			return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
+		} else if isEmpty {
+			if err = os.Remove(albumDir); err != nil {
+				return fmt.Errorf("failed to remove empty directory: %s", err.Error())
+			}
+		}
+	}
+	c.CacheMu.Lock()
+	album.Moved = true
+	c.CacheMu.Unlock()
+
 	return nil
+}
+
+
+// Add metadata to album tracks from cache to use in path templating
+func (c *Lidarr) addMetadatafromCache(album AlbumMetadata, file AlbumFile) models.Track {
+
+	return models.Track {
+
+		Title: file.Track.Title,
+		Album: album.Name,
+		MainArtist: album.MainArtist,
+		OriginalYear: album.ReleaseYear,
+		TrackNumber: file.Track.AbsoluteTrackNumber,
+		DiscNumber: file.Track.MediumNumber,
+		File: filepath.Base(file.Path),
+	}
 }
