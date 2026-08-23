@@ -288,7 +288,11 @@ func moveFile(srcFile, dstFile string, keepPermissions bool) error {
     if err != nil {
         return fmt.Errorf("couldn't open source file: %w", err)
     }
-    defer in.Close()
+    defer func() {
+    	if err := in.Close(); err != nil {
+        	slog.Warn("failed to close source file", "err", err)
+    	}
+	}()
 	if err := os.MkdirAll(filepath.Dir(dstFile), 0755); err != nil {
 		return fmt.Errorf("couldn't create directory for file: %w", err)
 	}
@@ -298,12 +302,16 @@ func moveFile(srcFile, dstFile string, keepPermissions bool) error {
     }
 
     if _, err := io.Copy(out, in); err != nil {
-        out.Close()
+        if closeErr := out.Close(); closeErr != nil {
+        	slog.Warn("failed to close destination file", "err", closeErr)
+    	}
         return fmt.Errorf("copy failed: %w", err)
     }
 
     if err := out.Sync(); err != nil {
-        out.Close()
+        if closeErr := out.Close(); closeErr != nil {
+        	slog.Warn("failed to close destination file", "err", closeErr)
+    	}
         return fmt.Errorf("sync failed: %w", err)
     }
 
