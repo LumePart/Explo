@@ -154,6 +154,7 @@ type Slskd struct {
 type SlskdMon struct {
 	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"` // in minutes
 	Duration int `env:"SLSKD_MONITOR_DURATION" env-default:"15"` // in minutes
+	MaxDuration int `env:"SLSKD_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
 }
 
 type Lidarr struct {
@@ -173,6 +174,7 @@ type Lidarr struct {
 type LidarrMon struct {
 	Interval int `env:"LIDARR_MONITOR_INTERVAL" env-default:"1"` // in minutes
 	Duration int `env:"LIDARR_MONITOR_DURATION" env-default:"20"` // in minutes
+	MaxDuration int `env:"LIDARR_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
 }
 
 type DiscoveryConfig struct {

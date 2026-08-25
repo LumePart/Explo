@@ -19,6 +19,7 @@ type Monitor interface {
 type MonitorConfig struct {
 	CheckInterval   time.Duration
 	MonitorDuration time.Duration
+	MaxDuration time.Duration
 	MigrateDownload bool
 	FromDir         string
 	ToDir           string
@@ -46,6 +47,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 	}
 
 	ticker := time.NewTicker(monCfg.CheckInterval)
+
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -71,6 +73,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 					LastBytesTransferred: 0,
 					Counter:              0,
 					LastUpdated:          currentTime,
+					StartedAt:            currentTime, 
 				}
 			}
 			fileStatus, exists := statuses[track.ID]
@@ -84,7 +87,9 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				continue
 			} 
 			tracker.Counter = 0
-			monitoredTime := currentTime.Sub(tracker.LastUpdated)
+
+			stallTime := currentTime.Sub(tracker.LastUpdated)
+			monitoredTime := currentTime.Sub(tracker.StartedAt)
 
 			if (fileStatus.BytesRemaining == 0 && fileStatus.BytesTransferred != 0) || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {		
 				track.File = fileStatus.Filename
@@ -112,8 +117,30 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				slog.Info("[monitor] progress updated", "service", monCfg.Service, "title", track.CleanTitle, "bytes transferred", fileStatus.BytesTransferred)
 				continue
 
-			} else if monitoredTime > monCfg.MonitorDuration || fileStatus.State == "Errored" {
-				slog.Info("[monitor] no download progress for file, skipping", "service", monCfg.Service, "title", track.CleanTitle, "state", fileStatus.State, "duration", monitoredTime,)
+			} else if fileStatus.State == "Errored" ||
+				stallTime > monCfg.MonitorDuration ||
+				monitoredTime > monCfg.MaxDuration {
+
+				switch {
+				case fileStatus.State == "Errored":
+					slog.Info("[monitor] download errored",
+						"service", monCfg.Service,
+						"title", track.CleanTitle,
+					)
+				case stallTime > monCfg.MonitorDuration:
+					slog.Info("[monitor] download stalled",
+						"service", monCfg.Service,
+						"title", track.CleanTitle,
+						"duration", stallTime,
+					)
+				default:
+					slog.Info("[monitor] maximum monitor time exceeded",
+						"service", monCfg.Service,
+						"title", track.CleanTitle,
+						"duration", monitoredTime,
+					)
+				}
+
 				tracker.Skipped = true
 				if err = m.Cleanup(*track, fileStatus.QueueID); err != nil {
 					slog.Debug("cleanup failed", logging.RuntimeAttr(err.Error()))

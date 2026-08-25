@@ -220,6 +220,7 @@ func (c *Lidarr) GetConf() (MonitorConfig, error) {
 	return MonitorConfig{
 		CheckInterval:   time.Duration(c.Cfg.MonitorConfig.Interval) * time.Minute,
 		MonitorDuration: time.Duration(c.Cfg.MonitorConfig.Duration) * time.Minute,
+		MaxDuration:     time.Duration(c.Cfg.MonitorConfig.MaxDuration) * time.Minute,
 		MigrateDownload: c.Cfg.MigrateDL,
 		ToDir:           c.DownloadDir,
 		FromDir:         c.Cfg.LidarrDir,
