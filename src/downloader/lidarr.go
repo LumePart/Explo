@@ -284,7 +284,7 @@ func (c *Lidarr) GetTrack(track *models.Track) error {
 	)
 
 	if c.populateFromCache(track) {
-    	if err := c.findTrackID(track); err == nil {
+    	if err := c.findTrackID(track); err == nil && track.Present {
         	return nil // track exists
     	}
 	}
@@ -833,7 +833,7 @@ func (c *Lidarr) MoveDownload(srcDir, destDir, albumPath string, track *models.T
 				slog.Warn(fmt.Sprintf("invalid path template result for track '%s' by '%s', using filename '%s' instead", track.Title, track.Artist, track.File))
 			}
 			dstFile = filepath.Join(destDir, relativePath)
-	}
+		}
 		if err := moveFile(srcFile, dstFile, c.Cfg.KeepPermissions); err != nil {
 				return fmt.Errorf("file move failed: %w", err)
 		}
@@ -862,8 +862,7 @@ func (c *Lidarr) MoveDownload(srcDir, destDir, albumPath string, track *models.T
 func (c *Lidarr) addMetadatafromCache(album AlbumMetadata, file AlbumFile) models.Track {
 
 	return models.Track {
-
-		Title: file.Track.Title,
+		CleanTitle: file.Track.Title,
 		Album: album.Name,
 		MainArtist: album.MainArtist,
 		OriginalYear: album.ReleaseYear,
