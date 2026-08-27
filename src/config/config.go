@@ -160,7 +160,7 @@ type SlskdMon struct {
 type Lidarr struct {
 	APIKey           string `env:"LIDARR_API_KEY"`
 	URL              string `env:"LIDARR_URL"`
-	Retry            int    `env:"LIDARR_RETRY" env-default:"8"`       // Number of times to check search status before skipping the track
+	Retry            int    `env:"LIDARR_RETRY" env-default:"8"`       // Number of times to check album/track search status before skipping the track
 	LidarrDir        string `env:"LIDARR_DIR" env-default:"/lidarr/"`
 	MigrateDL        bool   `env:"LIDARR_MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
 	Timeout          int    `env:"LIDARR_TIMEOUT" env-default:"20"`
