@@ -390,20 +390,21 @@ func (c *Lidarr) triggerAlbumSearch(albumID int) error {
 
 func (c *Lidarr) getAlbumTracks(albumID string, artistID string) []LidarrTrack {
 	queryURL := fmt.Sprintf("%s/api/v1/track?albumId=%s&artistId=%s", c.Cfg.URL, albumID, artistID)
-	for attempt := 1; attempt <= 3; attempt++ {
+	for attempt := 1; attempt <= c.Cfg.Retry; attempt++ {
 		body, err := c.HttpClient.MakeRequest("GET", queryURL, nil, c.Headers)
 		if err == nil {
 			var tracks []LidarrTrack
-			err = util.ParseResp(body, &tracks)
-			if err == nil && len(tracks) != 0 {
+			if err = util.ParseResp(body, &tracks); err == nil && len(tracks) != 0 {
 				return tracks
 			} else if len(tracks) == 0 {
-				err = fmt.Errorf("no tracks loaded yet")
+				err = fmt.Errorf("no tracks loaded after retries")
 			}
 		}
-		slog.Warn("failed loading album tracks", "attempt", attempt, "albumID", albumID, "artistID", artistID, "ctx", err)
-
-		if attempt < 3 {
+		slog.Debug("no album tracks loaded", "albumID", albumID, "artistID", artistID, "attempt", attempt, "maxAttempts", c.Cfg.Retry)
+		if attempt == c.Cfg.Retry {
+			slog.Error("failed loading album tracks", "albumID", albumID, "artistID", artistID, "err", err)
+		}
+		if attempt < c.Cfg.Retry {
 			time.Sleep(time.Second * 15)
 		}
 	}
