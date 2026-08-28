@@ -164,7 +164,7 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 
 		if err != nil {
 			cleanup()
-   	 		return err
+   	 		return fmt.Errorf("%w: %s", err, trackDetails)
 		}
 
 		if !completed {
@@ -401,13 +401,15 @@ func (c *Slskd) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus
 			for _, dir := range status.Directories {
 				for _, file := range dir.Files {
 					if string(file.Name) == track.File {
-						fileStatuses[track.File] = FileStatus{
+						fileStatuses[track.ID] = FileStatus{
 							ID: file.ID,
 							Size: file.Size,
 							State: normalize(file.State),
+							Filename: file.Name,
 							BytesTransferred: file.BytesTransferred,
 							BytesRemaining: file.BytesRemaining,
 							PercentComplete: file.PercentComplete,
+							QueueID: file.ID,
 						}
 					}
 				}
@@ -518,7 +520,6 @@ func (c *Slskd) MoveDownload(srcDir, destDir, trackPath string, track *models.Tr
 	}()
 
 	var dstFile string
-	
 	if c.Cfg.PathTemplate != "" {
 		relativePath := buildTrackPath(c.Cfg.PathTemplate, track)
 		track.File = filepath.Base(relativePath)
