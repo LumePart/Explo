@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"os"
 )
 
 type Search struct {
@@ -496,58 +495,20 @@ func normalize(state string) string{
 
 func (c *Slskd) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
 	trackDir := filepath.Join(srcDir, trackPath)
-	srcFile := filepath.Join(trackDir, track.File)
 
 	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
 		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
 	}
+	srcFile := filepath.Join(trackDir, track.File)
 	if c.Cfg.OverwriteMetadata {
 		metadata := util.BuildffmpegMetadata(*track)
 		if err := overwriteMetadata(metadata, srcFile); err != nil {
 			slog.Warn("problem overwriting metadata", "msg", err.Error())
 		}
 	}
-
-	in, err := os.Open(srcFile)
-	if err != nil {
-		return fmt.Errorf("couldn't open source file: %s", err.Error())
-	}
-
-	defer func() {
-		if cerr := in.Close(); cerr != nil {
-			slog.Error(fmt.Sprintf("failed to close source file: %s", cerr.Error()))
-		}
-	}()
-
-	var dstFile string
-	if c.Cfg.PathTemplate != "" {
-		relativePath := buildTrackPath(c.Cfg.PathTemplate, track)
-		track.File = filepath.Base(relativePath)
-		if track.File == "." || track.File == string(filepath.Separator) {
-			track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
-			relativePath = filepath.Dir(relativePath) + string(filepath.Separator) + track.File
-			slog.Warn(fmt.Sprintf("invalid path template result for track '%s' by '%s', using filename '%s' instead", track.Title, track.Artist, track.File))
-		}
-		dstFile = filepath.Join(destDir, relativePath)
-	} else {
-		if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
-			return fmt.Errorf("couldn't make download directory: %s", err.Error())
-		}
-
-		dstFile = filepath.Join(destDir, track.File)
-	}
-	if err := moveFile(srcFile, dstFile, c.Cfg.KeepPermissions); err != nil {
-			return fmt.Errorf("file move failed: %w", err)
-		}
-
-	isEmpty, err := isDirEmpty(trackDir)
-	if err != nil {
-		return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
-	} else if isEmpty {
-		if err = os.Remove(trackDir); err != nil {
-			return fmt.Errorf("failed to remove empty directory: %s", err.Error())
-		}
-	}
+	if err := moveTrack(srcFile, destDir, track, c.Cfg.PathTemplate, c.Cfg.KeepPermissions); err != nil {
+        return fmt.Errorf("failed to move track: %w", err)
+    }
 
 	return nil
 }

@@ -822,34 +822,12 @@ func (c *Lidarr) MoveDownload(srcDir, destDir, albumPath string, track *models.T
 		}
 
 		srcFile = filepath.Join(srcDir, relPath)
-		dstFile := filepath.Join(destDir, relPath)
 
-		if c.Cfg.PathTemplate != "" {
-			albumTrack := c.addMetadatafromCache(albumMeta, file)
-			relativePath := buildTrackPath(c.Cfg.PathTemplate, &albumTrack)
-			track.File = filepath.Base(relativePath)
-			if track.File == "." || track.File == string(filepath.Separator) {
-				track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(file.Path)
-				relativePath = filepath.Dir(relativePath) + string(filepath.Separator) + track.File
-				slog.Warn(fmt.Sprintf("invalid path template result for track '%s' by '%s', using filename '%s' instead", track.Title, track.Artist, track.File))
-			}
-			dstFile = filepath.Join(destDir, relativePath)
-		}
-		if err := moveFile(srcFile, dstFile, c.Cfg.KeepPermissions); err != nil {
-				return fmt.Errorf("file move failed: %w", err)
-		}
-		albumDir := filepath.Dir(srcFile)
-		if filepath.Base(albumDir) != albumPath {
-			return fmt.Errorf("file path parent dir does not match previously gotten album path: filePath=%s albumPath=%s", srcFile, albumPath)
-		}
-		isEmpty, err := isDirEmpty(albumDir)
-		if err != nil {
-			return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
-		} else if isEmpty {
-			if err = os.Remove(albumDir); err != nil {
-				return fmt.Errorf("failed to remove empty directory: %s", err.Error())
-			}
-		}
+		albumTrack := c.addMetadatafromCache(albumMeta, file)
+
+		if err := moveTrack(srcFile, destDir, &albumTrack, c.Cfg.PathTemplate, c.Cfg.KeepPermissions); err != nil {
+        return fmt.Errorf("failed to move track: %w", err)
+    }
 	}
 	c.CacheMu.Lock()
 	album.Moved = true

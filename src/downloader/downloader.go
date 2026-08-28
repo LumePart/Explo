@@ -283,6 +283,48 @@ func tempAudioFile(path string) string {
     return strings.TrimSuffix(path, ext) + ".tmp" + ext
 }
 
+
+func moveTrack(srcFile, destDir string, track *models.Track, pathTemplate string, keepPerms bool) error {
+    dstFile := filepath.Join(destDir, filepath.Base(srcFile))
+
+    if pathTemplate != "" {
+        relativePath := buildTrackPath(pathTemplate, track)
+        track.File = filepath.Base(relativePath)
+
+        if track.File == "." || track.File == string(filepath.Separator) {
+            track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(srcFile)
+            relativePath = filepath.Join(filepath.Dir(relativePath), track.File)
+            slog.Warn("invalid path template result",
+                "track", track.Title,
+                "artist", track.Artist,
+                "filename", track.File)
+        }
+
+        dstFile = filepath.Join(destDir, relativePath)
+    } else {
+        if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+            return err
+        }
+        dstFile = filepath.Join(destDir, track.File)
+    }
+
+    if err := moveFile(srcFile, dstFile, keepPerms); err != nil {
+        return err
+    }
+
+    srcDir := filepath.Dir(srcFile)
+    isEmpty, err := isDirEmpty(srcDir)
+	if err != nil {
+		return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
+	} else if isEmpty {
+		if err = os.Remove(srcDir); err != nil {
+			return fmt.Errorf("failed to remove empty directory: %s", err.Error())
+		}
+	}
+
+    return nil
+}
+
 func moveFile(srcFile, dstFile string, keepPermissions bool) error {
     in, err := os.Open(srcFile)
     if err != nil {
