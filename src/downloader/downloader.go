@@ -285,8 +285,7 @@ func tempAudioFile(path string) string {
 
 
 func moveTrack(srcFile, destDir string, track *models.Track, pathTemplate string, keepPerms bool) error {
-    dstFile := filepath.Join(destDir, filepath.Base(srcFile))
-
+	var dstFile string
     if pathTemplate != "" {
         relativePath := buildTrackPath(pathTemplate, track)
         track.File = filepath.Base(relativePath)
