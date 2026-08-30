@@ -1,9 +1,15 @@
 package downloader
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/jpeg" // registers the JPEG decoder used to size cover art
+	_ "image/png"  // registers the PNG decoder used to size cover art
 	"io"
 	"log/slog"
 	"net/url"
@@ -175,6 +181,165 @@ func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.Downlo
 
 }
 
+// How a container can carry cover art, if at all.
+type coverMethod int
+
+const (
+	coverNone          coverMethod = iota
+	coverStream                    // an attached picture stream (ID3, MP4, FLAC)
+	coverVorbisComment             // a base64 METADATA_BLOCK_PICTURE tag (Ogg family, WavPack)
+)
+
+// Verified per container by writing a file and reading the artwork back with a
+// tag library, on ffmpeg 7.0.2, 8.1.2 and 9.0.1. Anything missing here gets no
+// artwork on purpose: passing an image to muxers that cannot hold one (wav,
+// aac, ac3) makes ffmpeg fail, and the track is lost with it. aiff, mka and
+// webm are left out because the file ffmpeg produces is accepted but the
+// artwork is not readable afterwards.
+var coverSupport = map[string]coverMethod{
+	".mp3":  coverStream,
+	".flac": coverStream,
+	".m4a":  coverStream,
+	".m4b":  coverStream,
+	".mp4":  coverStream,
+	".ogg":  coverVorbisComment,
+	".oga":  coverVorbisComment,
+	".opus": coverVorbisComment,
+	".spx":  coverVorbisComment,
+	".wv":   coverVorbisComment,
+}
+
+// Linux caps a single argument at 128 KiB (MAX_ARG_STRLEN), and the base64 tag
+// is passed on the command line. The default 250px cover art is far below this;
+// a bigger one is skipped rather than risking the whole command.
+const maxCoverTagLen = 100 * 1024
+
+// coverFor returns the cover to embed and how the container wants it. The path
+// is empty when there is nothing usable to embed.
+func coverFor(track models.Track, coversDir, ext string) (string, coverMethod) {
+	how := coverSupport[strings.ToLower(ext)]
+	if how == coverNone {
+		slog.Debug("container cannot carry cover art, skipping it",
+			"extension", ext, "track", track.Title)
+		return "", coverNone
+	}
+
+	// The cover may already be on disk: custom playlists cache it when the
+	// playlist is created, so CoverPath is set before the download starts and
+	// there is nothing to fetch.
+	if track.CoverPath == "" {
+		_, track.CoverPath = util.DownloadCover(track.CoverURL, coversDir)
+	}
+
+	// DownloadCover returns its destination path even when the fetch failed, so
+	// check the file is really there and not empty.
+	if st, err := os.Stat(track.CoverPath); err != nil || st.Size() == 0 {
+		slog.Warn("cover not usable, writing track without artwork",
+			"path", track.CoverPath, "track", track.Title)
+		return "", coverNone
+	}
+
+	return track.CoverPath, how
+}
+
+// vorbisPictureTag encodes an image as a METADATA_BLOCK_PICTURE value, which is
+// how the Ogg family and WavPack store cover art. ffmpeg cannot build this from
+// an image input, but it does pass the tag through to the container.
+func vorbisPictureTag(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("unsupported image: %w", err)
+	}
+
+	mime := "image/" + format
+	put := binary.BigEndian.AppendUint32
+
+	block := make([]byte, 0, len(data)+len(mime)+36)
+	block = put(block, 3) // picture type: front cover
+	block = put(block, uint32(len(mime)))
+	block = append(block, mime...)
+	block = put(block, 0) // no description
+	block = put(block, uint32(cfg.Width))
+	block = put(block, uint32(cfg.Height))
+	block = put(block, 24) // colour depth in bits per pixel
+	block = put(block, 0)  // colours used, 0 for non-indexed images
+	block = put(block, uint32(len(data)))
+	block = append(block, data...)
+
+	tag := base64.StdEncoding.EncodeToString(block)
+	if len(tag) > maxCoverTagLen {
+		return "", fmt.Errorf("cover art too large to pass as a tag: %d bytes encoded", len(tag))
+	}
+
+	return tag, nil
+}
+
+// writeTrackFile muxes the downloaded audio into outputPath, embedding cover art
+// when the container can hold it. Artwork never costs a track: if ffmpeg refuses
+// the image for any reason, the file is written again without it.
+func writeTrackFile(c Youtube, track models.Track, input, outputPath string, metadata []string) error {
+	// Audio() is what the explicit "map": "0:a" used to do: keep the audio and
+	// drop anything else the downloaded file may carry.
+	audio := ffmpeg.Input(input).Audio()
+	streams := []*ffmpeg.Stream{audio}
+	opts := ffmpeg.KwArgs{
+		"metadata": metadata,
+		"loglevel": "error",
+	}
+	withCover := false
+
+	if c.Cfg.EmbedCoverArt && track.CoverURL != "" {
+		cover, how := coverFor(track, c.Cfg.CoversDir, filepath.Ext(outputPath))
+		switch how {
+		case coverStream:
+			// Video() makes this "-map 1:v". The image also has to be re-encoded
+			// and flagged: left alone ffmpeg stores it as a regular video stream
+			// (h264 in mp4, png in mp3), and copied as-is a WebP served under a
+			// .jpg name makes the mp4 muxer fail.
+			streams = append(streams, ffmpeg.Input(cover).Video())
+			opts["c:v"] = "mjpeg"
+			opts["disposition:v"] = "attached_pic"
+			// Without these the picture type is 0 ("other") instead of 3
+			// ("front cover").
+			opts["metadata:s:v"] = []string{"title=Album cover", "comment=Cover (front)"}
+			withCover = true
+		case coverVorbisComment:
+			if tag, err := vorbisPictureTag(cover); err != nil {
+				slog.Warn(
+					"could not build cover art tag, writing track without artwork",
+					"track", track.Title,
+					logging.RuntimeAttr(err.Error()),
+				)
+			} else {
+				opts["metadata"] = append(metadata, "metadata_block_picture="+tag)
+				withCover = true
+			}
+		}
+	}
+
+	if err := util.WriteMetadata(streams, c.Cfg.FfmpegPath, outputPath, opts); err != nil {
+		if !withCover {
+			return err
+		}
+		// A track is worth more than its artwork: whatever went wrong with the
+		// cover, write the file again without it before giving up.
+		slog.Warn(
+			"writing with cover art failed, retrying without it",
+			"track", track.Title,
+			logging.RuntimeAttr(err.Error()),
+		)
+		plain := ffmpeg.KwArgs{"metadata": metadata, "loglevel": "error"}
+		return util.WriteMetadata([]*ffmpeg.Stream{audio}, c.Cfg.FfmpegPath, outputPath, plain)
+	}
+
+	return nil
+}
+
 func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) bool {
 
 	defer func() {
@@ -226,28 +391,8 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 			return false
 	}
 
-	var opts ffmpeg.KwArgs
-	var streams []*ffmpeg.Stream
-	streams = append(streams, ffmpeg.Input(input))
-	if c.Cfg.EmbedCoverArt && track.CoverURL != "" {
-		if track.CoverPath == "" {
-			if _, track.CoverPath = util.DownloadCover(track.CoverURL, c.Cfg.CoversDir); track.CoverPath != "" {
-    			streams = append(streams, ffmpeg.Input(track.CoverPath))
-			}
-		}
-		opts = ffmpeg.KwArgs{
-			"metadata": metadata,
-			"loglevel": "error",
-		}
-	} else {
-		opts = ffmpeg.KwArgs{
-			"map": "0:a",
-			"metadata": metadata,
-			"loglevel": "error",
-		}
-	}
-
-	if err := util.WriteMetadata(streams, c.Cfg.FfmpegPath, outputPath, opts); err != nil {
+	if err := writeTrackFile(c, track, input, outputPath, metadata); err != nil {
+		slog.Error("failed to write track", "track", track.Title, "context", err.Error())
 		return false
 	}
 
