@@ -438,6 +438,8 @@ func (s *Settings) HandleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		FilterList       string   `json:"filter_list"`
 		SlskdURL         string   `json:"slskd_url"`
 		SlskdAPIKey      string   `json:"slskd_api_key"`
+		LidarrURL        string   `json:"lidarr_url"`
+		LidarrAPIKey     string   `json:"lidarr_api_key"`
 		Extensions       string   `json:"extensions"` // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -468,6 +470,8 @@ func (s *Settings) HandleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		"FILTER_LIST":       body.FilterList,
 		"SLSKD_URL":         body.SlskdURL,
 		"SLSKD_API_KEY":     body.SlskdAPIKey,
+		"LIDARR_URL":        body.LidarrURL,
+		"LIDARR_API_KEY":    body.LidarrAPIKey,
 		"EXTENSIONS":        body.Extensions, // slskd
 		"WIZARD_COMPLETE":   "true",
 	}

@@ -118,6 +118,19 @@ var CustomIDRe = regexp.MustCompile(`^custom-[a-z0-9]+$`)
 		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "slskd"},
 	},
+	{
+		Key: "LIDARR_URL", Label: "Lidarr URL",
+		Type: "url", Section: "downloader",
+		Placeholder:  "e.g. http://192.168.1.100:8686",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+	},
+	{
+		Key: "LIDARR_API_KEY", Label: "Lidarr API Key",
+		Type: "text", Section: "downloader",
+		VisibleWhen:  &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+		RequiredWhen: &Condition{Field: "DOWNLOAD_SERVICES", Contains: "lidarr"},
+	},
 } */
 
 // Option is a value/label pair for select-type fields.
@@ -180,6 +193,7 @@ var AllConfigKeys = []string{
 	"SYSTEM_USERNAME", "SYSTEM_PASSWORD", "PLAYLIST_DIR", "SLEEP", "PUBLIC_PLAYLIST",
 	"DOWNLOAD_DIR", "USE_SUBDIRECTORY", "PATH_TEMPLATE", "ENRICH_TRACK_METADATA",
 	"DOWNLOAD_SERVICES", "YOUTUBE_API_KEY", "TRACK_EXTENSION", "FILTER_LIST",
-	"SLSKD_URL", "SLSKD_API_KEY",
-	"WIZARD_COMPLETE", "MIGRATE_DOWNLOADS", "EXTENSIONS", "LISTENBRAINZ_USER_TOKEN",
+	"SLSKD_URL", "SLSKD_API_KEY", "SLSKD_MIGRATE_DOWNLOADS",
+	"LIDARR_URL", "LIDARR_API_KEY", "LIDARR_MIGRATE_DOWNLOADS", "LIDARR_ROOT_FOLDER",
+	"WIZARD_COMPLETE", "EXTENSIONS", "LISTENBRAINZ_USER_TOKEN",
 }

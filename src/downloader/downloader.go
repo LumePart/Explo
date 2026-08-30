@@ -44,6 +44,13 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 			slskdClient := NewSlskd(cfg.Slskd, cfg.DownloadDir)
 			slskdClient.AddHeader()
 			downloader = append(downloader, slskdClient)
+		case "lidarr":
+			lidarrClient := NewLidarr(cfg.Lidarr, cfg.DownloadDir)
+			lidarrClient.AddHeader()
+			if err := lidarrClient.getRootDirectory(); err != nil {
+				return nil, err
+			}
+			downloader = append(downloader, lidarrClient)
 		default:
 			return nil, fmt.Errorf("downloader '%s' not supported", service)
 		}
@@ -123,6 +130,9 @@ func (c *DownloadClient) needsDownloadDir() bool {
 		if svc == "youtube" || svc == "youtube-music" {
 			return true
 		}
+	}
+	if c.Cfg.Lidarr.MigrateDL {
+		return c.Cfg.Lidarr.MigrateDL
 	}
 	return c.Cfg.Slskd.MigrateDL
 }
@@ -246,98 +256,6 @@ func buildTrackPath(template string, track *models.Track) string {
 	return filepath.Clean(result)
 }
 
-func (c *DownloadClient) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
-	trackDir := filepath.Join(srcDir, trackPath)
-	srcFile := filepath.Join(trackDir, track.File)
-
-	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
-		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
-	}
-	if c.Cfg.OverwriteMetadata {
-		metadata := util.BuildffmpegMetadata(*track)
-		if err := overwriteMetadata(metadata, srcFile); err != nil {
-			slog.Warn("problem overwriting metadata", "msg", err.Error())
-		}
-	}
-
-	in, err := os.Open(srcFile)
-	if err != nil {
-		return fmt.Errorf("couldn't open source file: %s", err.Error())
-	}
-
-	defer func() {
-		if cerr := in.Close(); cerr != nil {
-			slog.Error(fmt.Sprintf("failed to close source file: %s", cerr.Error()))
-		}
-	}()
-
-	var dstFile string
-	
-	if c.Cfg.PathTemplate != "" {
-		relativePath := buildTrackPath(c.Cfg.PathTemplate, track)
-		track.File = filepath.Base(relativePath)
-		if track.File == "." || track.File == string(filepath.Separator) {
-			track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
-			relativePath = filepath.Dir(relativePath) + string(filepath.Separator) + track.File
-			slog.Warn(fmt.Sprintf("invalid path template result for track '%s' by '%s', using filename '%s' instead", track.Title, track.Artist, track.File))
-		}
-		dstFile = filepath.Join(destDir, relativePath)
-	} else {
-		if err = os.MkdirAll(destDir, os.ModePerm); err != nil {
-			return fmt.Errorf("couldn't make download directory: %s", err.Error())
-		}
-
-		dstFile = filepath.Join(destDir, track.File)
-	}
-	if err = os.MkdirAll(filepath.Dir(dstFile), os.ModePerm); err != nil {
-		return fmt.Errorf("couldn't make destination directory: %s", err.Error())
-	}
-
-	out, err := os.Create(dstFile)
-	if err != nil {
-		return fmt.Errorf("couldn't create destination file: %s", err.Error())
-	}
-
-	defer func() {
-		if cerr := out.Close(); cerr != nil {
-			slog.Error(fmt.Sprintf("failed to close destination file: %s", cerr.Error()))
-		}
-	}()
-
-	if _, err = io.Copy(out, in); err != nil {
-		return fmt.Errorf("copy failed: %s", err.Error())
-	}
-
-	if err = out.Sync(); err != nil {
-		return fmt.Errorf("sync failed: %s", err.Error())
-	}
-
-	if c.Cfg.KeepPermissions {
-		info, err := os.Stat(srcFile)
-		if err != nil {
-			return fmt.Errorf("stat error: %s", err.Error())
-		}
-		if err = os.Chmod(dstFile, info.Mode()); err != nil {
-			return fmt.Errorf("chmod failed: %s", err.Error())
-		}
-	}
-
-	if err = os.Remove(srcFile); err != nil {
-		return fmt.Errorf("failed to delete original file: %s", err.Error())
-	}
-
-	isEmpty, err := isDirEmpty(trackDir)
-	if err != nil {
-		return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
-	} else if isEmpty {
-		if err = os.Remove(trackDir); err != nil {
-			return fmt.Errorf("failed to remove empty directory: %s", err.Error())
-		}
-	}
-
-	return nil
-}
-
 func overwriteMetadata(metadata []string, srcFile string) error {
 	opts := ffmpeg.KwArgs{
 			"c": "copy",
@@ -363,6 +281,97 @@ func overwriteMetadata(metadata []string, srcFile string) error {
 func tempAudioFile(path string) string {
     ext := filepath.Ext(path)
     return strings.TrimSuffix(path, ext) + ".tmp" + ext
+}
+
+
+func moveTrack(srcFile, destDir string, track *models.Track, pathTemplate string, keepPerms bool) error {
+	var dstFile string
+    if pathTemplate != "" {
+        relativePath := buildTrackPath(pathTemplate, track)
+        track.File = filepath.Base(relativePath)
+
+        if track.File == "." || track.File == string(filepath.Separator) {
+            track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(srcFile)
+            relativePath = filepath.Join(filepath.Dir(relativePath), track.File)
+            slog.Warn("invalid path template result",
+                "track", track.Title,
+                "artist", track.Artist,
+                "filename", track.File)
+        }
+
+        dstFile = filepath.Join(destDir, relativePath)
+    } else {
+        if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+            return err
+        }
+        dstFile = filepath.Join(destDir, track.File)
+    }
+
+    if err := moveFile(srcFile, dstFile, keepPerms); err != nil {
+        return err
+    }
+
+    srcDir := filepath.Dir(srcFile)
+    isEmpty, err := isDirEmpty(srcDir)
+	if err != nil {
+		return fmt.Errorf("couldn't check if directory is empty: %s", err.Error())
+	} else if isEmpty {
+		if err = os.Remove(srcDir); err != nil {
+			return fmt.Errorf("failed to remove empty directory: %s", err.Error())
+		}
+	}
+
+    return nil
+}
+
+func moveFile(srcFile, dstFile string, keepPermissions bool) error {
+    in, err := os.Open(srcFile)
+    if err != nil {
+        return fmt.Errorf("couldn't open source file: %w", err)
+    }
+    defer func() {
+    	if err := in.Close(); err != nil {
+        	slog.Warn("failed to close source file", "err", err)
+    	}
+	}()
+	if err := os.MkdirAll(filepath.Dir(dstFile), 0755); err != nil {
+		return fmt.Errorf("couldn't create directory for file: %w", err)
+	}
+    out, err := os.Create(dstFile)
+    if err != nil {
+        return fmt.Errorf("couldn't create destination file: %w", err)
+    }
+
+    if _, err := io.Copy(out, in); err != nil {
+        if closeErr := out.Close(); closeErr != nil {
+        	slog.Warn("failed to close destination file", "err", closeErr)
+    	}
+        return fmt.Errorf("copy failed: %w", err)
+    }
+
+    if err := out.Sync(); err != nil {
+        if closeErr := out.Close(); closeErr != nil {
+        	slog.Warn("failed to close destination file", "err", closeErr)
+    	}
+        return fmt.Errorf("sync failed: %w", err)
+    }
+
+    if err := out.Close(); err != nil {
+        return fmt.Errorf("failed to close destination file: %w", err)
+    }
+
+    if keepPermissions {
+        info, err := os.Stat(srcFile)
+        if err != nil {
+            return fmt.Errorf("stat error: %w", err)
+        }
+
+        if err := os.Chmod(dstFile, info.Mode()); err != nil {
+            return fmt.Errorf("chmod failed: %w", err)
+        }
+    }
+
+    return os.Remove(srcFile)
 }
 
 func isDirEmpty(path string) (bool, error) {

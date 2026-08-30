@@ -4,6 +4,7 @@ package models
 
 type Track struct {
 	Album                     string
+	AlbumID                   string  // Used by Lidarr
 	AlbumArtist               string
 	ID                        string
 	Artist                    string // All artists as returned by LB

@@ -92,6 +92,7 @@ type DownloadMonitor struct {
 	PlaceInQueue         int
 	Skipped              bool
 	LastUpdated          time.Time
+    StartedAt            time.Time
 }
 
 type Slskd struct {
@@ -123,6 +124,7 @@ func (c *Slskd) GetConf() (MonitorConfig, error) {
 	return  MonitorConfig{
 		CheckInterval: time.Duration(c.Cfg.MonitorConfig.Interval) * time.Minute,
 		MonitorDuration: time.Duration(c.Cfg.MonitorConfig.Duration) * time.Minute,
+		MaxDuration: time.Duration(c.Cfg.MonitorConfig.MaxDuration) * time.Minute,
 		MigrateDownload: c.Cfg.MigrateDL,
 		ToDir: c.DownloadDir,
 		FromDir: c.Cfg.SlskdDir,
@@ -161,7 +163,7 @@ func (c *Slskd) QueryTrack(track *models.Track) error {
 
 		if err != nil {
 			cleanup()
-   	 		return err
+   	 		return fmt.Errorf("%w: %s", err, trackDetails)
 		}
 
 		if !completed {
@@ -398,13 +400,15 @@ func (c *Slskd) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus
 			for _, dir := range status.Directories {
 				for _, file := range dir.Files {
 					if string(file.Name) == track.File {
-						fileStatuses[track.File] = FileStatus{
+						fileStatuses[track.ID] = FileStatus{
 							ID: file.ID,
 							Size: file.Size,
 							State: normalize(file.State),
+							Filename: file.Name,
 							BytesTransferred: file.BytesTransferred,
 							BytesRemaining: file.BytesRemaining,
 							PercentComplete: file.PercentComplete,
+							QueueID: file.ID,
 						}
 					}
 				}
@@ -486,4 +490,25 @@ func normalize(state string) string{
 		}
 	}
 	return state
+}
+
+
+func (c *Slskd) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
+	trackDir := filepath.Join(srcDir, trackPath)
+
+	if c.Cfg.RenameTrack { // Rename file to {title}-{artist} format
+		track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(track.File)
+	}
+	srcFile := filepath.Join(trackDir, track.File)
+	if c.Cfg.OverwriteMetadata {
+		metadata := util.BuildffmpegMetadata(*track)
+		if err := overwriteMetadata(metadata, srcFile); err != nil {
+			slog.Warn("problem overwriting metadata", "msg", err.Error())
+		}
+	}
+	if err := moveTrack(srcFile, destDir, track, c.Cfg.PathTemplate, c.Cfg.KeepPermissions); err != nil {
+        return fmt.Errorf("failed to move track: %w", err)
+    }
+
+	return nil
 }

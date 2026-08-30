@@ -294,3 +294,8 @@ func (c *Youtube) GetDownloadStatus(tracks []*models.Track) (map[string]FileStat
 func (c *Youtube) Cleanup(track models.Track, ID string) error {
 	return nil
 }
+
+func (c *Youtube) MoveDownload(srcDir, destDir, trackPath string, track *models.Track) error {
+
+	return nil
+}
