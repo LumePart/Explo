@@ -240,12 +240,19 @@ func (c *Subsonic) CheckRefreshState() bool {
 }
 
 func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
+	_ = c.SearchPlaylist()
+
 	var trackIDs strings.Builder
 	for _, track := range tracks { // build songID parameters
 		fmt.Fprintf(&trackIDs, "&songId=%s", track.ID)
 	}
 
-	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", url.QueryEscape(c.Cfg.PlaylistName), trackIDs.String())
+	var reqParam string
+	if c.Cfg.PlaylistID != "" {
+		reqParam = fmt.Sprintf("createPlaylist?playlistId=%s&name=%s%s&f=json", url.QueryEscape(c.Cfg.PlaylistID), url.QueryEscape(c.Cfg.PlaylistName), trackIDs.String())
+	} else {
+		reqParam = fmt.Sprintf("createPlaylist?name=%s%s&f=json", url.QueryEscape(c.Cfg.PlaylistName), trackIDs.String())
+	}
 
 	body, err := c.subsonicRequest(reqParam)
 	if err != nil {
