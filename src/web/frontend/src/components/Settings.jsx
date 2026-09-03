@@ -86,6 +86,7 @@ const PLAYLISTS = [
   { value: 'weekly-jams',        name: 'Weekly Jams',        scheduleKey: 'WEEKLY_JAMS_SCHEDULE',        flagsKey: 'WEEKLY_JAMS_FLAGS',        defaultDay: 1,  defaultHour: 0,  defaultMinute: 30 },
   { value: 'daily-jams',         name: 'Daily Jams',         scheduleKey: 'DAILY_JAMS_SCHEDULE',         flagsKey: 'DAILY_JAMS_FLAGS',         defaultDay: -1, defaultHour: 1,  defaultMinute: 15 },
   { value: 'on-repeat',          name: 'On Repeat',          scheduleKey: 'ON_REPEAT_SCHEDULE',          flagsKey: 'ON_REPEAT_FLAGS',          defaultDay: 100, defaultHour: 12, defaultMinute: 0, fixedSchedule: true },
+  { value: 'fresh-releases',     name: 'Fresh Releases',     scheduleKey: 'FRESH_RELEASES_SCHEDULE',     flagsKey: 'FRESH_RELEASES_FLAGS',     defaultDay: 3,  defaultHour: 8,  defaultMinute: 30 },
 ]
 
 const SCHEDULE_DAYS = [
@@ -963,7 +964,7 @@ export default function Settings({ authDisabled, onWizard, onLogout }) {
 
   useEffect(() => {
     if (_bgCoverCache) return
-    Promise.all(['weekly-exploration', 'weekly-jams', 'daily-jams', 'on-repeat'].map(
+    Promise.all(['weekly-exploration', 'weekly-jams', 'daily-jams', 'on-repeat', 'fresh-releases'].map(
       t => fetchPlaylistTracks(t).catch(() => ({ tracks: [] }))
     )).then(results => {
       const covers = results.flatMap(r => (r.tracks ?? []).map(t => t.coverUrl).filter(Boolean))

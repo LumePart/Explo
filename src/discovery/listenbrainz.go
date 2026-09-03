@@ -206,9 +206,15 @@ func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *List
 	}
 }
 func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
-	// Stats-based playlists bypass the discovery mode switch
-	if c.cfg.ImportPlaylist == "on-repeat" {
-		tracks, err := c.getTopRecordings(c.cfg.User)
+	// on-repeat and fresh-releases skip the discovery mode switch
+	if c.cfg.ImportPlaylist == "on-repeat" || c.cfg.ImportPlaylist == "fresh-releases" {
+		var tracks []*models.Track
+		var err error
+		if c.cfg.ImportPlaylist == "on-repeat" {
+			tracks, err = c.getTopRecordings(c.cfg.User)
+		} else {
+			tracks, err = c.getFreshReleaseTracks(c.cfg.User)
+		}
 		if err != nil {
 			return nil, err
 		}

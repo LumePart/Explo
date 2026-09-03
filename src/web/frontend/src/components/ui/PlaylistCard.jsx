@@ -101,6 +101,12 @@ function nextUpdateLabel(playlistType) {
     tomorrow.setDate(tomorrow.getDate() + 1)
     return `Next update tomorrow (${tomorrow.toLocaleDateString([], { weekday: 'long' })})`
   }
+  if (playlistType === 'fresh-releases') {
+    const daysUntilWednesday = (3 - now.getDay() + 7) % 7 || 7
+    const nextWednesday = new Date(now)
+    nextWednesday.setDate(now.getDate() + daysUntilWednesday)
+    return `Next update ${nextWednesday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
+  }
   // Weekly playlists: LB generates on Mondays
   const daysUntilMonday = (8 - now.getDay()) % 7 || 7
   const nextMonday = new Date(now)
@@ -263,6 +269,11 @@ const PRESETS = {
     background: cardGradient('#e11d48', '#9f1239', '#fb7185'),
     accent: '#fb7185',
     label: 'MONTHLY',
+  },
+  'fresh-releases': {
+    background: cardGradient('#0d9488', '#14b8a6', '#5eead4'),
+    accent: '#2dd4bf',
+    label: 'WEEKLY',
   },
 }
 

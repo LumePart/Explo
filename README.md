@@ -21,6 +21,7 @@ Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine t
   - Weekly Exploration
   - Weekly Jams
   - Daily Jams
+  - Fresh Releases
 - Import custom playlists from:
   - Apple Music
   - ListenBrainz
