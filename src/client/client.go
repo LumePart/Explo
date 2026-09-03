@@ -190,7 +190,7 @@ func (c *Client) CheckTracks(tracks []*models.Track) error {
 	return nil
 }
 
-func (c *Client) CreatePlaylist(tracks []*models.Track) error {
+func (c *Client) RefreshLibrary() error {
 	if c.System == "" {
 		return fmt.Errorf("could not get music system")
 	}
@@ -203,6 +203,13 @@ func (c *Client) CreatePlaylist(tracks []*models.Track) error {
 		slog.Debug("could not check library refresh state, either the client doesn't support it or threw an error")
 		slog.Debug("falling back on SLEEP env variable")
 		time.Sleep(time.Duration(c.Cfg.Sleep) * time.Minute)
+	}
+	return nil
+}
+
+func (c *Client) CreatePlaylist(tracks []*models.Track) error {
+	if c.System == "" {
+		return fmt.Errorf("could not get music system")
 	}
 
 	if err := c.API.SearchSongs(tracks); err != nil { // search newly added songs

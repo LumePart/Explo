@@ -234,7 +234,14 @@ func main() {
 	}
 
 	if cfg.Flags.DownloadMode != "skip" {
-		downloader.StartDownload(&tracks)
+		newDownloads := downloader.StartDownload(&tracks)
+		if newDownloads > 0 {
+			if err := client.RefreshLibrary(); err != nil {
+				slog.Warn(err.Error())
+			}
+		} else {
+			slog.Info("no new tracks downloaded, skipping library refresh", "system", cfg.System)
+		}
 		if len(tracks) == 0 {
 			slog.Error("couldn't download any tracks", "notify", true)
 			os.Exit(1)

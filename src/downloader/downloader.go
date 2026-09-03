@@ -61,15 +61,17 @@ func NewDownloader(cfg *cfg.DownloadConfig, httpClient *util.HttpClient, filterL
 		Downloaders: downloader}, nil
 }
 
-func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
+func (c *DownloadClient) StartDownload(tracks *[]*models.Track) int {
 	if c.Cfg.ExcludeLocal { // remove locally found tracks, so they can't be added to playlist
 		filterLocalTracks(tracks, true)
 	}
 
+	var newDownloads atomic.Int32
+
 	if c.needsDownloadDir() {
 		if err := os.MkdirAll(c.Cfg.DownloadDir, 0755); err != nil {
 			slog.Error(err.Error())
-			return
+			return 0
 		}
 	}
 
@@ -107,13 +109,17 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 					return nil
 				}
 
+				if track.Present {
+					newDownloads.Add(1)
+				}
+
 				return nil
 			})
 		}
 
 		if err := g.Wait(); err != nil {
 			slog.Warn(err.Error())
-			return
+			return int(newDownloads.Load())
 		}
 
 		if m, ok := d.(Monitor); ok {
@@ -124,6 +130,7 @@ func (c *DownloadClient) StartDownload(tracks *[]*models.Track) {
 	}
 
 	filterLocalTracks(tracks, false)
+	return int(newDownloads.Load())
 }
 func (c *DownloadClient) needsDownloadDir() bool {
 	for _, svc := range c.Cfg.Services {
