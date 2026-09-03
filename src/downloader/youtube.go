@@ -236,8 +236,11 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 			}
 		}
 		opts = ffmpeg.KwArgs{
-			"metadata": metadata,
-			"loglevel": "error",
+			"c:v":            "mjpeg",
+			"disposition:v:0": "attached_pic",
+			"metadata:s:v":   []string{"title=Album cover", "comment=Cover (front)"},
+			"metadata":       metadata,
+			"loglevel":       "error",
 		}
 	} else {
 		opts = ffmpeg.KwArgs{
