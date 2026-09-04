@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"explo/src/config"
 	"explo/src/logging"
 )
 
@@ -28,7 +29,7 @@ func NewHttp(cfg HttpClientConfig) *HttpClient {
 		Client: &http.Client{
 			Timeout: time.Duration(cfg.Timeout) * time.Second,
 		},
-		UserAgent: "Explo (+https://github.com/LumePart/explo))",
+		UserAgent: fmt.Sprintf("Explo/%s ( https://github.com/LumePart/explo )", config.Version),
 	}
 }
 
