@@ -312,9 +312,18 @@ func (cfg *Config) HandleDeprecation() {
 func (cfg *Config) GenPlaylistDetails() {
 
 	cfg.ClientCfg.PlaylistName = getPlaylistName(cfg.Flags.Playlist, cfg.ClientCfg.PlaylistNFormat, cfg.ReplacePlaylist)
-	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf(
-		"Created for %s by Explo, using ListenBrainz recommendations.",
-		cfg.DiscoveryCfg.Listenbrainz.User)
+
+	desc := fmt.Sprintf(
+    "Created for %s by Explo, using ListenBrainz recommendations.",
+    cfg.DiscoveryCfg.Listenbrainz.User)
+
+	if strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
+		desc = fmt.Sprintf(
+			"Imported by Explo for %s",
+			cfg.DiscoveryCfg.Listenbrainz.User)
+	}
+
+	cfg.ClientCfg.PlaylistDescr = desc
 
 	if cfg.DownloadCfg.UseSubDir {
 		// add playlist name to downloadDir so all songs get downloaded to a single sub directory.
