@@ -91,7 +91,7 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 	}
 	var videos Videos
 	if err = util.ParseResp(body, &videos); err != nil {
-		return fmt.Errorf("failed to unmarshal queryYT body: %s", err.Error())
+		return fmt.Errorf("failed to unmarshal queryYT body: %w", err)
 	}
 
 	id := c.gatherVideo(c.Cfg, videos, *track)
@@ -163,12 +163,12 @@ func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.Downlo
 
 	result, err := goutubedl.New(ctx, videoID, c.gouTubeOpts)
 	if err != nil {
-		return nil, fmt.Errorf("could not create URL for video download (ID: %s): %s", videoID, err.Error())
+		return nil, fmt.Errorf("could not create URL for video download (ID: %s): %w", videoID, err)
 	}
 
 	downloadResult, err := result.Download(ctx, "bestaudio")
 	if err != nil {
-		return nil, fmt.Errorf("could not download video: %s", err.Error())
+		return nil, fmt.Errorf("could not download video: %w", err)
 	}
 
 	return downloadResult, nil
@@ -179,20 +179,20 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 
 	defer func() {
 		if err := stream.Close(); err != nil {
-			slog.Warn("closing stream failed", "context", err.Error())
+			slog.Warn("closing stream failed", "context", err)
 		}
 	}()
 
 	input := filepath.Join(c.DownloadDir, track.File+".tmp")
 	file, err := os.Create(input)
 	if err != nil {
-		slog.Error("failed to create song file", "context", err.Error())
+		slog.Error("failed to create song file", "err", err)
 		return false
 	}
 
 	defer func() {
 		if err := file.Close(); err != nil {
-			slog.Warn("file close failed", "context", err.Error())
+			slog.Warn("file close failed", "context", err)
 		}
 	}()
 
@@ -206,7 +206,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 }()
 
 	if _, err = io.Copy(file, stream); err != nil {
-		slog.Error("failed to copy stream to file", "context", err.Error())
+		slog.Error("failed to copy stream to file", "err", err)
 		return false
 	}
 
@@ -222,7 +222,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	}
 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-			slog.Error("failed to create output directory", "context", err.Error())
+			slog.Error("failed to create output directory", "err", err)
 			return false
 	}
 
@@ -251,6 +251,7 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	}
 
 	if err := util.WriteMetadata(streams, c.Cfg.FfmpegPath, outputPath, opts); err != nil {
+		slog.Error("failed saving file", "err", err)
 		return false
 	}
 
@@ -278,7 +279,7 @@ func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track
 func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
-		slog.Error("failed getting stream for video", "trackID", track.ID, "context", err.Error())
+		slog.Error("failed getting stream for video", "trackID", track.ID, "err", err)
 		return false
 	}
 
