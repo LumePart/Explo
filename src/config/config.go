@@ -62,6 +62,7 @@ type ClientConfig struct {
 	PlaylistDir     string `env:"PLAYLIST_DIR"`
 	PlaylistName    string
 	PlaylistNFormat string `env:"PLAYLISTNAME_FORMAT" env-default:"week"`
+	MatchScore      int    `env:"TRACK_MATCH_SCORE" env-default:"60"`
 	PlaylistDescr   string
 	PlaylistID      string
 	PublicPlaylist  bool   `env:"PUBLIC_PLAYLIST" env-default:"false"`

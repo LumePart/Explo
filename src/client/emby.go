@@ -36,6 +36,7 @@ type EmbyItems struct {
 	ID                string          `json:"Id"`
 	ProviderIds       EmbyProviderIds `json:"ProviderIds"`
 	Path			  string		  `json:"Path"`
+	RunTimeTicks      int             `json:"RunTimeTicks"`
 	Album             string          `json:"Album,omitempty"`
 	AlbumArtist       string          `json:"AlbumArtist,omitempty"`
 	Artists           []string  	  `json:"Artists"`
@@ -131,7 +132,8 @@ func (c *Emby) CheckRefreshState() bool {
 
 func (c *Emby) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path,ProviderIDs", url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)))
+		searchQuery := util.CleanSearchTitle(track.CleanTitle)
+		reqParam := fmt.Sprintf("/emby/Items?IncludeMediaTypes=Audio&SearchTerm=%s&Recursive=true&Fields=Path,ProviderIDs", url.QueryEscape(searchQuery))
 
 		body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers)
 		if err != nil {
@@ -143,33 +145,33 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 			return err
 		}
 
-		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
+		if len(results.Items) == 0 {
+			slog.Debug("no results returned for query", "query", searchQuery, "trackArtist", track.MainArtist, "trackAlbum", track.Album)
+			continue
+		}
+
+		searchData := make([]SearchResult, 0, len(results.Items))
 		for _, item := range results.Items {
 
-			normalizedItemTitle := util.NormalizeTitle(item.Name)
-
-			musicBrainzMatch := track.MusicBrainzTrackID != "" && item.ProviderIds.MusicBrainzTrack == track.MusicBrainzTrackID
-			titleMatch := normalizedItemTitle == normalizedCleanTitle
-			albumMatch := util.ContainsFold(item.Album, track.Album)
-			artistMatch := strings.EqualFold(item.AlbumArtist, track.MainArtist) || (len(item.Artists) > 0 && strings.EqualFold(item.Artists[0], track.MainArtist))
-			pathMatch := util.ContainsFold(item.Path, track.File)
-
-			if musicBrainzMatch || (titleMatch && (albumMatch || artistMatch))  {
-				track.ID = item.ID
-				track.Present = true
-				break
-			}
-
-			if track.File != "" && artistMatch && pathMatch {
-				track.ID = item.ID
-				track.Present = true
-				break
-			}
+			searchData = append(searchData, SearchResult{
+				ID: item.ID,
+				Title: item.Name,
+				Album: item.Album,
+				Artist: item.AlbumArtist,
+				Artists: item.Artists,
+				Path: item.Path,
+				Duration: (item.RunTimeTicks / 10000000),
+				MBID: item.ProviderIds.MusicBrainzTrack,
+			})
 		}
-
-		if !track.Present {
-			slog.Debug(fmt.Sprintf("[emby] failed to find '%s' by '%s' in album '%s'", track.Title, track.Artist, track.Album))
+		trackMatch, ok := BestMatch(track, searchData, c.Cfg.MatchScore)
+		if !ok {
+			slog.Debug("failed to find match, no results returned above threshold score", "threshold", c.Cfg.MatchScore, "searchQuery", searchQuery)
+			continue
 		}
+		track.ID = trackMatch.ID
+		track.Present = true
+		slog.Debug("matched track", "searchQuery", searchQuery, "matchScore", trackMatch.Score, "trackArtist", trackMatch.Artist, "trackAlbum", trackMatch.Album)
 	}
 	return nil
 }
