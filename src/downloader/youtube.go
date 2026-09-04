@@ -40,8 +40,8 @@ type Item struct {
 }
 
 type YTMusicSearchResult struct {
-	VideoID string `json:"videoId"`
-	Title   string `json:"title"`
+	VideoID  string `json:"videoId"`
+	Title    string `json:"title"`
 }
 
 type Youtube struct {
@@ -78,7 +78,7 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 
 	query := fmt.Sprintf("%s - %s", track.Title, track.Artist)
 	if c.Cfg.APIKey == "" { // if no API key set, use Python YT Music module
-		err := queryYTMusic(track, query)
+		err := c.queryYTMusic(track, query)
 		return err
 	}
 
@@ -103,11 +103,11 @@ func (c *Youtube) QueryTrack(track *models.Track) error { // Queries youtube for
 	return nil
 }
 
-func queryYTMusic(track *models.Track, query string) error {
+func (c *Youtube) queryYTMusic(track *models.Track, query string) error {
 
 	slog.Debug(fmt.Sprintf("Querying YTMusic for track %s", query))
 
-	cmd := exec.Command("python3", "search_ytmusic.py", query, "1")
+	cmd := exec.Command("python3", "search_ytmusic.py", query, "10")
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -123,17 +123,37 @@ func queryYTMusic(track *models.Track, query string) error {
 		return fmt.Errorf("no YouTube Music track found for: %s", query)
 	}
 
-	track.ID = results[0].VideoID
+	id, err := c.filterYTMusic(*track, results)
+	if err != nil {
+		return err
+	}
+
+	track.ID = id
 	//log.Printf("Matched track %s => videoId %s", query, track.ID) keeping this until I improve logging (good trace)
 
 	return nil
+}
+
+func (c *Youtube) filterYTMusic(track models.Track, results []YTMusicSearchResult) (string, error) {
+	for _, video := range results {
+		if video.VideoID == "" {
+			continue
+		}
+        if ContainsKeyword(track, video.Title, c.Cfg.Filters.FilterList) {
+            continue
+        }
+
+        return video.VideoID, nil
+    }
+
+	return "", fmt.Errorf("no suitable YouTube Music result found")
 }
 
 func (c *Youtube) GetTrack(track *models.Track) error {
 	ctx := context.Background() // ctx for yt-dlp
 
 	track.File = fmt.Sprintf("%s.%s", getFilename(track.Title, track.Artist), c.Cfg.FileExtension)
-	track.Present = fetchAndSaveVideo(ctx, *c, *track)
+	track.Present = fetchAndSaveVideo(ctx, *c, track)
 
 	if track.Present {
 		slog.Info("download finished", "service", "youtube", "track", track.File)
@@ -175,7 +195,7 @@ func getVideo(ctx context.Context, c Youtube, videoID string) (*goutubedl.Downlo
 
 }
 
-func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) bool {
+func saveVideo(c Youtube, track *models.Track, stream *goutubedl.DownloadResult) bool {
 
 	defer func() {
 		if err := stream.Close(); err != nil {
@@ -210,14 +230,14 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 		return false
 	}
 
-	metadata := util.BuildffmpegMetadata(track)
+	metadata := util.BuildffmpegMetadata(*track)
 
 	outputPath := filepath.Join(c.DownloadDir, track.File)
 
 	if c.Cfg.PathTemplate != "" {
 			outputPath = filepath.Join(
 				c.DownloadDir,
-				buildTrackPath(c.Cfg.PathTemplate, &track),
+				buildTrackPath(c.Cfg.PathTemplate, track),
 			)
 	}
 
@@ -231,10 +251,9 @@ func saveVideo(c Youtube, track models.Track, stream *goutubedl.DownloadResult) 
 	streams = append(streams, ffmpeg.Input(input))
 	if c.Cfg.EmbedCoverArt && track.CoverURL != "" {
 		if track.CoverPath == "" {
-			if _, track.CoverPath = util.DownloadCover(track.CoverURL, c.Cfg.CoversDir); track.CoverPath != "" {
-    			streams = append(streams, ffmpeg.Input(track.CoverPath))
-			}
+			_, track.CoverPath = util.DownloadCover(track.CoverURL, c.Cfg.CoversDir)
 		}
+		streams = append(streams, ffmpeg.Input(track.CoverPath))
 		opts = ffmpeg.KwArgs{
 			"c:v":            "mjpeg",
 			"disposition:v:0": "attached_pic",
@@ -276,7 +295,7 @@ func (c *Youtube) gatherVideo(cfg cfg.Youtube, videos Videos, track models.Track
 	return ""
 }
 
-func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track models.Track) bool {
+func fetchAndSaveVideo(ctx context.Context, cfg Youtube, track *models.Track) bool {
 	stream, err := getVideo(ctx, cfg, track.ID)
 	if err != nil {
 		slog.Error("failed getting stream for video", "trackID", track.ID, "err", err)
