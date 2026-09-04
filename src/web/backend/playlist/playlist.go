@@ -117,7 +117,9 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 
 	ct := make([]cachedTrack, len(tracks))
 	for i, t := range tracks {
-		apiPath, coverPath := util.DownloadCover(t.CoverURL, coversDir)
+		if t.CoverPath == "" {
+			t.CoverURL, t.CoverPath = util.DownloadCover(t.CoverURL, coversDir)
+		}
 		var inLibrary *bool
 		if added != nil {
 			v := added[t.CleanTitle+"|"+t.Artist]
@@ -128,8 +130,8 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 			Title:     t.CleanTitle,
 			Artist:    t.Artist,
 			Release:   t.Album,
-			CoverURL:  apiPath,
-			CoverPath: coverPath,
+			CoverURL:  t.CoverURL,
+			CoverPath: t.CoverPath,
 			InLibrary: inLibrary,
 		}
 	}
