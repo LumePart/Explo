@@ -189,12 +189,13 @@ func (c *Emby) SearchPlaylist() error {
 		return err
 	}
 
-	if len(results.Items) != 0 {
-		c.Cfg.PlaylistID = results.Items[0].ID
-		return nil
-	} else {
-		return fmt.Errorf("no results found for %s", c.Cfg.PlaylistName)
+	for _, playlist := range results.Items {
+		if playlist.Name == c.Cfg.PlaylistName {
+			c.Cfg.PlaylistID = playlist.ID
+			return nil
+		}
 	}
+	return fmt.Errorf("no results found for playlist: %s", c.Cfg.PlaylistName)
 }
 
 func (c *Emby) CreatePlaylist(tracks []*models.Track) error {

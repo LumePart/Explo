@@ -205,12 +205,13 @@ func (c *Jellyfin) SearchPlaylist() error {
 		return err
 	}
 
-	if len(results.SearchHints) != 0 {
-		c.Cfg.PlaylistID = results.SearchHints[0].ID
-		return nil
-	} else {
-		return fmt.Errorf("no results found for playlist: %s", c.Cfg.PlaylistName)
+	for _, playlist := range results.SearchHints {
+		if playlist.Name == c.Cfg.PlaylistName {
+			c.Cfg.PlaylistID = playlist.ID
+			return nil
+		}
 	}
+	return fmt.Errorf("no results found for playlist: %s", c.Cfg.PlaylistName)
 }
 
 func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
