@@ -136,11 +136,15 @@ type PlexPlaylist struct {
 	} `json:"MediaContainer"`
 }
 
-type GUID struct {
-	ID string `json:"id"`
-}
-type Metadata struct {
-	GUID []GUID `json:"Guid"`
+type MetadataResponse struct {
+	MediaContainer struct {
+		Metadata []struct {
+			PlexGUID string `json:"guid"`
+			GUID []struct {
+				ID string `json:"id"`
+			} `json:"Guid"`
+		} `json:"Metadata"`
+	} `json:"MediaContainer"`
 }
 
 type Plex struct {
@@ -621,17 +625,20 @@ func (c *Plex) getPlexMBID(ratingKey string) string {
 	if err != nil {
 		return ""
 	}
-
-	var metadata Metadata
-	if err = util.ParseResp(body, &metadata); err != nil {
+	var meta MetadataResponse
+	err = json.Unmarshal(body, &meta)
+	if err != nil {
 		return ""
 	}
 	prefix := "mbid://"
-	for _, guid := range metadata.GUID {
-		if strings.HasPrefix(guid.ID, prefix) {
-			return strings.TrimPrefix(guid.ID, prefix)
-		}
+	for _, metadata := range meta.MediaContainer.Metadata {
+		for _, guid := range metadata.GUID {
+			if strings.HasPrefix(guid.ID, prefix) {
+				mbid := strings.TrimPrefix(guid.ID, prefix)
+				return mbid
+			}
 	}
+}
 	return ""
 }
 
