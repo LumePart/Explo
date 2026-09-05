@@ -232,7 +232,7 @@ export async function saveEnrichMetadata(enabled) {
   if (!res.ok) throw new Error(await res.text())
 }
 
-export async function saveReplacePlaylist(name, replace) {
+export async function saveReplacePlaylist(id, name, replace) {
   const res = await apiFetch('/api/ui/config/replace-playlist', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
