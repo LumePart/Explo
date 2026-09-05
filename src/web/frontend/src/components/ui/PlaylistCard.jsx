@@ -701,7 +701,7 @@ export function PlaylistCard({
                 <Toggle checked={!replacePlaylist} onChange={() => {}} tiny />
               </button>
               {replaceInfoOpen && (
-                <span style={{ fontSize: 11, color: '#666', padding: '4px 14px 10px', lineHeight: 1.4 }}>
+                <span style={{ fontSize: 11, color: '#999', padding: '4px 14px 10px', lineHeight: 1.4 }}>
                   When on, creates a new dated playlist each run instead of overwriting.
                 </span>
               )}

@@ -320,7 +320,7 @@ function HomeSection() {
       onReplaceToggle: () => {
         const next = !(replacePlaylists[id] ?? true)
         setReplacePlaylists(prev => ({ ...prev, [id]: next }))
-        saveReplacePlaylist(id, next).catch(() =>
+        saveReplacePlaylist(id, s.name, next).catch(() =>
           setReplacePlaylists(prev => ({ ...prev, [id]: !next }))
         )
       },
