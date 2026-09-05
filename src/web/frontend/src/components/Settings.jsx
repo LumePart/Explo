@@ -384,7 +384,7 @@ function HomeSection() {
             playlist={openTracklist}
             refreshTick={refreshTick}
             onRun={async () => {
-              await startRun(openTracklist, 'normal')
+              await startRun(openTracklist, 'normal', replacePlaylists[playlist] ?? true)
               setRunning(true)
               setStatus('running…')
               setLogEntries([])
