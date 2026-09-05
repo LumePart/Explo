@@ -431,7 +431,7 @@ func (s *Settings) HandleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		DownloadDir      string   `json:"download_dir"`
 		UseSubdirectory  bool     `json:"use_subdirectory"`
-		MigrateDownloads bool     `json:"migrate_downloads"`
+		SlskdMigrateDL   bool     `json:"slskd_migrate_downloads"`
 		DownloadServices []string `json:"download_services"`
 		YoutubeAPIKey    string   `json:"youtube_api_key"`
 		TrackExtension   string   `json:"track_extension"` // yt-dlp
@@ -440,6 +440,7 @@ func (s *Settings) HandleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		SlskdAPIKey      string   `json:"slskd_api_key"`
 		LidarrURL        string   `json:"lidarr_url"`
 		LidarrAPIKey     string   `json:"lidarr_api_key"`
+		LidarrMigrateDL  bool     `json:"lidarr_migrate_downloads"`
 		Extensions       string   `json:"extensions"` // slskd
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -456,24 +457,29 @@ func (s *Settings) HandleWizardStep3(w http.ResponseWriter, r *http.Request) {
 	if body.UseSubdirectory {
 		useSubdir = "true"
 	}
-	migrateDL := "false"
-	if body.MigrateDownloads {
-		migrateDL = "true"
+	slskdMigrateDL := "false"
+	if body.SlskdMigrateDL {
+		slskdMigrateDL = "true"
+	}
+	lidarrMigrateDL := "false"
+	if body.LidarrMigrateDL {
+		lidarrMigrateDL = "true"
 	}
 	updates := map[string]string{
-		"DOWNLOAD_DIR":      body.DownloadDir,
-		"USE_SUBDIRECTORY":  useSubdir,
-		"MIGRATE_DOWNLOADS": migrateDL,
-		"DOWNLOAD_SERVICES": joined,
-		"YOUTUBE_API_KEY":   body.YoutubeAPIKey,
-		"TRACK_EXTENSION":   body.TrackExtension, // yt-dlp
-		"FILTER_LIST":       body.FilterList,
-		"SLSKD_URL":         body.SlskdURL,
-		"SLSKD_API_KEY":     body.SlskdAPIKey,
-		"LIDARR_URL":        body.LidarrURL,
-		"LIDARR_API_KEY":    body.LidarrAPIKey,
-		"EXTENSIONS":        body.Extensions, // slskd
-		"WIZARD_COMPLETE":   "true",
+		"DOWNLOAD_DIR":             body.DownloadDir,
+		"USE_SUBDIRECTORY":         useSubdir,
+		"SLSKD_MIGRATE_DOWNLOADS":  slskdMigrateDL,
+		"DOWNLOAD_SERVICES":        joined,
+		"YOUTUBE_API_KEY":          body.YoutubeAPIKey,
+		"TRACK_EXTENSION":          body.TrackExtension, // yt-dlp
+		"FILTER_LIST":              body.FilterList,
+		"SLSKD_URL":                body.SlskdURL,
+		"SLSKD_API_KEY":            body.SlskdAPIKey,
+		"LIDARR_URL":               body.LidarrURL,
+		"LIDARR_API_KEY":           body.LidarrAPIKey,
+		"LIDARR_MIGRATE_DOWNLOADS": lidarrMigrateDL,
+		"EXTENSIONS":               body.Extensions, // slskd
+		"WIZARD_COMPLETE":          "true",
 	}
 
 	if err := s.UpdateEnvKeys(updates, web.SampleEnv); err != nil {
