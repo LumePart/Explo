@@ -25,7 +25,7 @@ Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine t
   - Apple Music
   - ListenBrainz
   - Spotify
-- Request tracks from YouTube, Soulseek, or both
+- Automatically request playlist tracks from YouTube and Soulseek, or albums through Lidarr
 - Add metadata to downloaded tracks
 - Create playlists in your music system
 - Optionally keep previous playlists for later listening
