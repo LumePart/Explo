@@ -212,24 +212,25 @@ func (c *Subsonic) startScan() error {
 }
 
 func (c *Subsonic) CheckRefreshState() bool {
+	time.Sleep(500 * time.Millisecond) // small sleep to avoid calling scan status too fast
 	var state ScanState
 	reqParam := "getScanStatus?f=json"
 
 	for {
 		body, err := c.subsonicRequest(reqParam)
 		if err != nil {
-			slog.Warn("could not check scan status", "err", err.Error())
+			slog.Warn("could not check scan status", "err", err)
 			return false
 		}
 		if err = json.Unmarshal(body, &state); err != nil {
-			slog.Warn("failed to unmarshal scan status response", "err", err.Error())
+			slog.Warn("failed to unmarshal scan status response", "err", err)
 			return false
 		}
 		if !state.SubsonicResponse.ScanStatus.Scanning {
 			return true
 		}
 		slog.Debug("Library scan still ongoing")
-		time.Sleep(30 * time.Second)
+		time.Sleep(15 * time.Second)
 	}
 }
 
