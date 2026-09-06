@@ -153,8 +153,9 @@ type Slskd struct {
 }
 
 type SlskdMon struct {
+	OldMonDuration int `env:"MONITOR_DURATION" env-default:"15"` // replaced with SLSKD_STALL_DURATION
 	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"` // in minutes
-	Duration int `env:"SLSKD_MONITOR_DURATION" env-default:"15"` // in minutes
+	StallDuration int `env:"SLSKD_STALL_DURATION" env-default:"15"` // in minutes
 	MaxDuration int `env:"SLSKD_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
 }
 
@@ -174,7 +175,7 @@ type Lidarr struct {
 
 type LidarrMon struct {
 	Interval int `env:"LIDARR_MONITOR_INTERVAL" env-default:"1"` // in minutes
-	Duration int `env:"LIDARR_MONITOR_DURATION" env-default:"20"` // in minutes
+	StallDuration int `env:"LIDARR_STALL_DURATION" env-default:"20"` // in minutes
 	MaxDuration int `env:"LIDARR_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
 }
 
@@ -296,16 +297,27 @@ func (cfg *Config) HandleDeprecation() {
 		slog.Warn("Deleting tracks requires 'USE_SUBDIRECTORY' to be true")
 	}
 
+	if cfg.DownloadCfg.Slskd.MonitorConfig.OldMonDuration != 15 {
+		cfg.DownloadCfg.Slskd.MonitorConfig.StallDuration = cfg.DownloadCfg.Slskd.MonitorConfig.OldMonDuration
+		slog.Warn("MONITOR_DURATION is deprecated as of v1.2; using SLSKD_STALL_DURATION instead. Consider renaming the variable in your env file")
+	}
+
 	if cfg.DownloadCfg.OverwriteMetadata {
 		cfg.DownloadCfg.Slskd.OverwriteMetadata = cfg.DownloadCfg.OverwriteMetadata
+		slog.Warn("OVERWRITE_METADATA is deprecated as of v1.2; using SLSKD_OVERWRITE_METADATA instead. Consider renaming the variable in your env file")
 	}
 
 	if !cfg.DownloadCfg.KeepPermissions {
 		cfg.DownloadCfg.Slskd.KeepPermissions = cfg.DownloadCfg.KeepPermissions
+		slog.Warn("KEEP_PERMISSIONS is deprecated as of v1.2; using SLSKD_KEEP_PERMISSIONS instead. Consider renaming the variable in your env file")
 	}
 
 	if cfg.DownloadCfg.Slskd.MigrateDLOld {
 		cfg.DownloadCfg.Slskd.MigrateDL = cfg.DownloadCfg.Slskd.MigrateDLOld
+		slog.Warn("MIGRATE_DOWNLOADS is deprecated as of v1.2; using SLSKD_MIGRATE_DOWNLOADS instead. Consider renaming the variable in your env file")
+	}
+	if cfg.DownloadCfg.RenameTrack {
+		slog.Warn("RENAME_TRACK has been superseded by path templating. Check the wiki or UI Settings page to configure path templates")
 	}
 }
 
