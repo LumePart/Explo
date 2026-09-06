@@ -70,6 +70,6 @@ Explo uses the following 3rd-party libraries:
 
 ## Contributing
 
-Contributions are always welcome! If you have any suggestions, bug reports, or feature requests, please open an issue or submit a pull request (be sure to [read the development section](https://github.com/LumePart/Explo/wiki/7.-Development) of our wiki).
+Contributions are welcome! For suggestions, bug reports, or feature requests, please open an issue. Before opening a pull request, please read the [contributing guide](https://github.com/LumePart/Explo?tab=contributing-ov-file)
 
 For discussion regarding development or help, join our [Discord!](https://discord.gg/uFWWPaN2zk)
