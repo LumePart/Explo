@@ -28,13 +28,12 @@ FROM python:3.12-alpine
 RUN apk add --no-cache \
     libc6-compat \
     ffmpeg \
-    yt-dlp \
     tzdata \
     shadow \
     su-exec
 
 # Install ytmusicapi in the container
-RUN pip install --no-cache-dir ytmusicapi
+RUN pip install --no-cache-dir ytmusicapi yt-dlp
 
 # Create user to set PUID/PGID values
 RUN useradd -ms /bin/sh explo

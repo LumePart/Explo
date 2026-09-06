@@ -468,6 +468,23 @@ function Collapse({ open, children }) {
 // Collects download service selection (YouTube, Slskd, Lidarr) and their respective
 // credentials, download directory, and file format preferences.
 
+const DL_PRIORITIES = {
+  youtube: 0,
+  slskd: 1,
+  lidarr: 2,
+};
+
+const DL_NAMES = {
+  youtube: "YouTube",
+  slskd: "Slskd (Soulseek)",
+  lidarr: "Lidarr",
+};
+
+const rankDownloaders = (services) =>
+  [...services].sort(
+    (a, b) => (DL_PRIORITIES[b] ?? -1) - (DL_PRIORITIES[a] ?? -1)
+  );
+
 function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const {
     downloadDir,
@@ -488,32 +505,56 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
   const isLocked = (key) => envSources[key] === "env";
 
   const valid = () => {
-    if (!Object.values(dlServices).some(Boolean)) return false;
-    if (dlServices.slskd && (!slskdUrl.trim() || !slskdApiKey.trim()))
-      return false;
-    if (dlServices.lidarr && (!lidarrUrl.trim() || !lidarrApiKey.trim()))
+    if (dlServices.length === 0) return false;
+    if (dlServices.includes("slskd") && (!slskdUrl.trim() || !slskdApiKey.trim()))
       return false;
     return true;
   };
+
+  const isEnabled = (service) => dlServices.includes(service)
+  const toggleService = (service, enabled) => {
+    if (enabled) {
+      setField("dlServices", [...dlServices, service]);
+    } else {
+      setField(
+        "dlServices",
+        dlServices.filter(s => s !== service)
+      );
+    }
+  };
+  const rankedServices = rankDownloaders(dlServices);
 
   return (
     <div>
       <div className="text-[11px] text-muted uppercase tracking-[1px] mb-7">Step 3 of 3 — Downloader</div>
       <p className="text-[13px] text-muted mb-7 leading-relaxed">
-        Explo downloads tracks using one or both services. Enable what you have
-        access to — if both are enabled, YouTube is tried first.
+        Services Explo can use to request tracks. Enable what you have
+        access to.
       </p>
+    <div className="mb-5">
+      {rankedServices.length > 1 && (
+        <div className="text-[11px] text-muted mt-1">
+          Order: {rankedServices.map((service, i) => (
+            <span key={service}>
+              {i > 0 && " → "}
+              {DL_NAMES[service]}
+            </span>
+          ))}
+          <p>This can be changed in settings later</p>
+        </div>
+        )}
+    </div>
 
       <div className="flex flex-col gap-6">
         {/* YouTube section */}
         <div className="flex flex-col gap-4">
           <ToggleRow
-            checked={dlServices.youtube}
-            onChange={v => setField('dlServices', { ...dlServices, youtube: v })}
+            checked={isEnabled("youtube")}
+            onChange={v => toggleService("youtube", v)}
             name="YouTube"
             desc="Downloads via yt-dlp · falls back to ytmusicapi if no API key is set"
           />
-          <Collapse open={dlServices.youtube}>
+          <Collapse open={isEnabled("youtube")}>
             <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
               <TextField label={<>YouTube API Key <span className="font-normal opacity-50">(optional)</span></>}
                 hint={<>If set, uses the official YouTube Data API. Otherwise falls back to <strong>ytmusicapi</strong>.{' '}
@@ -550,12 +591,12 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         {/* Slskd section */}
         <div className="flex flex-col gap-4">
           <ToggleRow
-            checked={dlServices.slskd}
-            onChange={v => setField('dlServices', { ...dlServices, slskd: v })}
+            checked={isEnabled("slskd")}
+            onChange={v => toggleService("slskd", v)}
             name="Slskd"
             desc="Downloads from the Soulseek P2P network · requires a running Slskd instance"
           />
-          <Collapse open={dlServices.slskd}>
+          <Collapse open={isEnabled("slskd")}>
             <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
               <TextField label="Slskd URL">
                 <input type="text" className={inputCls} value={slskdUrl} onChange={e => setField('slskdUrl', e.target.value)}
@@ -571,7 +612,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                   placeholder="flac,mp3" autoComplete="off" spellCheck={false} disabled={isLocked('EXTENSIONS')} />
               </TextField>
               {/* Show keyword exclusion when YouTube isn't enabled — otherwise it lives in the YouTube section */}
-              <Collapse open={!dlServices.youtube}>
+              <Collapse open={!isEnabled("youtube")}>
                 <TextField label="Exclude keywords"
                   hint="Leave blank to use the defaults shown.">
                   <input type="text" className={inputCls} value={filterList} onChange={e => setField('filterList', e.target.value)}
@@ -591,7 +632,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 />
               </div>
               {/* Only show download dir here when YouTube isn't also enabled — otherwise it lives in the YouTube section */}
-              <Collapse open={slskdMigrateDownloads && !dlServices.youtube}>
+              <Collapse open={slskdMigrateDownloads && !isEnabled("youtube")}>
                 <div className="flex flex-col gap-4 pt-4 pb-1">
                   <TextField label="Download directory"
                     hint="Custom download directory. Leave blank to use the default (recommended when running in a container).">
@@ -614,12 +655,12 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
         {/* Lidarr section */}
         <div className="flex flex-col gap-4">
           <ToggleRow
-            checked={dlServices.lidarr}
-            onChange={v => setField('dlServices', { ...dlServices, lidarr: v })}
+            checked={isEnabled("lidarr")}
+            onChange={v => toggleService("lidarr", v)}
             name="Lidarr"
             desc="Requests albums via Lidarr · requires a running Lidarr instance"
           />
-          <Collapse open={dlServices.lidarr}>
+          <Collapse open={isEnabled("lidarr")}>
             <div className="flex flex-col gap-4 pl-4 border-l border-ui-border ml-1 pb-1">
               <TextField label="Lidarr URL">
                 <input type="text" className={inputCls} value={lidarrUrl} onChange={e => setField('lidarrUrl', e.target.value)}
@@ -646,7 +687,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                 />
               </div>
               {/* Only show download dir here when previous downloaders aren't enabled — otherwise it lives in the YouTube or slskd section */}
-              <Collapse open={lidarrMigrateDownloads && (!dlServices.youtube || !dlServices.slskd)}>
+              <Collapse open={lidarrMigrateDownloads && (!isEnabled("youtube") && !slskdMigrateDownloads)}>
                 <div className="flex flex-col gap-4 pt-4 pb-1">
                    <p className="text-[12px] text-muted leading-relaxed">
                       <strong>Alternative:</strong> Create a dedicated Root Folder for Explo in Lidarr and define it above. Lidarr will handle organizing downloads itself, allowing you to leave "Move completed downloads" disabled.
@@ -694,7 +735,6 @@ export default function Wizard({
   const [saving, setSaving] = useState(false);
 
   const [fields, setFields] = useState(() => {
-    const s = (config.DOWNLOAD_SERVICES || "").split(",");
     return {
       // Step 1
       user: config.LISTENBRAINZ_USER || "",
@@ -718,11 +758,7 @@ export default function Wizard({
       // Step 3
       downloadDir: config.DOWNLOAD_DIR || "",
       useSubdirectory: config.USE_SUBDIRECTORY !== "false",
-      dlServices: {
-        youtube: s.includes("youtube"),
-        slskd: s.includes("slskd"),
-        lidarr: s.includes('lidarr')
-      },
+      dlServices: (config.DOWNLOAD_SERVICES || "").split(",").filter(Boolean),
       youtubeApiKey: config.YOUTUBE_API_KEY || "",
       trackExtension: config.TRACK_EXTENSION || "",
       filterList: config.FILTER_LIST || "",
@@ -806,14 +842,11 @@ export default function Wizard({
   async function handleStep3() {
     setSaving(true);
     try {
-      const services = Object.entries(fields.dlServices)
-        .filter(([, v]) => v)
-        .map(([k]) => k);
       await wizardStep3({
         download_dir: fields.downloadDir,
         use_subdirectory: fields.useSubdirectory,
         slskd_migrate_downloads: fields.slskdMigrateDownloads,
-        download_services: services,
+        download_services: rankDownloaders(fields.dlServices),
         youtube_api_key: fields.youtubeApiKey,
         track_extension: fields.trackExtension,
         filter_list: fields.filterList,

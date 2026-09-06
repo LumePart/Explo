@@ -38,7 +38,7 @@ func (cfg *Config) GetFlags() error {
 	flag.BoolVar(&refreshOnly, "refresh-only", false, "Trigger alibrary rescan and exit; skips discovery and downloads")
 	flag.BoolVar(&cleanDownloads, "clean-downloads", false, "Delete previously downloaded tracks before downloading new ones (requires USE_SUBDIRECTORY)")
 
-  flag.Parse()
+	flag.Parse()
 
 	if showVersion {
 		fmt.Println(Version)

@@ -127,7 +127,7 @@ func (c *Subsonic) AddLibrary() error {
 
 func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
-		searchQuery := fmt.Sprintf("%s %s", util.CleanSearchTitle(track.CleanTitle), track.MainArtist)
+		searchQuery := util.CleanSearchTitle(track.CleanTitle)
 		reqParam := fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(searchQuery))
 
 		body, err := c.subsonicRequest(reqParam)
@@ -145,7 +145,7 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 		if len(songs) == 0 {
 			if track.MusicBrainzTrackID != "" {
 				slog.Debug("[subsonic] using fallback MB TrackID search", "mbid", track.MusicBrainzTrackID)
-				reqParam := fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(track.MusicBrainzTrackID))
+				reqParam = fmt.Sprintf("search3?query=%s&f=json", url.QueryEscape(track.MusicBrainzTrackID))
 				body, err = c.subsonicRequest(reqParam)
 				if err != nil {
 					return err
@@ -159,37 +159,31 @@ func (c *Subsonic) SearchSongs(tracks []*models.Track) error {
 			}
 
 			if len(songs) == 0 {
-				slog.Debug(fmt.Sprintf("[subsonic] no results found for %s", searchQuery))
+				slog.Debug("no results returned for query", "query", searchQuery, "trackArtist", track.MainArtist, "trackAlbum", track.Album)
 				continue
 			}
 		}
-		normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
+		
+		searchData := make([]SearchResult, 0, len(songs))
 		for _, song := range songs {
-			normalizedSongTitle := util.NormalizeTitle(song.Title)
-
-			musicBrainzMatch := track.MusicBrainzTrackID != "" && song.MusicBrainzID == track.MusicBrainzTrackID
-			artistMatch := util.ContainsFold(song.Artist, track.MainArtist)
-			albumMatch := util.ContainsFold(song.Album, track.Album)
-			titleMatch := normalizedSongTitle == normalizedCleanTitle
-			durationMatch := util.Abs(song.Duration - (track.Duration / 1000)) < 10
-			pathMatch := util.ContainsFold(song.Path, track.File)
-
-			if musicBrainzMatch || (titleMatch && (albumMatch || artistMatch)) {
-				track.ID = song.ID
-				track.Present = true
-				break
-			}
-
-			if track.File != "" && durationMatch && pathMatch {
-				track.ID = song.ID
-				track.Present = true
-				break
-			}
+			searchData = append(searchData, SearchResult{
+				ID: song.ID,
+				Title: song.Title,
+				Album: song.Album,
+				Artist: song.Artist,
+				Path: song.Path,
+				Duration: song.Duration,
+				MBID: song.MusicBrainzID,
+			})
 		}
-
-		if !track.Present {
-			slog.Debug(fmt.Sprintf("[subsonic] no matching tracks for %s", searchQuery))
+		trackMatch, ok := BestMatch(track, searchData, c.Cfg.MatchScore)
+		if !ok {
+			slog.Debug("failed to find match, no results returned above threshold score", "threshold", c.Cfg.MatchScore, "searchQuery", searchQuery)
+			continue
 		}
+		track.ID = trackMatch.ID
+		track.Present = true
+		slog.Debug("matched track", "searchQuery", searchQuery, "matchScore", trackMatch.Score, "trackArtist", trackMatch.Artist, "trackAlbum", trackMatch.Album)
 	}
 	return nil
 }
@@ -218,24 +212,25 @@ func (c *Subsonic) startScan() error {
 }
 
 func (c *Subsonic) CheckRefreshState() bool {
+	time.Sleep(500 * time.Millisecond) // small sleep to avoid calling scan status too fast
 	var state ScanState
 	reqParam := "getScanStatus?f=json"
 
 	for {
 		body, err := c.subsonicRequest(reqParam)
 		if err != nil {
-			slog.Warn("could not check scan status", "err", err.Error())
+			slog.Warn("could not check scan status", "err", err)
 			return false
 		}
 		if err = json.Unmarshal(body, &state); err != nil {
-			slog.Warn("failed to unmarshal scan status response", "err", err.Error())
+			slog.Warn("failed to unmarshal scan status response", "err", err)
 			return false
 		}
 		if !state.SubsonicResponse.ScanStatus.Scanning {
 			return true
 		}
 		slog.Debug("Library scan still ongoing")
-		time.Sleep(30 * time.Second)
+		time.Sleep(15 * time.Second)
 	}
 }
 

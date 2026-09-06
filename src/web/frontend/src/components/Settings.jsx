@@ -320,7 +320,7 @@ function HomeSection() {
       onReplaceToggle: () => {
         const next = !(replacePlaylists[id] ?? true)
         setReplacePlaylists(prev => ({ ...prev, [id]: next }))
-        saveReplacePlaylist(id, next).catch(() =>
+        saveReplacePlaylist(id, s.name, next).catch(() =>
           setReplacePlaylists(prev => ({ ...prev, [id]: !next }))
         )
       },
@@ -384,7 +384,7 @@ function HomeSection() {
             playlist={openTracklist}
             refreshTick={refreshTick}
             onRun={async () => {
-              await startRun(openTracklist, 'normal')
+              await startRun(openTracklist, 'normal', replacePlaylists[playlist] ?? true)
               setRunning(true)
               setStatus('running…')
               setLogEntries([])

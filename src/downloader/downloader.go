@@ -252,8 +252,16 @@ func buildTrackPath(template string, track *models.Track) string {
 			value,
 		)
 	}
+	cleanPath := filepath.Clean(result)
+	file := filepath.Base(cleanPath)
+	if ext := filepath.Ext(file); ext == "" {
+		slog.Warn("path template does not have file extension ( {{ext}} ) appended, adding it automatically")
+		file +=filepath.Ext(track.File)
+		cleanPath = filepath.Join(filepath.Dir(cleanPath), file)
+	}
 
-	return filepath.Clean(result)
+	track.File = file
+	return cleanPath
 }
 
 func overwriteMetadata(metadata []string, srcFile string) error {
@@ -288,8 +296,6 @@ func moveTrack(srcFile, destDir string, track *models.Track, pathTemplate string
 	var dstFile string
     if pathTemplate != "" {
         relativePath := buildTrackPath(pathTemplate, track)
-        track.File = filepath.Base(relativePath)
-
         if track.File == "." || track.File == string(filepath.Separator) {
             track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(srcFile)
             relativePath = filepath.Join(filepath.Dir(relativePath), track.File)

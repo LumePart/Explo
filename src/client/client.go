@@ -7,12 +7,58 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
+	"strings"
 
 	"explo/src/config"
 	"explo/src/models"
 	"explo/src/util"
 )
+
+type SearchResult struct {
+	ID string
+	Title string
+	Album string
+	Artist string
+	Artists []string
+	Path string
+	Duration int // seconds
+	MBID string
+	Score int
+}
+
+// normalized track data for matching
+type NormalisedTrack struct {
+	CleanTitle string
+	MainArtist string
+	Album string
+	File string
+	Duration int
+	MBTrackID string
+	MBReleaseTrackID string
+}
+
+// Client manages interactions with the selected music system
+type Client struct {
+	System string
+	Cfg    *config.ClientConfig
+	API    APIClient
+}
+
+type APIClient interface {
+	GetLibrary() error
+	GetAuth() error
+	AddHeader() error
+	AddLibrary() error
+	SearchSongs([]*models.Track) error
+	RefreshLibrary() error
+	CheckRefreshState() bool
+	CreatePlaylist([]*models.Track) error
+	SearchPlaylist() error
+	UpdatePlaylist() error
+	DeletePlaylist() error
+}
 
 // uploadPlaylistArtwork POSTs raw image bytes to a music app's artwork endpoint.
 // Plex, Jellyfin, and Emby all accept the same format — POST + Content-Type: image/jpeg + raw body.
@@ -45,27 +91,6 @@ func uploadPlaylistArtwork(hc *util.HttpClient, endpoint, localPath string, head
 		return fmt.Errorf("upload artwork: status %d, body: %s", resp.StatusCode, string(body))
 	}
 	return nil
-}
-
-// Client manages interactions with the selected music system
-type Client struct {
-	System string
-	Cfg    *config.ClientConfig
-	API    APIClient
-}
-
-type APIClient interface {
-	GetLibrary() error
-	GetAuth() error
-	AddHeader() error
-	AddLibrary() error
-	SearchSongs([]*models.Track) error
-	RefreshLibrary() error
-	CheckRefreshState() bool
-	CreatePlaylist([]*models.Track) error
-	SearchPlaylist() error
-	UpdatePlaylist() error
-	DeletePlaylist() error
 }
 
 // ArtworkUploader is an optional capability for clients that support setting
@@ -226,4 +251,78 @@ func (c *Client) DeletePlaylist() error {
 		return fmt.Errorf("[%s] failed to delete playlist: %s", c.System, err.Error())
 	}
 	return nil
+}
+
+func BestMatch(track *models.Track, results []SearchResult, minScore int) (SearchResult, bool) {
+	bestScore := -1
+	var best SearchResult
+	nmTrack := NormalisedTrack{
+		CleanTitle: util.NormalizeTitle(track.CleanTitle),
+		MainArtist: track.MainArtist,
+		Album: track.Album,
+		File: filepath.Base(track.File),
+		Duration: track.Duration,
+		MBTrackID: track.MusicBrainzTrackID,
+		MBReleaseTrackID: track.MusicBrainzReleaseTrackID}
+
+	for _, r := range results {
+		score := rankResult(nmTrack, r)
+		if score > bestScore {
+			bestScore = score
+			best = r
+		}
+		if bestScore == definitiveMatchScore {
+			break
+		}
+	}
+	if bestScore < minScore {
+    	return SearchResult{}, false
+	}
+	best.Score = bestScore
+	return best, true
+}
+
+const definitiveMatchScore = 1000
+func rankResult(track NormalisedTrack, r SearchResult) int {
+	score := 0
+
+	resultTitle := util.NormalizeTitle(r.Title)
+
+	if (track.MBTrackID != "" && r.MBID == track.MBTrackID) || (track.MBReleaseTrackID != "" && r.MBID == track.MBReleaseTrackID) {
+		return definitiveMatchScore // definitive match
+	}
+	if track.CleanTitle == resultTitle {
+		score += 45
+	} else if len(track.CleanTitle) > 3 && (strings.Contains(resultTitle, track.CleanTitle) || strings.Contains(track.CleanTitle, resultTitle)) {
+		score += 25
+	}
+	if strings.EqualFold(track.Album, r.Album) {
+		score += 20
+	} else if util.ContainsFold(track.Album, r.Album) || util.ContainsFold(r.Album, track.Album) {
+		score += 15
+	}
+	if strings.EqualFold(track.MainArtist, r.Artist) || (len(r.Artists) > 0 && strings.EqualFold(r.Artists[0], track.MainArtist)) {
+		score += 30
+	} else if (util.ContainsFold(track.MainArtist, r.Artist) || util.ContainsFold(r.Artist, track.MainArtist)) || (len(r.Artists) > 0 && util.ContainsFold(r.Artists[0], track.MainArtist)) {
+		score += 15
+	}
+
+	resultFile := filepath.Base(r.Path)
+
+	if track.File != "" && strings.EqualFold(track.File, resultFile) {
+		score += 50
+	}
+	durationSet := track.Duration != 0 && r.Duration != 0
+	if durationSet {
+		durationDiff := util.Abs(r.Duration-track.Duration/1000)
+		switch {
+		case durationDiff < 3:
+			score += 10
+		case durationDiff < 10:
+			score += 5
+		case durationDiff > 30:
+			score -= 10
+		}
+}
+	return score
 }

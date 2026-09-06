@@ -18,7 +18,7 @@ type Monitor interface {
 
 type MonitorConfig struct {
 	CheckInterval   time.Duration
-	MonitorDuration time.Duration
+	StallDuration time.Duration
 	MaxDuration time.Duration
 	MigrateDownload bool
 	FromDir         string
@@ -118,7 +118,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				continue
 
 			} else if fileStatus.State == "Errored" ||
-				stallTime > monCfg.MonitorDuration ||
+				stallTime > monCfg.StallDuration ||
 				monitoredTime > monCfg.MaxDuration {
 
 				switch {
@@ -127,7 +127,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 						"service", monCfg.Service,
 						"title", track.CleanTitle,
 					)
-				case stallTime > monCfg.MonitorDuration:
+				case stallTime > monCfg.StallDuration:
 					slog.Info("[monitor] download stalled",
 						"service", monCfg.Service,
 						"title", track.CleanTitle,
