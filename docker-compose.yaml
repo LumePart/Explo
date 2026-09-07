@@ -11,7 +11,8 @@ services:
       - /path/to/.env:/opt/explo/.env
       - /path/to/explo/config:/opt/explo/config # required — stores playlist cache and cover art
       - /path/to/musiclibrary/explo:/data/ # has to be in the same path you have your music system pointed to (it's recommended to put explo under a subfolder)
-      # - /path/to/slskd/downloads:/slskd/ # if using slskd and MIGRATE_DOWNLOADS is set to true in .env
+      # - /path/to/slskd/downloads:/slskd/ # if using slskd and SLSKD_MIGRATE_DOWNLOADS is set to true in .env
+      # - /path/to/lidarr/downloads:/lidarr/ % if using lidarr and LIDARR_MIGRATE_DOWNLOADS is set to true
       # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD. Both paths should be as defined in .env (e.g /my/playlists/:/my/playlists/)
       
       # - /path/to/cookies.txt:/opt/explo/cookies.txt # Path to optional cookies file (for yt-dlp)
