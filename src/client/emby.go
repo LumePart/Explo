@@ -165,7 +165,7 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 				Artists: item.Artists,
 				Path: item.Path,
 				Duration: (item.RunTimeTicks / 10000000),
-				MBID: item.ProviderIds.MusicBrainzTrack,
+				MBID: mbID,
 			})
 		}
 		trackMatch, ok := BestMatch(track, searchData, c.Cfg.MatchScore)
