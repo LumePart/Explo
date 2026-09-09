@@ -22,7 +22,8 @@ type EmbyPaths []struct {
 }
 
 type EmbyProviderIds struct {
-	MusicBrainzTrack        string `json:"MusicBrainzTrack"`
+	MusicBrainzTrack     string `json:"MusicBrainzTrack"`
+	MusicBrainzRecording string `json:"MusicBrainzRecording"`
 }
 
 type EmbyItemSearch struct {
@@ -152,7 +153,10 @@ func (c *Emby) SearchSongs(tracks []*models.Track) error {
 
 		searchData := make([]SearchResult, 0, len(results.Items))
 		for _, item := range results.Items {
-
+			mbID := item.ProviderIds.MusicBrainzRecording
+			if mbID == "" {
+				mbID = item.ProviderIds.MusicBrainzTrack
+			}
 			searchData = append(searchData, SearchResult{
 				ID: item.ID,
 				Title: item.Name,

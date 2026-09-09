@@ -41,7 +41,8 @@ type Audios struct {
 }
 
 type ProviderIds struct {
-	MusicBrainzTrack        string `json:"MusicBrainzTrack"`
+	MusicBrainzTrack     string `json:"MusicBrainzTrack"`
+	MusicBrainzRecording string `json:"MusicBrainzRecording"`
 }
 
 type Items struct {
@@ -170,6 +171,10 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 
 		searchData := make([]SearchResult, 0, len(results.Items))
 		for _, item := range results.Items {
+			mbID := item.ProviderIds.MusicBrainzRecording
+			if mbID == "" {
+				mbID = item.ProviderIds.MusicBrainzTrack
+			}
 			searchData = append(searchData, SearchResult{
 				ID: item.ID,
 				Title: item.Name,
@@ -178,7 +183,7 @@ func (c *Jellyfin) SearchSongs(tracks []*models.Track) error {
 				Artists: item.Artists,
 				Path: item.Path,
 				Duration: (item.RunTimeTicks / 10000000),
-				MBID: item.ProviderIds.MusicBrainzTrack,
+				MBID: mbID,
 			})
 		}
 		trackMatch, ok := BestMatch(track, searchData, c.Cfg.MatchScore)
