@@ -235,9 +235,14 @@ func saveVideo(c Youtube, track *models.Track, stream *goutubedl.DownloadResult)
 	outputPath := filepath.Join(c.DownloadDir, track.File)
 
 	if c.Cfg.PathTemplate != "" {
+		relativePath, err := buildTrackPath(c.Cfg.PathTemplate, track) 
+		if err != nil {
+			slog.Error("invalid path template", "err", err)
+			return false
+		}
 			outputPath = filepath.Join(
 				c.DownloadDir,
-				buildTrackPath(c.Cfg.PathTemplate, track),
+				relativePath,
 			)
 	}
 

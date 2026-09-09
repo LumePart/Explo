@@ -215,22 +215,31 @@ func containsLower(str string, substr string) bool {
 }
 
 func sanitize(s string) string {
-	replacer := strings.NewReplacer(
-		"/", "-",
-		"\\", "-",
-		":", "-",
-		"*", "",
-		"?", "",
-		"\"", "",
-		"<", "",
-		">", "",
-		"|", "",
-	)
+	s = strings.TrimSpace(s)
 
-	return strings.TrimSpace(replacer.Replace(s))
+    replacer := strings.NewReplacer(
+        "/", "-",
+        "\\", "-",
+        ":", "-",
+        "*", "",
+        "?", "",
+        "\"", "",
+        "<", "",
+        ">", "",
+        "|", "",
+    )
+
+    s = replacer.Replace(s)
+
+    switch s {
+    case ".", "..", ". .", "":
+        return "_"
+    }
+
+    return s
 }
 
-func buildTrackPath(template string, track *models.Track) string {
+func buildTrackPath(template string, track *models.Track) (string, error) {
 	replacements := map[string]string{
 		"Artist":		sanitize(track.MainArtist),
 		"Album":		sanitize(track.Album),
@@ -253,15 +262,20 @@ func buildTrackPath(template string, track *models.Track) string {
 		)
 	}
 	cleanPath := filepath.Clean(result)
+
+	if !filepath.IsLocal(cleanPath) {
+        return "", fmt.Errorf("path template resolves to a non-local path: %s", cleanPath)
+    }
+
 	file := filepath.Base(cleanPath)
 	if ext := filepath.Ext(file); ext == "" {
 		slog.Warn("path template does not have file extension ( {{ext}} ) appended, adding it automatically")
-		file +=filepath.Ext(track.File)
+		file += filepath.Ext(track.File)
 		cleanPath = filepath.Join(filepath.Dir(cleanPath), file)
 	}
 
 	track.File = file
-	return cleanPath
+	return cleanPath, nil
 }
 
 func overwriteMetadata(metadata []string, srcFile string) error {
@@ -295,7 +309,11 @@ func tempAudioFile(path string) string {
 func moveTrack(srcFile, destDir string, track *models.Track, pathTemplate string, keepPerms bool) error {
 	var dstFile string
     if pathTemplate != "" {
-        relativePath := buildTrackPath(pathTemplate, track)
+        relativePath, err := buildTrackPath(pathTemplate, track)
+		if err != nil {
+			return err
+		}
+
         if track.File == "." || track.File == string(filepath.Separator) {
             track.File = getFilename(track.CleanTitle, track.MainArtist) + filepath.Ext(srcFile)
             relativePath = filepath.Join(filepath.Dir(relativePath), track.File)
