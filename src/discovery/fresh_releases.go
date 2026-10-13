@@ -13,10 +13,7 @@ import (
 	"explo/src/util"
 )
 
-const (
-	freshArtistCount = 100
-	mbMinInterval    = 1500 * time.Millisecond
-)
+const mbMinInterval = 1500 * time.Millisecond
 
 type freshReleasesResp struct {
 	Payload struct {
@@ -34,15 +31,6 @@ type freshRelease struct {
 	ReleaseMbid             string   `json:"release_mbid"`
 	ReleaseName             string   `json:"release_name"`
 	Confidence              float64  `json:"confidence"`
-}
-
-type topArtistsResp struct {
-	Payload struct {
-		Artists []struct {
-			ArtistMbid string `json:"artist_mbid"`
-			ArtistName string `json:"artist_name"`
-		} `json:"artists"`
-	} `json:"payload"`
 }
 
 type mbRelease struct {
@@ -70,11 +58,16 @@ type mbRelease struct {
 }
 
 // FetchFreshReleaseTracks loads Fresh Releases tracks for UI prefetch.
-func FetchFreshReleaseTracks(httpClient *util.HttpClient, config cfg.Listenbrainz) ([]*models.Track, error) {
+func FetchFreshReleaseTracks(httpClient *util.HttpClient, user string) ([]*models.Track, error) {
 	return (&ListenBrainz{
 		HttpClient: httpClient,
-		cfg:        config,
-	}).getFreshReleaseTracks(config.User)
+		cfg: cfg.Listenbrainz{
+			User:              user,
+			CoverArtSize:      "250",
+			FreshReleaseDays:  30,
+			FreshReleaseLimit: 8,
+		},
+	}).getFreshReleaseTracks(user)
 }
 
 func (c *ListenBrainz) getFreshReleaseTracks(user string) ([]*models.Track, error) {
@@ -110,13 +103,7 @@ func (c *ListenBrainz) resolveFreshReleases(user string) ([]freshRelease, error)
 		"user/%s/fresh_releases?days=%d&past=true&future=false&sort=confidence",
 		url.PathEscape(user), c.cfg.FreshReleaseDays,
 	)
-	if releases, err := c.fetchFreshReleases(path); err != nil {
-		slog.Debug("fresh-releases: personalized unavailable", "err", err)
-	} else if picked := pickFreshReleases(releases, c.cfg.FreshReleaseLimit); len(picked) > 0 {
-		return picked, nil
-	}
-
-	releases, err := c.fetchMatchedFreshReleases(user)
+	releases, err := c.fetchFreshReleases(path)
 	if err != nil {
 		return nil, err
 	}
@@ -133,64 +120,6 @@ func (c *ListenBrainz) fetchFreshReleases(path string) ([]freshRelease, error) {
 		return nil, err
 	}
 	return resp.Payload.Releases, nil
-}
-
-func (c *ListenBrainz) fetchMatchedFreshReleases(user string) ([]freshRelease, error) {
-	body, err := c.lbRequest(fmt.Sprintf(
-		"stats/user/%s/artists?range=year&count=%d",
-		url.PathEscape(user), freshArtistCount,
-	))
-	if err != nil {
-		return nil, fmt.Errorf("top artists: %w", err)
-	}
-	var artists topArtistsResp
-	if err := util.ParseResp(body, &artists); err != nil {
-		return nil, err
-	}
-	if len(artists.Payload.Artists) == 0 {
-		return nil, fmt.Errorf("no artist stats for %s", user)
-	}
-
-	mbids := map[string]struct{}{}
-	names := map[string]struct{}{}
-	for _, a := range artists.Payload.Artists {
-		if a.ArtistMbid != "" {
-			mbids[a.ArtistMbid] = struct{}{}
-		}
-		if a.ArtistName != "" {
-			names[normalizeName(a.ArtistName)] = struct{}{}
-		}
-	}
-
-	releases, err := c.fetchFreshReleases(fmt.Sprintf(
-		"explore/fresh-releases/?days=%d&past=true&future=false&sort=release_date",
-		c.cfg.FreshReleaseDays,
-	))
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]freshRelease, 0)
-	for _, rel := range releases {
-		if matchesArtists(rel, mbids, names) {
-			out = append(out, rel)
-		}
-	}
-	return out, nil
-}
-
-func matchesArtists(rel freshRelease, mbids, names map[string]struct{}) bool {
-	for _, id := range rel.ArtistMbids {
-		if _, ok := mbids[id]; ok {
-			return true
-		}
-	}
-	_, ok := names[normalizeName(rel.ArtistCreditName)]
-	return ok
-}
-
-func normalizeName(name string) string {
-	return strings.ToLower(strings.TrimSpace(name))
 }
 
 func pickFreshReleases(in []freshRelease, limit int) []freshRelease {
