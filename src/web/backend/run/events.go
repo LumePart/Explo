@@ -1,13 +1,15 @@
 package run
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
-	"io"
-	"path/filepath"
-	"bufio"
 	"os/exec"
+	"path/filepath"
+
+	"explo/src/logging"
 )
 
 
@@ -90,7 +92,7 @@ func (mr *ManualRun) InitServerLog() {
 		return
 	}
 	w := io.MultiWriter(os.Stderr, lf)
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
+	slog.SetDefault(slog.New(logging.NewTextHandler(w, nil)))
 }
 
 // openRunLog opens the single rolling log file in append mode.

@@ -331,13 +331,12 @@ func (s *spotifySession) fetchAccessToken() error {
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("token endpoint request failed")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, string(b))
+		return fmt.Errorf("token endpoint returned %d", resp.StatusCode)
 	}
 
 	var tok struct {
@@ -391,8 +390,7 @@ func (s *spotifySession) fetchClientToken() error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("client token endpoint returned %d: %s", resp.StatusCode, string(b))
+		return fmt.Errorf("client token endpoint returned %d", resp.StatusCode)
 	}
 
 	var result struct {
@@ -661,8 +659,7 @@ func queryPartnerAPI(playlistID string, offset, limit int) (*partnerPlaylistResp
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("partner API returned %d: %s", resp.StatusCode, string(b))
+		return nil, fmt.Errorf("partner API returned %d", resp.StatusCode)
 	}
 
 	var result partnerPlaylistResp
