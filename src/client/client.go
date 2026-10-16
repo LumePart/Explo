@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -70,7 +69,7 @@ func uploadPlaylistArtwork(hc *util.HttpClient, endpoint, localPath string, head
 	}
 	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(data))
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
+		return fmt.Errorf("build artwork upload request")
 	}
 	req.Header.Set("Content-Type", "image/jpeg")
 	req.ContentLength = int64(len(data))
@@ -79,7 +78,7 @@ func uploadPlaylistArtwork(hc *util.HttpClient, endpoint, localPath string, head
 	}
 	resp, err := hc.Client.Do(req)
 	if err != nil {
-		return fmt.Errorf("post: %w", err)
+		return fmt.Errorf("artwork upload request failed")
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
@@ -87,8 +86,7 @@ func uploadPlaylistArtwork(hc *util.HttpClient, endpoint, localPath string, head
 		}
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("upload artwork: status %d, body: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("upload artwork: status %d", resp.StatusCode)
 	}
 	return nil
 }
