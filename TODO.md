@@ -24,11 +24,11 @@ Status values: `open` · `in-progress` · `blocked` · `done` · `wontfix`
 | Data loss and corruption | 3 | 0 | 3 |
 | Security | 2 | 0 | 2 |
 | Playlists broken or wrong | 7 | 0 | 7 |
-| Hangs and resource leaks | 4 | 0 | 4 |
+| Hangs and resource leaks | 4 | 1 | 3 |
 | Wrong songs and metadata | 4 | 0 | 4 |
 | Web UI and settings screens | 4 | 0 | 4 |
 | Scheduling | 2 | 0 | 2 |
-| **Total** | **31** | **0** | **31** |
+| **Total** | **31** | **1** | **30** |
 
 Update this table whenever an issue changes status.
 
@@ -180,13 +180,13 @@ Update this table whenever an issue changes status.
 
 ## Hangs and resource leaks
 
-- [ ] **BUG-18 — A trickling download hangs the run forever** · Severity: Medium
+- [x] **BUG-18 — A trickling download hangs the run forever** · Severity: Medium
   - Location: `src/downloader/monitor.go:161` (deadline check at `:167`)
   - User impact: One very slow download can hang the whole run forever instead of timing out.
   - Detail: The progress branch `continue`s before the `MaxDuration` check, so any download that moves at least a byte per poll never times out.
   - Fix direction: Check the deadline before the progress `continue`, on every poll.
-  - Status: open · PR/commit: — · Verification: —
-  - Handoff: —
+  - Status: done · PR/commit: branch `feat/download-provider-fallback` (this commit) · Verification: `go vet ./...` clean; `go test ./src/downloader/ -run TestMonitorDownloads` passes including `-race`; new regression tests `TestMonitorDownloads_TricklingTrackHitsMaxDuration`, `TestMonitorDownloads_FallbackAfterAbandonsUnresolvedTracks`, `TestMonitorDownloads_FallbackAfterZeroWaitsForCompletion`. Full downloader package still fails only on pre-existing sandbox `httptest: bind: operation not permitted` (confirmed identical on untouched `dev`).
+  - Handoff: Fixed together with the provider-fallback port: the progress branch no longer bypasses `MaxDuration`, and the new `SLSKD_FALLBACK_AFTER`/`LIDARR_FALLBACK_AFTER` whole-provider budget (default 0 = disabled) abandons unresolved tracks (with `Cleanup`) so the next `DOWNLOAD_SERVICES` provider gets a turn. `dfaaedb`'s separate `SLSKD_MONITOR_MAX_RUNTIME` knob was not ported — its intent is now covered by the fixed `MaxDuration` plus `FallbackAfter`, avoiding two near-identical caps.
 
 - [ ] **BUG-19 — One long log line wedges all future runs** · Severity: Medium
   - Location: `src/web/backend/run/events.go:48` (wait at `:65`)
@@ -307,3 +307,4 @@ Record one line per working session so progress survives across sessions.
 | Date | Session / author | Issues touched | Outcome / handoff |
 |---|---|---|---|
 | 2026-10-19 | Bug review | BUG-01 – BUG-31 created | Tracker created; all items open and unverified for fixes. |
+| 2026-10-19 | Provider fallback port | BUG-18 done | Ported `FallbackAfter` from stale `b7122e3` onto `dev` (branch `feat/download-provider-fallback`) and fixed BUG-18 deadline bypass. `feat/lidarr`/`feat/provider-fallback` remote branches still pending deletion. |
