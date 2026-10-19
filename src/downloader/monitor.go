@@ -136,6 +136,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 
 			stallTime := currentTime.Sub(tracker.LastUpdated)
 			monitoredTime := currentTime.Sub(tracker.StartedAt)
+			expired := monCfg.MaxDuration > 0 && monitoredTime > monCfg.MaxDuration
 
 			if (fileStatus.BytesRemaining == 0 && fileStatus.BytesTransferred != 0) || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {		
 				track.File = fileStatus.Filename
@@ -165,7 +166,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 				}
 				continue
 
-			} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred && !(monCfg.MaxDuration > 0 && monitoredTime > monCfg.MaxDuration) {
+			} else if fileStatus.BytesTransferred > tracker.LastBytesTransferred && !expired {
 				tracker.LastBytesTransferred = fileStatus.BytesTransferred
 				tracker.LastUpdated = currentTime
 				slog.Info("[monitor] progress updated", "service", monCfg.Service, "title", track.CleanTitle, "bytes transferred", fileStatus.BytesTransferred)
@@ -173,7 +174,7 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 
 			} else if fileStatus.State == "Errored" ||
 				stallTime > monCfg.StallDuration ||
-				(monCfg.MaxDuration > 0 && monitoredTime > monCfg.MaxDuration) {
+				expired {
 
 				switch {
 				case fileStatus.State == "Errored":
