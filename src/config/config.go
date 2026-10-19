@@ -187,6 +187,9 @@ type SlskdMon struct {
 	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"` // in minutes
 	StallDuration int `env:"SLSKD_STALL_DURATION" env-default:"15"` // in minutes
 	MaxDuration int `env:"SLSKD_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
+	// Give up on this provider entirely after this long and let the next
+	// service in DOWNLOAD_SERVICES try the remaining tracks. 0 disables.
+	FallbackAfter int `env:"SLSKD_FALLBACK_AFTER" env-default:"0"` // in minutes
 }
 
 type Lidarr struct {
@@ -207,6 +210,9 @@ type LidarrMon struct {
 	Interval int `env:"LIDARR_MONITOR_INTERVAL" env-default:"1"` // in minutes
 	StallDuration int `env:"LIDARR_STALL_DURATION" env-default:"20"` // in minutes
 	MaxDuration int `env:"LIDARR_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
+	// Give up on this provider entirely after this long and let the next
+	// service in DOWNLOAD_SERVICES try the remaining tracks. 0 disables.
+	FallbackAfter int `env:"LIDARR_FALLBACK_AFTER" env-default:"0"` // in minutes
 }
 
 type DiscoveryConfig struct {
