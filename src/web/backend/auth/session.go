@@ -13,7 +13,7 @@ import (
 
 type Session struct {
 	createdAt      time.Time
-	mu             sync.Mutex
+	mu             sync.RWMutex
 	id             string
 	data           map[string]any
 }
@@ -71,9 +71,9 @@ func (m *SessionManager) gc(d time.Duration) {
 
 func (m *SessionManager) validate(session *Session) bool {
 	if time.Since(session.createdAt) > m.absoluteExpiration {
-        
+
         // Delete the session from the store
-		err := m.store.destroy(session.id)
+		err := m.store.destroy(session.ID())
 		if err != nil {
 			panic(err)
 		}
@@ -113,16 +113,16 @@ func (m *SessionManager) start(r *http.Request) (*Session, *http.Request) {
 
 func (m *SessionManager) Migrate(session *Session) error {
 	session.mu.Lock()
-	defer session.mu.Unlock()
+	oldID := session.id
+	session.id = generateToken()
+	newID := session.id
+	session.mu.Unlock()
 
-	err := m.store.destroy(session.id)
-	if err != nil {
+	if err := m.store.destroy(oldID); err != nil {
 		return err
 	}
 
-	session.id = generateToken()
-
-	return m.store.write(session)
+	return m.store.writeWithID(session, newID)
 }
 
 
@@ -138,15 +138,31 @@ func generateToken() string {
 	return base64.RawURLEncoding.EncodeToString(id)
 }
 
+func (s *Session) ID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.id
+}
+
 func (s *Session) Get(key string) any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	return s.data[key]
 }
 
 func (s *Session) Put(key string, value any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.data[key] = value
 }
 
 func (s *Session) Delete(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	delete(s.data, key)
 }
 
