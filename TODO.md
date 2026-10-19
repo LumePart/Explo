@@ -307,4 +307,4 @@ Record one line per working session so progress survives across sessions.
 | Date | Session / author | Issues touched | Outcome / handoff |
 |---|---|---|---|
 | 2026-10-19 | Bug review | BUG-01 – BUG-31 created | Tracker created; all items open and unverified for fixes. |
-| 2026-10-19 | Provider fallback port | BUG-18 done | Ported `FallbackAfter` from stale `b7122e3` onto `dev` (branch `feat/download-provider-fallback`) and fixed BUG-18 deadline bypass. `feat/lidarr`/`feat/provider-fallback` remote branches still pending deletion. |
+| 2026-10-19 | Provider fallback port | BUG-18 done | Ported `FallbackAfter` from stale `b7122e3` onto `dev` (branch `feat/download-provider-fallback`, PR #25) and fixed BUG-18 deadline bypass. `feat/lidarr`/`feat/provider-fallback` remote branches deleted after the port landed on the new branch. |
