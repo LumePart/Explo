@@ -99,6 +99,36 @@ func TestJellyfinDeletePlaylist_DeletesTheFoundPlaylist(t *testing.T) {
 	}
 }
 
+// Emby used to delete nothing and report success, so "replace playlist"
+// left the old playlist in place and created a duplicate.
+func TestEmbyDeletePlaylist_DeletesTheFoundPlaylist(t *testing.T) {
+	var paths []string
+	server := recordingServer(t, &paths)
+
+	emby := NewEmby(testConfig(server.URL, "abc"), util.NewHttp(util.HttpClientConfig{Timeout: 5}))
+
+	if err := emby.DeletePlaylist(); err != nil {
+		t.Fatalf("DeletePlaylist() = %v, want nil", err)
+	}
+	if len(paths) != 1 || paths[0] != "/emby/Items/abc" {
+		t.Errorf("requested %v, want a single DELETE of /emby/Items/abc", paths)
+	}
+}
+
+func TestEmbyDeletePlaylist_SendsNothingWithoutAnID(t *testing.T) {
+	var paths []string
+	server := recordingServer(t, &paths)
+
+	emby := NewEmby(testConfig(server.URL, ""), util.NewHttp(util.HttpClientConfig{Timeout: 5}))
+
+	if err := emby.DeletePlaylist(); err != nil {
+		t.Errorf("DeletePlaylist() = %v, want nil when there is no playlist", err)
+	}
+	if len(paths) != 0 {
+		t.Errorf("requested %v, want no request at all", paths)
+	}
+}
+
 // Subsonic would send deletePlaylist with an empty id.
 func TestSubsonicDeletePlaylist_SendsNothingWithoutAnID(t *testing.T) {
 	var paths []string

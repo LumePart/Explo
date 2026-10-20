@@ -238,12 +238,22 @@ func (c *Emby) UpdatePlaylist() error {
 	return nil
 }
 
-func (c *Emby) DeletePlaylist() error { // Doesn't currently work due to a bug in Emby
-	/* reqParam := fmt.Sprintf("/emby/Items/Delete?Ids=%s", c.Cfg.PlaylistID)
+func (c *Emby) DeletePlaylist() error {
+	// Without an ID this would address the collection rather than one
+	// playlist (see the Jellyfin guard).
+	if c.Cfg.PlaylistID == "" {
+		slog.Debug("no emby playlist to delete", "playlist", c.Cfg.PlaylistName)
+		return nil
+	}
 
-	if _, err := util.MakeRequest("POST", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
-		return err
-	} */
+	// This used to be a no-op returning nil, so callers that
+	// delete-then-create for "replace playlist" believed the old playlist
+	// was gone and silently piled up duplicates.
+	reqParam := fmt.Sprintf("/emby/Items/%s", c.Cfg.PlaylistID)
+
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+reqParam, nil, c.Cfg.Creds.Headers); err != nil {
+		return fmt.Errorf("deleteEmbyPlaylist(): %s", err.Error())
+	}
 	return nil
 }
 
