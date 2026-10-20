@@ -10,6 +10,18 @@ import (
 	"github.com/go-co-op/gocron/v2"
 )
 
+// dueForRefresh reports whether a playlist whose data was last fetched
+// at lastFetched is due again under a refreshDays cadence. A zero or
+// negative cadence refreshes on every tick; the cron schedule itself
+// sets the tick rate, so a weekly list is refreshed by its daily job
+// exactly when seven days have passed since the last fetch.
+func dueForRefresh(lastFetched time.Time, refreshDays int, now time.Time) bool {
+	if refreshDays <= 0 {
+		return true
+	}
+	return !now.Before(lastFetched.Add(time.Duration(refreshDays) * 24 * time.Hour))
+}
+
 // RegisterCustomPlaylistRefresh registers a cache-refresh job for each custom playlist
 // using its stored schedule. Falls back to daily at 4 AM if no schedule is set.
 func (p *Playlist) RegisterCustomPlaylistRefresh(j *jobs.Jobs) error {
@@ -42,7 +54,15 @@ func (p *Playlist) RegisterCustomPlaylistRefresh(j *jobs.Jobs) error {
 		_, err := j.Scheduler.NewJob(
 			gocron.CronJob(schedule, false),
 			gocron.NewTask(func() {
-				if time.Since(plist.LastFetched) < time.Duration(plist.RefreshDays)*24*time.Hour {
+				// Reload the current state before gating: plist is the
+				// copy captured at registration, so gating on its
+				// LastFetched refreshed every run once the playlist was
+				// past its interval (daily refresh of a weekly list).
+				lastFetched := plist.LastFetched
+				if fresh := GetCustomPlaylist(p.cfg.WebDataDir, plist.ID); fresh != nil {
+					lastFetched = fresh.LastFetched
+				}
+				if !dueForRefresh(lastFetched, plist.RefreshDays, time.Now()) {
 					return
 				}
 				slog.Info("custom-playlists: refreshing", "id", plist.ID, "name", plist.Name, "source", plist.Source)
