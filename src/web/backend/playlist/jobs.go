@@ -52,14 +52,15 @@ func (p *Playlist) RegisterCustomPlaylistRefresh(j *jobs.Jobs) error {
 					return
 				}
 				writePrefetchCache(p.cfg.WebDataDir, plist.ID, result.Tracks)
-				playlists := loadCustomPlaylists(p.cfg.WebDataDir)
-				for i, pl := range playlists {
-					if pl.ID == plist.ID {
-						playlists[i].LastFetched = time.Now().UTC()
-						break
+				if err := updateCustomPlaylists(p.cfg.WebDataDir, func(playlists []CustomPlaylist) ([]CustomPlaylist, error) {
+					for i, pl := range playlists {
+						if pl.ID == plist.ID {
+							playlists[i].LastFetched = time.Now().UTC()
+							break
+						}
 					}
-				}
-				if err := saveCustomPlaylists(p.cfg.WebDataDir, playlists); err != nil {
+					return playlists, nil
+				}); err != nil {
 					slog.Error("custom-playlists: failed to save after refresh", "err", err)
 				}
 			}),
