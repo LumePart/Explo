@@ -93,8 +93,8 @@ func (mr *ManualRun) startRun(args []string) error {
 			slog.Warn("failed to close file writer", "err", err.Error())
 		}
 		if lf != nil {
-			if err := pw.Close(); err != nil {
-				slog.Warn("failed to close file writer", "err", err.Error())
+			if err := lf.Close(); err != nil {
+				slog.Warn("failed to close run log", "err", err.Error())
 			}
 		}
 		return errRunAlreadyStarted
