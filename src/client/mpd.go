@@ -64,10 +64,17 @@ func (c *MPD) CheckRefreshState() bool {
 }
 
 func (c *MPD) CreatePlaylist(tracks []*models.Track) error {
-	f, err := os.OpenFile(c.Cfg.PlaylistDir+c.Cfg.PlaylistName+".m3u", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	// O_APPEND doubled the playlist on every re-run and the handle was
+	// never closed. Start fresh each time like the other clients.
+	f, err := os.OpenFile(c.Cfg.PlaylistDir+c.Cfg.PlaylistName+".m3u", os.O_TRUNC|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("failed to close playlist file", "err", err.Error())
+		}
+	}()
 
 	for _, track := range tracks {
 		if track.Present {
