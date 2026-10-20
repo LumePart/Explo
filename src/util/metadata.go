@@ -42,15 +42,18 @@ func Abs(x int) int {
 	return x
 }
 
+// An empty key produces a "=value" ffmpeg metadata entry, which fails
+// tagging or writes garbled tags depending on the container (BUG-24):
+// tag sets leave fields empty for formats that have no name for them.
 func addStringTag(metadata []string, key string, value string) []string {
-	if value != "" {
+	if key != "" && value != "" {
 		metadata = append(metadata, key+"="+value)
 	}
 	return metadata
 }
 
 func addIntTag(metadata []string, key string, value int) []string {
-	if value != 0 {
+	if key != "" && value != 0 {
 		metadata = append(metadata, fmt.Sprintf("%s=%d", key, value))
 	}
 	return metadata
