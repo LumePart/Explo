@@ -32,7 +32,7 @@ func TestFinishRun_WritesRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading records: %v", err)
 	}
-	records := mr.readRunRecords()
+	records := mr.ReadRunRecords()
 	if len(records) != 1 {
 		t.Fatalf("records = %d, want 1\n%s", len(records), data)
 	}

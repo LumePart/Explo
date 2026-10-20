@@ -33,10 +33,10 @@ type manualRunState struct {
 	runStarted  time.Time
 }
 
-// runRecord is one finished run for the diagnostics history: enough to
+// RunRecord is one finished run for the diagnostics history: enough to
 // answer "what ran, did it work, and what failed first" without
 // re-reading the whole log.
-type runRecord struct {
+type RunRecord struct {
 	StartedAt time.Time `json:"started_at"`
 	EndedAt   time.Time `json:"ended_at"`
 	Playlist  string    `json:"playlist,omitempty"`
@@ -156,6 +156,11 @@ func (mr *ManualRun) startRun(args []string) error {
 }
 
 func (mr *ManualRun) currentRunStatus() RunStatus {
+	return mr.CurrentStatus()
+}
+
+// CurrentStatus reports the live run state for diagnostics consumers.
+func (mr *ManualRun) CurrentStatus() RunStatus {
 	mr.state.mu.Lock()
 	defer mr.state.mu.Unlock()
 
@@ -174,7 +179,7 @@ func (mr *ManualRun) finishRun(code int) {
 	mr.state.running = false
 	mr.state.cancel = nil
 	mr.state.exitCode = &code
-	record := runRecord{
+	record := RunRecord{
 		StartedAt: mr.state.runStarted,
 		EndedAt:   time.Now(),
 		Playlist:  mr.state.runPlaylist,
@@ -233,7 +238,7 @@ func (mr *ManualRun) runRecordsPath() string {
 
 // appendRunRecord stores one record, pruning the file to the newest
 // maxRunRecords entries so the history cannot grow without bound.
-func (mr *ManualRun) appendRunRecord(record runRecord) error {
+func (mr *ManualRun) appendRunRecord(record RunRecord) error {
 	if record.StartedAt.IsZero() {
 		return nil
 	}
@@ -253,11 +258,11 @@ func (mr *ManualRun) appendRunRecord(record runRecord) error {
 	return writeFileAtomic(p, []byte(strings.Join(lines, "")))
 }
 
-// readRunRecords returns the stored history, newest last.
-func (mr *ManualRun) readRunRecords() []runRecord {
-	var out []runRecord
+// ReadRunRecords returns the stored history, newest last.
+func (mr *ManualRun) ReadRunRecords() []RunRecord {
+	var out []RunRecord
 	for _, line := range readRecordLines(mr.runRecordsPath()) {
-		var r runRecord
+		var r RunRecord
 		if err := json.Unmarshal([]byte(line), &r); err != nil {
 			continue
 		}

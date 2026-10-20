@@ -36,6 +36,8 @@ type Server struct {
 	cronJobs       *jobs.Jobs
 	manualRun      *run.ManualRun
 	customPlaylist *playlist.Playlist
+	apiTokens      *auth.APITokens
+	startedAt      time.Time
 }
 
 func NewServer(cfg config.ServerConfig) *Server {
@@ -85,6 +87,8 @@ func NewServer(cfg config.ServerConfig) *Server {
 		cronJobs:       cronJobs,
 		manualRun:      manualRun,
 		customPlaylist: playlist,
+		apiTokens:      auth.NewAPITokens(auth.DefaultTokenPath(webCfg.WebDataDir)),
+		startedAt:      time.Now(),
 	}
 
 	s.registerRoutes()
