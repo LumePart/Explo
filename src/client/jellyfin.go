@@ -239,14 +239,10 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 
 
 	queryParams := "/Playlists"
-	payload := fmt.Appendf(nil, `
-		{
-		"Name": "%s",
-		"Ids": %s,
-		"MediaType": "Audio",
-		"UserId": "%s",
-		"IsPublic": %t
-		}`, c.Cfg.PlaylistName, songs, userID, isPublic)
+	payload, err := jfCreatePlaylistBody(c.Cfg.PlaylistName, songs, userID, isPublic)
+	if err != nil {
+		return fmt.Errorf("failed to marshal playlist body: %s", err.Error())
+	}
 
 	body, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewReader(payload), c.Cfg.Creds.Headers)
 	if err != nil {
@@ -260,22 +256,42 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	return nil
 }
 
+// Playlist names and descriptions are user input: quoting a quote,
+// backslash or newline into fmt-built JSON produced invalid bodies and
+// the server answered 400 (BUG-15). Marshal instead.
+func jfCreatePlaylistBody(name string, songs json.RawMessage, userID string, isPublic bool) ([]byte, error) {
+	return json.Marshal(struct {
+		Name      string          `json:"Name"`
+		IDs       json.RawMessage `json:"Ids"`
+		MediaType string          `json:"MediaType"`
+		UserID    string          `json:"UserId"`
+		IsPublic  bool            `json:"IsPublic"`
+	}{name, songs, "Audio", userID, isPublic})
+}
+
+func jfUpdatePlaylistBody(id, name, overview string, isPublic bool) ([]byte, error) {
+	return json.Marshal(struct {
+		ID          string            `json:"Id"`
+		Name        string            `json:"Name"`
+		Overview    string            `json:"Overview"`
+		IsPublic    bool              `json:"IsPublic"`
+		Genres      []string          `json:"Genres"`
+		Tags        []string          `json:"Tags"`
+		ProviderIDs map[string]string `json:"ProviderIds"`
+	}{id, name, overview, isPublic, []string{}, []string{}, map[string]string{}})
+}
+
 func (c *Jellyfin) UpdatePlaylist() error {
 	isPublic := c.Cfg.PublicPlaylist
 	if c.Cfg.Creds.User == "" {
 		isPublic = true
 	}
 	queryParams := fmt.Sprintf("/Items/%s", c.Cfg.PlaylistID)
-	payload := fmt.Appendf(nil, `
-		{
-		"Id":"%s",
-		"Name":"%s",
-		"Overview":"%s",
-		"IsPublic":%t,
-		"Genres":[],
-		"Tags":[],
-		"ProviderIds":{}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr, isPublic) // the additional fields have to be added, otherwise JF returns code 400
+	// the additional fields have to be added, otherwise JF returns code 400
+	payload, err := jfUpdatePlaylistBody(c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr, isPublic)
+	if err != nil {
+		return fmt.Errorf("failed to marshal playlist body: %s", err.Error())
+	}
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+queryParams, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
