@@ -356,46 +356,57 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 
 	tracks := make([]*models.Track, 0, len(recordings))
 	for mbTrackID, recording := range recordings {
-		rec := recording.Recording
-		rel := recording.Release
-
-		title := rec.Name
-		artist := recording.Artist.Name
-		mainArtist := recording.Artist.Name
-
-		recArtists := recording.Artist.Artists
-
-		if len(recArtists) > 1 {
-			mainArtist = recArtists[0].Name
-			if singleArtist {
-				var titleArgs TitleArgs
-                titleArgs.CleanTitle = rec.Name
-				for _, artist := range recArtists[1:] {
-
-					titleArgs.FeatArtists = append(titleArgs.FeatArtists, artist.Name)
-				}
-                title = c.buildTrackTitle(titleArgs)
-				artist = mainArtist
-			}
-		}
-
-		tracks = append(tracks, &models.Track{
-			Album:                     recording.Release.Name,
-			Artist:                    artist,
-			AlbumArtist:               rel.AlbumArtistName,
-			MainArtist:                mainArtist,
-			CleanTitle:                rec.Name,
-			Title:                     title,
-			Duration:                  rec.Length,
-			MusicBrainzTrackID:        mbTrackID,
-			MusicBrainzAlbumID:        rel.CaaReleaseMbid,
-			MusicBrainzReleaseGroupID: rel.ReleaseGroupMbid,
-			MusicBrainzArtistID:       recArtists[0].MusicBrainzArtistID,
-		})
+		tracks = append(tracks, c.trackFromRecording(mbTrackID, recording, singleArtist))
 	}
 
 	return tracks, nil
 
+}
+
+// trackFromRecording builds one track from ListenBrainz recording metadata.
+// The artists list may be empty for unusual metadata; degrade to the credit
+// name with no artist MBID instead of panicking on recArtists[0].
+func (c *ListenBrainz) trackFromRecording(mbTrackID string, recording Metadata, singleArtist bool) *models.Track {
+	rec := recording.Recording
+	rel := recording.Release
+
+	title := rec.Name
+	artist := recording.Artist.Name
+	mainArtist := recording.Artist.Name
+
+	recArtists := recording.Artist.Artists
+
+	artistID := ""
+	if len(recArtists) > 0 {
+		artistID = recArtists[0].MusicBrainzArtistID
+	}
+
+	if len(recArtists) > 1 {
+		mainArtist = recArtists[0].Name
+		if singleArtist {
+			var titleArgs TitleArgs
+			titleArgs.CleanTitle = rec.Name
+			for _, artist := range recArtists[1:] {
+				titleArgs.FeatArtists = append(titleArgs.FeatArtists, artist.Name)
+			}
+			title = c.buildTrackTitle(titleArgs)
+			artist = mainArtist
+		}
+	}
+
+	return &models.Track{
+		Album:                     recording.Release.Name,
+		Artist:                    artist,
+		AlbumArtist:               rel.AlbumArtistName,
+		MainArtist:                mainArtist,
+		CleanTitle:                rec.Name,
+		Title:                     title,
+		Duration:                  rec.Length,
+		MusicBrainzTrackID:        mbTrackID,
+		MusicBrainzAlbumID:        rel.CaaReleaseMbid,
+		MusicBrainzReleaseGroupID: rel.ReleaseGroupMbid,
+		MusicBrainzArtistID:       artistID,
+	}
 }
 
 func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) ([]*models.Track, error) {
