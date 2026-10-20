@@ -3,7 +3,6 @@ package playlist
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -64,7 +63,7 @@ func fetchAppleMusicPlaylist(pageURL string) (string, string, []PlaylistTrack, e
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := remoteFetchClient.Do(req)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("apple music: fetch failed: %w", err)
 	}
@@ -77,7 +76,7 @@ func fetchAppleMusicPlaylist(pageURL string) (string, string, []PlaylistTrack, e
 		return "", "", nil, fmt.Errorf("apple music: page returned %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readFetchBody(resp.Body)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("apple music: failed to read body: %w", err)
 	}
