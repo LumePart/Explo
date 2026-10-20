@@ -61,16 +61,23 @@ if [ -f "$_cfg" ]; then
 fi
 
 
-# $CRON_SHCEDULE was deprecated in v0.11.0, keeping this block for backwards compatibility
+# $CRON_SHCEDULE was deprecated in v0.11.0, keeping this block for backwards compatibility.
+# Only register the job here: running `crond -f` in the foreground would block
+# everything below (per-playlist schedules, EXECUTE_ON_START, the final crond),
+# so legacy users silently lost all scheduling.
 if [ -n "$CRON_SCHEDULE" ]; then
     echo "$CRON_SCHEDULE cd /opt/explo && /explo-run.sh legacy $RUNNER ./explo --config \"$_cfg\" >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
     chmod 600 /etc/crontabs/root
     echo "[setup] Registered single CRON_SCHEDULE job: $CRON_SCHEDULE"
-    crond -f -l 2
 fi
 
 # Loop over all *_SCHEDULE environment variables
 for var in $(env | grep "_SCHEDULE=" | cut -d= -f1); do
+  # CRON_SCHEDULE is registered by the legacy block above; registering it
+  # again here would run the same job twice.
+  if [ "$var" = "CRON_SCHEDULE" ]; then
+    continue
+  fi
   job="${var%_SCHEDULE}"                     # Job name (e.g WEEKLY_EXPLORATION)
   schedule="$(printenv "$var")"              # Cron schedule
   flags_var="${job}_FLAGS"
