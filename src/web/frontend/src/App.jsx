@@ -13,6 +13,7 @@ export default function App() {
   const [bgLoaded, setBgLoaded] = useState(false)
   const [fadingOut, setFadingOut] = useState(false)
   const [authDisabled, setAuthDisabled] = useState(false)
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -26,6 +27,11 @@ export default function App() {
       } else {
         setView('login')
       }
+    }).catch((e) => {
+      // A server hiccup during startup used to leave the page blank
+      // forever: the view never left its initial null state.
+      setLoadError(e?.message || 'failed to reach the server')
+      setView('error')
     })
     fetchBackgroundArt().then((artUrl) => {
       if (artUrl) setBgUrl(artUrl)
@@ -33,7 +39,14 @@ export default function App() {
   }, [])
 
   async function handleLoginSuccess({ fromLogin = false } = {}) {
-    const { values, sources } = await fetchConfig()
+    let values, sources
+    try {
+      ({ values, sources } = await fetchConfig())
+    } catch (e) {
+      setLoadError(e?.message || 'failed to load configuration')
+      setView('error')
+      return
+    }
     setConfig(values)
     setEnvSources(sources || {})
     const nextView = values.WIZARD_COMPLETE === 'true' ? 'settings' : 'wizard'
@@ -46,6 +59,23 @@ export default function App() {
     } else {
       setView(nextView)
     }
+  }
+
+  if (view === 'error') {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold mb-2">Couldn&apos;t load Explo</h1>
+          <p className="text-sm text-muted mb-4">{loadError}</p>
+          <button
+            className="px-4 py-2 rounded bg-accent text-white"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (view === null) return <div className="min-h-screen bg-bg" />
