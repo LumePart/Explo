@@ -178,6 +178,12 @@ func DownloadCover(url, coversDir string) (string, string) {
 			}()
 		}
 	}
+	// A failed fetch or write used to return the destination path anyway,
+	// so callers embedded a cover from a file that does not exist and the
+	// track save failed with it (BUG-25). Only hand out paths that exist.
+	if _, err := os.Stat(destPath); err != nil {
+		return "", ""
+	}
 	apiURL := fmt.Sprintf("/api/covers/%s.jpg", id)
 	return apiURL, destPath
 }
