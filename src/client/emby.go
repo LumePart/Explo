@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -220,17 +221,26 @@ func (c *Emby) CreatePlaylist(tracks []*models.Track) error {
 	return nil
 }
 
+// Same class as the Jellyfin bodies: marshal so quotes, backslashes and
+// newlines in playlist names cannot break the JSON (BUG-15).
+func embyUpdatePlaylistBody(id, name, overview string) ([]byte, error) {
+	return json.Marshal(struct {
+		ID          string            `json:"Id"`
+		Name        string            `json:"Name"`
+		Overview    string            `json:"Overview"`
+		ProviderIDs map[string]string `json:"ProviderIds"`
+	}{id, name, overview, map[string]string{}})
+}
+
 func (c *Emby) UpdatePlaylist() error {
 	time.Sleep(5 * time.Second) // small buffer between playlist creation and updating, Emby doesn't update playlist otherwise
 	reqParam := fmt.Sprintf("/emby/Items/%s", c.Cfg.PlaylistID)
 
-	payload := fmt.Appendf(nil, `
-		{
-		"Id": "%s",
-		"Name": "%s",
-		"Overview": "%s",
-		"ProviderIds": {}
-		}`, c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr) // the additional field has to be added, otherwise Emby returns code 500
+	// the additional field has to be added, otherwise Emby returns code 500
+	payload, err := embyUpdatePlaylistBody(c.Cfg.PlaylistID, c.Cfg.PlaylistName, c.Cfg.PlaylistDescr)
+	if err != nil {
+		return fmt.Errorf("failed to marshal playlist body: %s", err.Error())
+	}
 
 	if _, err := c.HttpClient.MakeRequest("POST", c.Cfg.URL+reqParam, bytes.NewBuffer(payload), c.Cfg.Creds.Headers); err != nil {
 		return err
