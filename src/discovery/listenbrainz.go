@@ -379,8 +379,11 @@ func (c *ListenBrainz) getTracks(mbids []string, singleArtist bool) ([]*models.T
 	}
 
 	tracks := make([]*models.Track, 0, len(recordings))
-	for mbTrackID, recording := range recordings {
-		tracks = append(tracks, c.trackFromRecording(mbTrackID, recording, singleArtist))
+	// Iterate the requested MBIDs, not the response map: map order would
+	// shuffle the playlist away from the recommendation ranking on every
+	// run (BUG-23). Recordings the API did not return are dropped.
+	for _, mbTrackID := range orderedRecordingMBIDs(mbids, recordings) {
+		tracks = append(tracks, c.trackFromRecording(mbTrackID, recordings[mbTrackID], singleArtist))
 	}
 
 	return tracks, nil
@@ -432,6 +435,19 @@ func (c *ListenBrainz) trackFromRecording(mbTrackID string, recording Metadata, 
 		MusicBrainzArtistID:       artistID,
 	}
 }
+
+// orderedRecordingMBIDs intersects the requested ranking with the
+// recordings the API actually returned, keeping request order.
+func orderedRecordingMBIDs(mbids []string, recordings Recordings) []string {
+	ordered := make([]string, 0, len(recordings))
+	for _, mbid := range mbids {
+		if _, ok := recordings[mbid]; ok {
+			ordered = append(ordered, mbid)
+		}
+	}
+	return ordered
+}
+
 
 func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) ([]*models.Track, error) {
 	mbids := make([]string, 0, len(tracks))
