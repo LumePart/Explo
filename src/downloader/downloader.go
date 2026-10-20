@@ -385,6 +385,24 @@ func removeDirIfEmpty(dir string) error {
 }
 
 func moveFile(srcFile, dstFile string, keepPermissions bool) error {
+	// Never truncate a file that is already where it belongs, and never
+	// erase an existing destination: os.Create below would zero the
+	// source itself when src == dst, or silently overwrite a library
+	// song whose name collides with the incoming file.
+	srcAbs, srcErr := filepath.Abs(srcFile)
+	dstAbs, dstErr := filepath.Abs(dstFile)
+	if srcErr == nil && dstErr == nil && srcAbs == dstAbs {
+		return nil
+	}
+	if srcInfo, err := os.Stat(srcFile); err == nil {
+		if dstInfo, err := os.Stat(dstFile); err == nil {
+			if os.SameFile(srcInfo, dstInfo) {
+				return nil
+			}
+			return fmt.Errorf("destination already exists, refusing to overwrite: %s", dstFile)
+		}
+	}
+
     in, err := os.Open(srcFile)
     if err != nil {
         return fmt.Errorf("couldn't open source file: %w", err)
