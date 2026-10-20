@@ -57,8 +57,11 @@ func (s *Server) registerSettingRoutes() {
 	s.mux.Handle("POST /api/ui/config/local-only", s.auth(s.settings.HandleSaveLocalOnly))
 	s.mux.Handle("POST /api/ui/config/clean-downloads", s.auth(s.settings.HandleSaveCleanDownloads))
 
-	// Path template presets: GET list, POST add; DELETE per name under prefix
-	s.mux.Handle("api/ui/path-templates", s.auth(s.settings.HandlePathTemplates))
+	// Path template presets: GET list, POST add; DELETE per name under prefix.
+	// The pattern needs its leading slash: without it ServeMux parses
+	// "api" as a host pattern and normal requests never reach the
+	// handler, so the settings screen could never load presets.
+	s.mux.Handle("/api/ui/path-templates", s.auth(s.settings.HandlePathTemplates))
 	s.mux.Handle("DELETE /api/ui/path-templates/", s.auth(s.settings.HandleDeletePathTemplate))
 
 	// Wizard steps (POST) — require auth
