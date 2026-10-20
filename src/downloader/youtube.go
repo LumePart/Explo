@@ -258,15 +258,18 @@ func saveVideo(c Youtube, track *models.Track, stream *goutubedl.DownloadResult)
 		if track.CoverPath == "" {
 			_, track.CoverPath = util.DownloadCover(track.CoverURL, c.Cfg.CoversDir)
 		}
-		streams = append(streams, ffmpeg.Input(track.CoverPath))
-		opts = ffmpeg.KwArgs{
-			"c:v":            "mjpeg",
-			"disposition:v:0": "attached_pic",
-			"metadata:s:v":   []string{"title=Album cover", "comment=Cover (front)"},
-			"metadata":       metadata,
-			"loglevel":       "error",
+		if track.CoverPath != "" {
+			streams = append(streams, ffmpeg.Input(track.CoverPath))
+			opts = ffmpeg.KwArgs{
+				"c:v":            "mjpeg",
+				"disposition:v:0": "attached_pic",
+				"metadata:s:v":   []string{"title=Album cover", "comment=Cover (front)"},
+				"metadata":       metadata,
+				"loglevel":       "error",
+			}
 		}
-	} else {
+	}
+	if opts == nil {
 		opts = ffmpeg.KwArgs{
 			"map": "0:a",
 			"metadata": metadata,
