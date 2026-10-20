@@ -351,7 +351,7 @@ func (c *Lidarr) addNewAlbum(track *models.Track) error {
 	body, err := c.HttpClient.MakeRequest("POST", queryURL, bytes.NewReader(payloadBody), c.Headers)
 	if err != nil {
 		if strings.Contains(err.Error(), "got 409") || strings.Contains(string(body), "has already been added") {
-			if _, ok := c.AlbumCache[c.cacheKey(track)]; ok {
+			if _, ok := c.cachedAlbum(c.cacheKey(track)); ok {
 				slog.Debug("album already in Lidarr", "album", track.MusicBrainzReleaseGroupID)
 				return nil
 			}
@@ -517,7 +517,11 @@ func (c *Lidarr) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatu
 		}
 
 		
-		cache := c.AlbumCache[c.cacheKey(albumTracks[0])]
+		cache, ok := c.cachedAlbum(c.cacheKey(albumTracks[0]))
+		if !ok || cache == nil {
+			slog.Debug("[lidarr] album not cached, skipping history import", "album", albumTracks[0].Album)
+			continue
+		}
 		for _, r := range history.Records {
 			if r.Data.ImportedPath == "" {
 				continue
@@ -754,6 +758,17 @@ func (c *Lidarr) Cleanup(track models.Track, queueID string) error {
 
 func (c *Lidarr) cacheKey(track *models.Track) string {
     return track.MainArtist + "|" + track.Album
+}
+
+// cachedAlbum reads the album cache under its lock. All AlbumCache reads
+// must go through here (or hold CacheMu) — cacheAlbum writes the map from
+// concurrent goroutines.
+func (c *Lidarr) cachedAlbum(key string) (*AlbumMetadata, bool) {
+	c.CacheMu.RLock()
+	defer c.CacheMu.RUnlock()
+
+	a, ok := c.AlbumCache[key]
+	return a, ok
 }
 
 func (c *Lidarr) cacheAlbum(track *models.Track) {
