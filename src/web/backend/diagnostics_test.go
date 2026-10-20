@@ -158,8 +158,8 @@ func TestDiagnostics_RoutesRegistered(t *testing.T) {
 	} {
 		req := httptest.NewRequest("GET", target, nil)
 		_, pattern := s.mux.Handler(req)
-		if pattern != want {
-			t.Errorf("GET %s matched %q, want %q", target, pattern, want)
+		if pattern != "GET "+want {
+			t.Errorf("GET %s matched %q, want %q", target, pattern, "GET "+want)
 		}
 	}
 }
