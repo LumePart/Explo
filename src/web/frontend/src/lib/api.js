@@ -150,6 +150,17 @@ export async function fetchRunStatus() {
   return res.json()
 }
 
+export async function generateDiagnosticsToken() {
+  const res = await apiFetch('/api/ui/diagnostics/token', { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function revokeDiagnosticsToken() {
+  const res = await apiFetch('/api/ui/diagnostics/token', { method: 'DELETE' })
+  if (!res.ok && res.status !== 204) throw new Error(await res.text())
+}
+
 export async function fetchLogs() {
   const res = await apiFetch('/api/ui/logs')
   return res.text()
