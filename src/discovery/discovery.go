@@ -4,6 +4,7 @@ import (
 	cfg "explo/src/config"
 	"explo/src/models"
 	"explo/src/util"
+	"fmt"
 	"log/slog"
 )
 
@@ -15,16 +16,16 @@ type Discovery interface {
 	QueryTracks() ([]*models.Track, error)
 }
 
-func NewDiscoverer(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *DiscoverClient {
+func NewDiscoverer(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) (*DiscoverClient, error) {
 	c := &DiscoverClient{cfg: &cfg}
 
 	switch cfg.Discovery {
 	case "listenbrainz":
 		c.Discovery = NewListenBrainz(cfg, httpClient)
 	default:
-		return nil
+		return nil, fmt.Errorf("unknown DISCOVERY_SERVICE %q: supported values are: listenbrainz", cfg.Discovery)
 	}
-	return c
+	return c, nil
 }
 
 func (c *DiscoverClient) Discover() ([]*models.Track, error) {
