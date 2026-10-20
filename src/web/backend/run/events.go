@@ -8,8 +8,54 @@ import (
 	"path/filepath"
 	"bufio"
 	"os/exec"
+	"strings"
 )
 
+
+// maxRunLineBytes caps how much of one output line is kept. Lines beyond
+// it are drained and truncated rather than stopping the reader.
+const maxRunLineBytes = 1 << 20
+
+// scanRunLines emits each line from r until EOF. Unlike bufio.Scanner
+// with its 64KB limit, a single very long line cannot stop draining:
+// before this, an over-long line wedged the child on a full pipe,
+// cmd.Wait never returned, and every later run was refused as already
+// running.
+func scanRunLines(r io.Reader, emit func(string)) error {
+	reader := bufio.NewReaderSize(r, 64*1024)
+	for {
+		var buf []byte
+		truncated := false
+		for {
+			frag, err := reader.ReadSlice('\n')
+			if len(buf)+len(frag) <= maxRunLineBytes {
+				buf = append(buf, frag...)
+			} else {
+				if len(buf) < maxRunLineBytes {
+					buf = append(buf, frag[:maxRunLineBytes-len(buf)]...)
+				}
+				truncated = true
+			}
+			if err == bufio.ErrBufferFull {
+				continue
+			}
+			if len(frag) > 0 || len(buf) > 0 {
+				line := strings.TrimRight(string(buf), "\r\n")
+				if truncated {
+					line += "...[truncated]"
+				}
+				emit(line)
+			}
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+}
 
 func (mr *ManualRun) appendRunLog(line string) {
 	event := runEvent{data: line}
@@ -45,9 +91,7 @@ func (mr *ManualRun) collectRunOutput(cmd *exec.Cmd, pr *os.File, lf *os.File) {
 		}()
 	}
 
-	scanner := bufio.NewScanner(pr)
-	for scanner.Scan() {
-		line := scanner.Text()
+	if err := scanRunLines(pr, func(line string) {
 		// Echo to stdout so runs show up in docker logs.
 		_, _ = fmt.Fprintln(os.Stdout, line)
 		if lf != nil {
@@ -56,8 +100,7 @@ func (mr *ManualRun) collectRunOutput(cmd *exec.Cmd, pr *os.File, lf *os.File) {
 			}
 		}
 		mr.appendRunLog(line)
-	}
-	if err := scanner.Err(); err != nil {
+	}); err != nil {
 		mr.appendRunLog("failed to read run output: " + err.Error())
 	}
 
