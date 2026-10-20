@@ -2,12 +2,14 @@ package playlist
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"explo/src/discovery"
@@ -48,17 +50,15 @@ func GetCustomPlaylist(cfgDir, id string) *CustomPlaylist {
 
 // MarkCustomPlaylistArtworkUploaded sets ArtworkUploaded=true and persists.
 func MarkCustomPlaylistArtworkUploaded(cfgDir, id string) error {
-	playlists := loadCustomPlaylists(cfgDir)
-	for i := range playlists {
-		if playlists[i].ID == id {
-			if playlists[i].ArtworkUploaded {
-				return nil
+	return updateCustomPlaylists(cfgDir, func(playlists []CustomPlaylist) ([]CustomPlaylist, error) {
+		for i := range playlists {
+			if playlists[i].ID == id {
+				playlists[i].ArtworkUploaded = true
+				break
 			}
-			playlists[i].ArtworkUploaded = true
-			return saveCustomPlaylists(cfgDir, playlists)
 		}
-	}
-	return nil
+		return playlists, nil
+	})
 }
 
 var lbMBIDRe = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
@@ -91,7 +91,23 @@ func customPlaylistsPath(cfgDir string) string {
 	return filepath.Join(cfgDir, "custom-playlists.json")
 }
 
+// customPlaylistsMu serializes every load-modify-save of
+// custom-playlists.json. Without it, two writers (import, delete, refresh,
+// cron) could each load the same list and the later save silently dropped
+// the other's change; a reader mid-write could also parse a truncated file
+// as empty and the next save then wiped every playlist.
+var customPlaylistsMu sync.Mutex
+
+var errPlaylistNotFound = errors.New("playlist not found")
+
 func loadCustomPlaylists(cfgDir string) []CustomPlaylist {
+	customPlaylistsMu.Lock()
+	defer customPlaylistsMu.Unlock()
+
+	return loadCustomPlaylistsUnlocked(cfgDir)
+}
+
+func loadCustomPlaylistsUnlocked(cfgDir string) []CustomPlaylist {
 	data, err := os.ReadFile(customPlaylistsPath(cfgDir))
 	if err != nil {
 		return nil
@@ -105,11 +121,47 @@ func loadCustomPlaylists(cfgDir string) []CustomPlaylist {
 }
 
 func saveCustomPlaylists(cfgDir string, playlists []CustomPlaylist) error {
+	customPlaylistsMu.Lock()
+	defer customPlaylistsMu.Unlock()
+
+	return saveCustomPlaylistsUnlocked(cfgDir, playlists)
+}
+
+// saveCustomPlaylistsUnlocked writes via a temp file in the same directory
+// plus rename, so a reader never observes a half-written file.
+func saveCustomPlaylistsUnlocked(cfgDir string, playlists []CustomPlaylist) error {
 	raw, err := json.MarshalIndent(playlists, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(customPlaylistsPath(cfgDir), raw, 0644)
+	tmp, err := os.CreateTemp(cfgDir, "custom-playlists-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(raw); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, customPlaylistsPath(cfgDir))
+}
+
+// updateCustomPlaylists runs fn against the freshly loaded list and saves
+// the result, holding the lock across the whole load-modify-save. If fn
+// returns an error, nothing is saved and the error is returned.
+func updateCustomPlaylists(cfgDir string, fn func([]CustomPlaylist) ([]CustomPlaylist, error)) error {
+	customPlaylistsMu.Lock()
+	defer customPlaylistsMu.Unlock()
+
+	updated, err := fn(loadCustomPlaylistsUnlocked(cfgDir))
+	if err != nil {
+		return err
+	}
+	return saveCustomPlaylistsUnlocked(cfgDir, updated)
 }
 
 // FetchResult is the uniform return type for fetching playlist data from any source.

@@ -148,8 +148,10 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		ColorIndex:  len(existing),
 		LastFetched: time.Now().UTC(),
 	}
-	existing = append(existing, cp)
-	if err := saveCustomPlaylists(p.cfg.WebDataDir, existing); err != nil {
+	if err := updateCustomPlaylists(p.cfg.WebDataDir, func(current []CustomPlaylist) ([]CustomPlaylist, error) {
+		cp.ColorIndex = len(current)
+		return append(current, cp), nil
+	}); err != nil {
 		slog.Error("custom-playlists: failed to save metadata", "err", err)
 		http.Error(w, "failed to save playlist metadata: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -235,8 +237,15 @@ func (p *Playlist) HandleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Re
 	}
 	go downloadAndCacheCovers(p.cfg.WebDataDir, id, tracks)
 
-	playlists[idx].LastFetched = time.Now().UTC()
-	if err := saveCustomPlaylists(p.cfg.WebDataDir, playlists); err != nil {
+	if err := updateCustomPlaylists(p.cfg.WebDataDir, func(current []CustomPlaylist) ([]CustomPlaylist, error) {
+		for i := range current {
+			if current[i].ID == id {
+				current[i].LastFetched = time.Now().UTC()
+				break
+			}
+		}
+		return current, nil
+	}); err != nil {
 		slog.Warn("custom-playlists: failed to update last_fetched after refresh", "err", err)
 	}
 
@@ -260,24 +269,28 @@ func (p *Playlist) HandleDeleteCustomPlaylist(w http.ResponseWriter, r *http.Req
 	deleteTracks := r.URL.Query().Get("delete_tracks") == "true"
 	slog.Info("custom-playlists: delete request", "id", id, "delete_tracks", deleteTracks)
 
-	existing := loadCustomPlaylists(p.cfg.WebDataDir)
-	filtered := existing[:0]
 	found := false
 	var deletedName string
-	for _, p := range existing {
-		if p.ID == id {
-			found = true
-			deletedName = p.Name
-		} else {
-			filtered = append(filtered, p)
+	err := updateCustomPlaylists(p.cfg.WebDataDir, func(existing []CustomPlaylist) ([]CustomPlaylist, error) {
+		filtered := make([]CustomPlaylist, 0, len(existing))
+		for _, p := range existing {
+			if p.ID == id {
+				found = true
+				deletedName = p.Name
+			} else {
+				filtered = append(filtered, p)
+			}
 		}
-	}
-	if !found {
+		if !found {
+			return nil, errPlaylistNotFound
+		}
+		return filtered, nil
+	})
+	if err == errPlaylistNotFound {
 		http.Error(w, "playlist not found", http.StatusNotFound)
 		return
 	}
-
-	if err := saveCustomPlaylists(p.cfg.WebDataDir, filtered); err != nil {
+	if err != nil {
 		http.Error(w, "failed to save: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
