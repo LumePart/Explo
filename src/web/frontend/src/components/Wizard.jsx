@@ -168,7 +168,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
     sleepMinutes,
     publicPlaylist,
   } = fields;
-  const isLocked = (key) => envSources[key] === ".env";
+  const isLocked = (key) => envSources[key] === "env";
 
   const urlPlaceholder = () => {
     const ports = { jellyfin: '8096', emby: '8096', plex: '32400', subsonic: '4533' }
