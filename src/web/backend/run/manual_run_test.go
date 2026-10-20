@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -88,6 +89,46 @@ func TestStartRun_SecondRunIsAcceptedAfterATimeout(t *testing.T) {
 
 	if err := mr.startRun([]string{"0"}); err != nil {
 		t.Errorf("second startRun() = %v, want nil once the first was killed", err)
+	}
+}
+
+// BUG-21: the already-running branch closed pw a second time instead of
+// the log file, leaking one descriptor per rejected attempt.
+func TestStartRun_RejectedRunsDoNotLeakFileHandles(t *testing.T) {
+	mr := NewManualRun(app.Config{
+		ExploPath:  "/bin/sleep",
+		RunTimeout: 5 * time.Second,
+		WebDataDir: t.TempDir(),
+	})
+
+	if err := mr.startRun([]string{"30"}); err != nil {
+		t.Fatalf("startRun() = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		mr.state.mu.Lock()
+		cancel := mr.state.cancel
+		mr.state.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+	})
+
+	countFDs := func() int {
+		entries, err := os.ReadDir("/dev/fd")
+		if err != nil {
+			t.Skipf("/dev/fd unavailable: %v", err)
+		}
+		return len(entries)
+	}
+
+	before := countFDs()
+	for i := 0; i < 5; i++ {
+		if err := mr.startRun([]string{"30"}); err != errRunAlreadyStarted {
+			t.Fatalf("rejected startRun() = %v, want errRunAlreadyStarted", err)
+		}
+	}
+	if after := countFDs(); after > before {
+		t.Errorf("open FDs grew %d -> %d over 5 rejected runs; each rejection leaks a handle", before, after)
 	}
 }
 
