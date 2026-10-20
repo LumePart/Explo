@@ -3,7 +3,9 @@ package settings
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"explo/src/web/backend/app"
 )
@@ -68,9 +70,37 @@ func validateEnvText(text string) error {
 	return nil
 }
 
+// envFileMu serializes every read-modify-write of the .env file. Without
+// it, two settings saves in quick succession each read the same starting
+// content and the later write silently undid the earlier one's changes.
+var envFileMu sync.Mutex
+
+// writeEnvFileAtomic writes via a temp file in the same directory plus
+// rename, so a crash mid-save (or a concurrent reader) never sees a
+// truncated .env.
+func writeEnvFileAtomic(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".env-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
+}
+
 // updateEnvKeys reads the env file (falling back to fallback if missing), updates the
 // given key=value pairs in-place preserving comments, and writes the result back.
 func (s *Settings) UpdateEnvKeys(updates map[string]string, fallback []byte) error {
+	envFileMu.Lock()
+	defer envFileMu.Unlock()
+
 	path := s.cfg.WebEnvPath
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -121,7 +151,7 @@ func (s *Settings) UpdateEnvKeys(updates map[string]string, fallback []byte) err
 		prevBlank = blank
 	}
 
-	return os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0600)
+	return writeEnvFileAtomic(path, []byte(strings.Join(out, "\n")+"\n"))
 }
 
 // Check for special chars in env vars that might need quoting
