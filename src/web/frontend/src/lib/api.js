@@ -11,19 +11,31 @@ async function ensureCSRF() {
 
 async function apiFetch(url, options = {}) {
   const method = (options.method || 'GET').toUpperCase()
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
 
   const headers = new Headers(options.headers || {})
 
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const token = await ensureCSRF()
-    headers.set('X-CSRF-Token', token)
-  }
-
-  return fetch(url, {
+  const send = () => fetch(url, {
     credentials: 'include',
     ...options,
     headers,
   })
+
+  if (!mutating) return send()
+
+  headers.set('X-CSRF-Token', await ensureCSRF())
+  let res = await send()
+
+  // The cached token goes stale when the backend restarts or the session
+  // expires (sessions are in-memory): drop it, fetch a fresh one, and
+  // retry the request once instead of failing every button until reload.
+  if (res.status === 403) {
+    csrfToken = null
+    headers.set('X-CSRF-Token', await ensureCSRF())
+    res = await send()
+  }
+
+  return res
 }
 
 export async function checkAuth() {
