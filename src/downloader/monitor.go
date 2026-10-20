@@ -48,6 +48,18 @@ type FileStatus struct {
 	BytesRemaining   int       `json:"bytesRemaining"`
 	PercentComplete  float64   `json:"percentComplete"`
 	QueueID 		 string    `json:"queueID"`
+	// RawState is the provider's original status string. slskd's
+	// normalize collapses every failure into "Errored", so without
+	// this the log can never say how a download failed.
+	RawState string `json:"rawState,omitempty"`
+}
+
+// rawState prefers the provider's original status for log lines.
+func rawState(fs FileStatus) string {
+	if fs.RawState != "" {
+		return fs.RawState
+	}
+	return fs.State
 }
 
 // pendingAlbum is a release whose recommended track has already been migrated
@@ -188,17 +200,20 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 					slog.Info("[monitor] download errored",
 						"service", monCfg.Service,
 						"title", track.CleanTitle,
+						"state", rawState(fileStatus),
 					)
 				case stallTime > monCfg.StallDuration:
 					slog.Info("[monitor] download stalled",
 						"service", monCfg.Service,
 						"title", track.CleanTitle,
+						"state", fileStatus.State,
 						"duration", stallTime,
 					)
 				default:
 					slog.Info("[monitor] maximum monitor time exceeded",
 						"service", monCfg.Service,
 						"title", track.CleanTitle,
+						"state", fileStatus.State,
 						"duration", monitoredTime,
 					)
 				}
