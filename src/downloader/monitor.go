@@ -138,27 +138,34 @@ func (c *DownloadClient) MonitorDownloads(tracks []*models.Track, m Monitor) err
 			monitoredTime := currentTime.Sub(tracker.StartedAt)
 			expired := monCfg.MaxDuration > 0 && monitoredTime > monCfg.MaxDuration
 
-			if (fileStatus.BytesRemaining == 0 && fileStatus.BytesTransferred != 0) || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {		
+			if (fileStatus.BytesRemaining == 0 && fileStatus.BytesTransferred != 0) || fileStatus.PercentComplete == 100 || strings.Contains(fileStatus.State, "Succeeded") {
 				track.File = fileStatus.Filename
-				track.Present = true
 				slog.Info("[monitor] file downloaded successfully", "service", monCfg.Service, "file", track.File)
 				var filePath string
 				track.File, filePath = parsePath(track.File)
 				if monCfg.MigrateDownload {
 					destDir, err := m.MoveDownload(monCfg.FromDir, monCfg.ToDir, filePath, track)
 					if err != nil {
-						slog.Error("error while moving file", "err", err)
-					} else {
-						slog.Info("track moved successfully", "service", monCfg.Service)
-						c.trackAlbum(pendingAlbums, key, &pendingAlbum{
-							track:      track,
-							trackDir:   filepath.Join(monCfg.FromDir, filePath),
-							destDir:    destDir,
-							startedAt:  currentTime,
-							lastChange: currentTime,
-						}, monCfg)
+						// The song never landed in the library, so it must
+						// not be marked Present or counted: before this,
+						// the playlist kept a track that never arrived.
+						slog.Error("error while moving file, skipping track", "err", err)
+						tracker.Skipped = true
+						if err = m.Cleanup(*track, fileStatus.QueueID); err != nil {
+							slog.Debug("cleanup failed", logging.RuntimeAttr(err.Error()))
+						}
+						continue
 					}
+					slog.Info("track moved successfully", "service", monCfg.Service)
+					c.trackAlbum(pendingAlbums, key, &pendingAlbum{
+						track:      track,
+						trackDir:   filepath.Join(monCfg.FromDir, filePath),
+						destDir:    destDir,
+						startedAt:  currentTime,
+						lastChange: currentTime,
+					}, monCfg)
 				}
+				track.Present = true
 				delete(progressMap, key)
 				successDownloads += 1
 				if err = m.Cleanup(*track, fileStatus.QueueID); err != nil {
