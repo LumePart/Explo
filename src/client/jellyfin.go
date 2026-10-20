@@ -225,17 +225,16 @@ func (c *Jellyfin) CreatePlaylist(tracks []*models.Track) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal track IDs: %s", err.Error())
 	}
-	var userID string
 	isPublic := c.Cfg.PublicPlaylist
-
-	if c.Cfg.Creds.User != "" {
-		userID, err = c.ResolveUserID()
-		if err != nil {
-			return err
-		}
-	} else {
-		userID = c.resolveAPIKey()
+	if c.Cfg.Creds.User == "" {
 		isPublic = true
+	}
+
+	// The API key is not a user ID: sending it as UserId made playlist
+	// creation fail whenever SYSTEM_USERNAME was unset (BUG-13).
+	userID, err := c.ResolveUserID()
+	if err != nil {
+		return err
 	}
 
 
@@ -331,13 +330,29 @@ func (c *Jellyfin) ResolveUserID() (string, error) {
 	if err = util.ParseResp(body, &users); err != nil {
 		return "", err
 	}
-	for _, user := range users {
-		if strings.EqualFold(user.Name, c.Cfg.Creds.User) {
-			return user.ID, nil
-		}
-	}
+	return pickUserID(users, c.Cfg.Creds.User)
+}
 
-	return "", fmt.Errorf("failed to find Jellyfin user %q", c.Cfg.Creds.User)
+// pickUserID selects the playlist owner. With no configured username it
+// falls back to the server's only user; with several users and no name
+// configured there is no safe guess, so it fails with guidance instead
+// of sending the API key as a user ID.
+func pickUserID(users []JFUser, username string) (string, error) {
+	if username != "" {
+		for _, user := range users {
+			if strings.EqualFold(user.Name, username) {
+				return user.ID, nil
+			}
+		}
+		return "", fmt.Errorf("failed to find Jellyfin user %q", username)
+	}
+	if len(users) == 1 {
+		return users[0].ID, nil
+	}
+	if len(users) == 0 {
+		return "", fmt.Errorf("jellyfin returned no users; set SYSTEM_USERNAME to the playlist owner's username")
+	}
+	return "", fmt.Errorf("jellyfin has %d users and SYSTEM_USERNAME is not set; set SYSTEM_USERNAME to the playlist owner's username", len(users))
 }
 
 // Check which API Key variable is used
