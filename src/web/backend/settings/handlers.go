@@ -73,7 +73,10 @@ func (s *Settings) HandleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid .env content: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := os.WriteFile(s.cfg.WebEnvPath, data, 0600); err != nil {
+	envFileMu.Lock()
+	err = writeEnvFileAtomic(s.cfg.WebEnvPath, data)
+	envFileMu.Unlock()
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -82,7 +85,10 @@ func (s *Settings) HandleSaveConfig(w http.ResponseWriter, r *http.Request) {
 
 // handleResetConfig resets all settings and restarts the container.
 func (s *Settings) HandleResetConfig(w http.ResponseWriter, r *http.Request) {
-	if err := os.WriteFile(s.cfg.WebEnvPath, web.SampleEnv, 0600); err != nil {
+	envFileMu.Lock()
+	err := writeEnvFileAtomic(s.cfg.WebEnvPath, web.SampleEnv)
+	envFileMu.Unlock()
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
