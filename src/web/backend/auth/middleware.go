@@ -68,10 +68,14 @@ func (s *InMemorySessionStore) read(id string) (*Session, error) {
 }
 
 func (s *InMemorySessionStore) write(session *Session) error {
+	return s.writeWithID(session, session.ID())
+}
+
+func (s *InMemorySessionStore) writeWithID(session *Session, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.sessions[session.id] = session
+	s.sessions[id] = session
 
 	return nil
 }
@@ -146,7 +150,7 @@ func writeCookieIfNecessary(w *sessionResponseWriter) {
 
 	cookie := &http.Cookie{
 		Name:     w.sessionManager.cookieName,
-		Value:    session.id,
+		Value:    session.ID(),
 		HttpOnly: true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
