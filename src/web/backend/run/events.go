@@ -9,6 +9,8 @@ import (
 	"bufio"
 	"os/exec"
 	"strings"
+
+	"explo/src/logging"
 )
 
 
@@ -126,13 +128,14 @@ func (mr *ManualRun) LogPath() string {
 }
 
 // initServerLog redirects the default slog handler so all server log output
-// goes to both stderr and the rolling log file.
+// goes to both stderr and the rolling log file. Both pass through the
+// secret redactor: shared logs are a debugging artifact, not a vault.
 func (mr *ManualRun) InitServerLog() {
 	lf, err := mr.openRunLog()
 	if err != nil {
 		return
 	}
-	w := io.MultiWriter(os.Stderr, lf)
+	w := logging.NewRedactWriter(io.MultiWriter(os.Stderr, lf))
 	slog.SetDefault(slog.New(slog.NewTextHandler(w, nil)))
 }
 
