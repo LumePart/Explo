@@ -2,7 +2,11 @@ function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-const SENSITIVE_KEY_RE = /password|token|api_key|secret|accesstoken/i
+// Mask by meaning, not exact spelling: API keys arrive as API_KEY,
+// APIKEY, ADMIN_API_KEY or X-API-KEY depending on the service, and the
+// same goes for tokens and passwords. An unrecognized secret-looking key
+// must be masked, never shown, so match the separator-optional forms.
+const SENSITIVE_KEY_RE = /pass(word|wd)?|token|secret|credential|api[-_]?key|access[-_]?key|auth[-_]?key|private[-_]?key/i
 
 export function highlightEnv(text, masked = false) {
   return text.split('\n').map(line => {
