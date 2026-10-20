@@ -29,7 +29,24 @@ Explo uses the [ListenBrainz](https://listenbrainz.org/) recommendation engine t
 - Add metadata to downloaded tracks
 - Create playlists in your music system
 - Optionally keep previous playlists for later listening
+- Diagnostics endpoints for troubleshooting status, logs and run history
 ---
+
+## Diagnostics
+
+For checking on Explo over your home network, the web UI serves three
+read-only endpoints (session login or API token required):
+
+- `GET /api/ui/diagnostics/status` — version, uptime, current run state
+  and recent finished runs. No secret values are ever included.
+- `GET /api/ui/diagnostics/logs?tail=200&level=error&service=slskd&since=1h`
+  — filtered tail of the rolling server log. Secrets are masked at
+  write time and again on the way out.
+- `GET /api/ui/diagnostics/runs` — finished-run history plus live state.
+
+Generate a token in Settings → Diagnostics access (shown once; use
+`Authorization: Bearer <token>`). Generating again revokes the old
+one. The token is read-only: status, logs and runs only.
 
 ## Documentation
 

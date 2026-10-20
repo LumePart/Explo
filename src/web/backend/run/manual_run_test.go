@@ -104,14 +104,6 @@ func TestStartRun_RejectedRunsDoNotLeakFileHandles(t *testing.T) {
 	if err := mr.startRun([]string{"30"}); err != nil {
 		t.Fatalf("startRun() = %v, want nil", err)
 	}
-	t.Cleanup(func() {
-		mr.state.mu.Lock()
-		cancel := mr.state.cancel
-		mr.state.mu.Unlock()
-		if cancel != nil {
-			cancel()
-		}
-	})
 
 	countFDs := func() int {
 		entries, err := os.ReadDir("/dev/fd")
@@ -129,6 +121,28 @@ func TestStartRun_RejectedRunsDoNotLeakFileHandles(t *testing.T) {
 	}
 	if after := countFDs(); after > before {
 		t.Errorf("open FDs grew %d -> %d over 5 rejected runs; each rejection leaks a handle", before, after)
+	}
+
+	// Stop the run and wait for it to finish: finishRun writes the run
+	// record, which must complete before the temp dir is removed.
+	mr.state.mu.Lock()
+	cancel := mr.state.cancel
+	mr.state.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mr.state.mu.Lock()
+		running := mr.state.running
+		mr.state.mu.Unlock()
+		if !running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("run did not finish after cancel")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

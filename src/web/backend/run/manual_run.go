@@ -4,9 +4,11 @@ import (
 	"time"
 	"fmt"
 	"errors"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"context"
 	"sync"
@@ -27,7 +29,26 @@ type manualRunState struct {
 	exitCode    *int
 	logs        []string
 	subscribers map[chan runEvent]struct{}
+	runPlaylist string
+	runStarted  time.Time
 }
+
+// RunRecord is one finished run for the diagnostics history: enough to
+// answer "what ran, did it work, and what failed first" without
+// re-reading the whole log.
+type RunRecord struct {
+	StartedAt time.Time `json:"started_at"`
+	EndedAt   time.Time `json:"ended_at"`
+	Playlist  string    `json:"playlist,omitempty"`
+	ExitCode  int       `json:"exit_code"`
+	Errors    []string  `json:"errors,omitempty"`
+}
+
+// maxRunRecords caps the diagnostics history file.
+const maxRunRecords = 500
+
+// maxRecordErrors caps stored error lines per run.
+const maxRecordErrors = 10
 
 // runEvent is an SSE event sent to connected browser clients.
 type runEvent struct {
@@ -103,6 +124,8 @@ func (mr *ManualRun) startRun(args []string) error {
 	mr.state.cancel = cancel
 	mr.state.exitCode = nil
 	mr.state.logs = nil
+	mr.state.runPlaylist = playlistArg(args)
+	mr.state.runStarted = time.Now()
 	mr.state.mu.Unlock()
 
 	if err := cmd.Start(); err != nil {
@@ -133,6 +156,11 @@ func (mr *ManualRun) startRun(args []string) error {
 }
 
 func (mr *ManualRun) currentRunStatus() RunStatus {
+	return mr.CurrentStatus()
+}
+
+// CurrentStatus reports the live run state for diagnostics consumers.
+func (mr *ManualRun) CurrentStatus() RunStatus {
 	mr.state.mu.Lock()
 	defer mr.state.mu.Unlock()
 
@@ -151,12 +179,24 @@ func (mr *ManualRun) finishRun(code int) {
 	mr.state.running = false
 	mr.state.cancel = nil
 	mr.state.exitCode = &code
+	record := RunRecord{
+		StartedAt: mr.state.runStarted,
+		EndedAt:   time.Now(),
+		Playlist:  mr.state.runPlaylist,
+		ExitCode:  code,
+		Errors:    firstErrorLines(mr.state.logs),
+	}
+	mr.state.runPlaylist = ""
 	subscribers := make([]chan runEvent, 0, len(mr.state.subscribers))
 	for ch := range mr.state.subscribers {
 		subscribers = append(subscribers, ch)
 		delete(mr.state.subscribers, ch)
 	}
 	mr.state.mu.Unlock()
+
+	if err := mr.appendRunRecord(record); err != nil {
+		slog.Warn("failed to record finished run", "err", err.Error())
+	}
 
 	for _, ch := range subscribers {
 		select {
@@ -165,6 +205,105 @@ func (mr *ManualRun) finishRun(code int) {
 		}
 		close(ch)
 	}
+}
+
+// playlistArg pulls the --playlist value out of child args for records.
+func playlistArg(args []string) string {
+	for i, a := range args {
+		if a == "--playlist" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// firstErrorLines keeps the first few error-level lines of a run.
+func firstErrorLines(logs []string) []string {
+	var out []string
+	for _, line := range logs {
+		if strings.Contains(strings.ToLower(line), "level=error") {
+			out = append(out, line)
+			if len(out) >= maxRecordErrors {
+				break
+			}
+		}
+	}
+	return out
+}
+
+// runRecordsPath is the append-only diagnostics history of finished runs.
+func (mr *ManualRun) runRecordsPath() string {
+	return filepath.Join(mr.cfg.WebDataDir, "logs", "runs.jsonl")
+}
+
+// appendRunRecord stores one record, pruning the file to the newest
+// maxRunRecords entries so the history cannot grow without bound.
+func (mr *ManualRun) appendRunRecord(record RunRecord) error {
+	if record.StartedAt.IsZero() {
+		return nil
+	}
+	p := mr.runRecordsPath()
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	lines := readRecordLines(p)
+	lines = append(lines, string(raw)+"\n")
+	if len(lines) > maxRunRecords {
+		lines = lines[len(lines)-maxRunRecords:]
+	}
+	return writeFileAtomic(p, []byte(strings.Join(lines, "")))
+}
+
+// ReadRunRecords returns the stored history, newest last.
+func (mr *ManualRun) ReadRunRecords() []RunRecord {
+	var out []RunRecord
+	for _, line := range readRecordLines(mr.runRecordsPath()) {
+		var r RunRecord
+		if err := json.Unmarshal([]byte(line), &r); err != nil {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+func readRecordLines(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var lines []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line+"\n")
+		}
+	}
+	return lines
+}
+
+// writeFileAtomic replaces path via a temp file plus rename.
+func writeFileAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".runs-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 // helper to build flag arguments

@@ -18,6 +18,7 @@ import {
   saveReplacePlaylist,
   saveLocalOnly, saveCleanDownloads,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
+  generateDiagnosticsToken, revokeDiagnosticsToken,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks, clearPlaylistCache } from '../lib/listenbrainz'
@@ -528,6 +529,51 @@ function HomeSection() {
 // are previewed inline before being written to .env via the confirm bar.
 
 
+function DiagnosticsTokenSection() {
+  const [token, setToken] = useState('')
+  const [status, setStatus] = useState('')
+
+  const handleGenerate = async () => {
+    setStatus('')
+    try {
+      const { token } = await generateDiagnosticsToken()
+      setToken(token)
+      setStatus('Token shown once — copy it now. Generating again revokes this one.')
+    } catch (e) {
+      setStatus('Generate failed: ' + e.message)
+    }
+  }
+
+  const handleRevoke = async () => {
+    setStatus('')
+    try {
+      await revokeDiagnosticsToken()
+      setToken('')
+      setStatus('Token revoked.')
+    } catch (e) {
+      setStatus('Revoke failed: ' + e.message)
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      <SectionLabel>Diagnostics access</SectionLabel>
+      <p className="text-[13px] text-muted mb-2.5">
+        A read-only token for checking status, logs and run history over your network
+        (status, logs and runs only — it cannot change settings or start runs).
+      </p>
+      <div className="flex items-center gap-2.5">
+        <Button onClick={handleGenerate}>Generate token</Button>
+        <Button onClick={handleRevoke}>Revoke</Button>
+        <span className="text-[12px] text-muted">{status}</span>
+      </div>
+      {token ? (
+        <pre className="bg-well border border-ui-border rounded-[6px] w-full overflow-x-auto p-3.5 font-mono text-[12px] mt-2.5 select-all">{token}</pre>
+      ) : null}
+    </div>
+  )
+}
+
 function DownloadPathSection() {
   const [profiles, setProfiles] = useState(() => SEED_PRESETS.map(p => ({ ...p, seed: true })))
   const [appliedIdx, setAppliedIdx] = useState(null)
@@ -901,6 +947,8 @@ function ConfigSection({ onWizard }) {
       </div>
 
       <DownloadPathSection />
+
+      <DiagnosticsTokenSection />
 
       <div className="mt-6">
         <SectionLabel>Setup</SectionLabel>

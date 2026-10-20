@@ -31,6 +31,7 @@ func (s *Server) registerRoutes() {
 	s.registerSettingRoutes()
 	s.registerPlaylistRoutes()
 	s.registerRunRoutes()
+	s.registerDiagnosticsRoutes()
 	s.registerMiscRoutes()
 
 }
@@ -94,6 +95,16 @@ func (s *Server) registerRunRoutes() {
 	s.mux.Handle("GET /api/ui/run/events", s.auth(s.manualRun.HandleRunEvents))
 	s.mux.Handle("POST /api/ui/run/stop", s.auth(s.manualRun.HandleStopRun))
 	s.mux.Handle("GET /api/ui/run/status", s.auth(s.manualRun.HandleRunStatus))
+}
+
+func (s *Server) registerDiagnosticsRoutes() {
+	s.mux.Handle("GET /api/ui/diagnostics/status", s.diagnosticsAuth(s.handleDiagnosticsStatus))
+	s.mux.Handle("GET /api/ui/diagnostics/logs", s.diagnosticsAuth(s.handleDiagnosticsLogs))
+	s.mux.Handle("GET /api/ui/diagnostics/runs", s.diagnosticsAuth(s.handleDiagnosticsRuns))
+	// Token management stays session-only: a token must never mint or
+	// kill its own replacement.
+	s.mux.Handle("POST /api/ui/diagnostics/token", s.auth(s.handleDiagnosticsTokenCreate))
+	s.mux.Handle("DELETE /api/ui/diagnostics/token", s.auth(s.handleDiagnosticsTokenRevoke))
 }
 
 func (s *Server) registerMiscRoutes() {

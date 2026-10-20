@@ -436,6 +436,7 @@ func (c *Slskd) GetDownloadStatus(tracks []*models.Track) (map[string]FileStatus
 							ID: file.ID,
 							Size: file.Size,
 							State: normalize(file.State),
+							RawState: string(file.State),
 							Filename: file.Name,
 							BytesTransferred: file.BytesTransferred,
 							BytesRemaining: file.BytesRemaining,
