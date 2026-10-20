@@ -15,6 +15,32 @@ import (
 	"explo/src/logging"
 )
 
+// Bounds for ad-hoc remote fetches: a stalled server must not hang the
+// app forever and an oversized response must not be read into memory
+// without limit (BUG-20).
+const (
+	maxAPIResponseBytes = 32 << 20
+	maxDownloadBytes    = 64 << 20
+	maxCoverBytes       = 16 << 20
+)
+
+// remoteHTTPClient replaces http.Get/DefaultClient, which have no
+// timeout at all, for file and cover downloads.
+var remoteHTTPClient = &http.Client{Timeout: 60 * time.Second}
+
+// readLimited reads at most max bytes; one extra byte is read so an
+// over-limit response is an error, not a silent truncation.
+func readLimited(r io.Reader, max int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > max {
+		return nil, fmt.Errorf("response exceeds %d bytes", max)
+	}
+	return data, nil
+}
+
 type HttpClientConfig struct {
 	Timeout int
 }
@@ -57,7 +83,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readLimited(resp.Body, maxAPIResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %s", err.Error())
 	}
@@ -91,7 +117,7 @@ func DownloadFile(url, destPath string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 		return "", fmt.Errorf("mkdir: %w", err)
 	}
-	resp, err := http.Get(url) //nolint:noctx
+	resp, err := remoteHTTPClient.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("get: %w", err)
 	}
@@ -103,7 +129,7 @@ func DownloadFile(url, destPath string) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("status %d from %s", resp.StatusCode, url)
 	}
-	data, err := io.ReadAll(resp.Body)
+	data, err := readLimited(resp.Body, maxDownloadBytes)
 	if err != nil {
 		return "", fmt.Errorf("read body: %w", err)
 	}
@@ -134,7 +160,7 @@ func DownloadCover(url, coversDir string) (string, string) {
 	}
 	destPath := filepath.Join(coversDir, id+".jpg")
 	if _, err := os.Stat(destPath); os.IsNotExist(err) {
-		resp, err := http.Get(url) //nolint:noctx
+		resp, err := remoteHTTPClient.Get(url)
 		if err == nil {
 			func() {
 				defer func() {
@@ -143,7 +169,7 @@ func DownloadCover(url, coversDir string) (string, string) {
 					}
 				}()
 				if resp.StatusCode == http.StatusOK {
-					if data, err := io.ReadAll(resp.Body); err == nil {
+					if data, err := readLimited(resp.Body, maxCoverBytes); err == nil {
 						if err := os.WriteFile(destPath, data, 0644); err != nil {
 							slog.Error("failed writing cover", "path", destPath, "err", err.Error())
 						}

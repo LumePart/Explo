@@ -19,9 +19,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const lbAPIBase = "https://api.listenbrainz.org/1"
+
+// remoteFetchClient bounds playlist/cover fetches: http.Get and
+// DefaultClient have no timeout, and their responses were read into
+// memory without a cap (BUG-20).
+var remoteFetchClient = &http.Client{Timeout: 30 * time.Second}
+
+const maxFetchBytes = 16 << 20
+
+func readFetchBody(r io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, maxFetchBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxFetchBytes {
+		return nil, fmt.Errorf("response exceeds %d bytes", maxFetchBytes)
+	}
+	return data, nil
+}
 
 // PlaylistTrack represents a single track fetched from any playlist source.
 // Replaces the raw [][4]string{title, artist, album, coverURL} pattern
@@ -150,7 +169,7 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 }
 
 func lbGet(url string) ([]byte, error) {
-	resp, err := http.Get(url) //nolint:noctx
+	resp, err := remoteFetchClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +182,7 @@ func lbGet(url string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("LB returned %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	return readFetchBody(resp.Body)
 }
 
 type cachedPrefetchTrack struct {
@@ -252,14 +271,14 @@ func randomLocalCoverHiRes(coversDir string) string {
 			return "/api/covers/" + bgFile
 		}
 		// Download hi-res from Cover Art Archive using the release MBID
-		resp, err := http.Get("https://coverartarchive.org/release/" + mbid + "/front-1200") //nolint:noctx
+		resp, err := remoteFetchClient.Get("https://coverartarchive.org/release/" + mbid + "/front-1200")
 		if err != nil || resp.StatusCode != http.StatusOK {
 			if resp != nil {
 				resp.Body.Close() // nolint:errcheck
 			}
 			continue
 		}
-		data, err := io.ReadAll(resp.Body)
+		data, err := readFetchBody(resp.Body)
 		resp.Body.Close() // nolint:errcheck
 		if err != nil {
 			continue
@@ -296,14 +315,14 @@ func fetchSitewideCovers(coversDir string) string {
 		}
 		url := "https://coverartarchive.org/release/" + rel.ReleaseMbid + "/front-1200"
 
-		dlResp, err := http.Get(url) //nolint:noctx
+		dlResp, err := remoteFetchClient.Get(url)
 		if err != nil || dlResp.StatusCode != http.StatusOK {
 			if dlResp != nil {
 				dlResp.Body.Close() // nolint:errcheck
 			}
 			continue
 		}
-		data, err := io.ReadAll(dlResp.Body)
+		data, err := readFetchBody(dlResp.Body)
 		dlResp.Body.Close() //nolint:errcheck
 		if err != nil {
 			continue
