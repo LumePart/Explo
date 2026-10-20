@@ -194,8 +194,12 @@ func main() {
 			}
 		}
 	} else {
-		disc := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
-		tracks, err = disc.Discover()
+		disc, discErr := discovery.NewDiscoverer(cfg.DiscoveryCfg, httpClient)
+		if discErr != nil {
+			err = discErr
+		} else {
+			tracks, err = disc.Discover()
+		}
 	}
 
 	if err != nil {
