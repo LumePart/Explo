@@ -65,6 +65,7 @@ export async function login(username, password) {
 
 export async function fetchConfig() {
   const res = await apiFetch('/api/ui/config')
+  if (!res.ok) throw new Error(`config load failed (${res.status}): ${await res.text()}`)
   return res.json()
 }
 
