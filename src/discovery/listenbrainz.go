@@ -178,14 +178,38 @@ type MBRelease struct {
 
 // MBMedium is one disc of a release.
 type MBMedium struct {
-	Position   int    `json:"position"`
-	Format     string `json:"format"`
-	TrackCount int    `json:"track-count"`
-	Tracks     []struct {
-		ID       string `json:"id"`
-		Position int    `json:"position"`
-		Number   string `json:"number"`
-	} `json:"tracks"`
+	Position   int              `json:"position"`
+	Format     string           `json:"format"`
+	TrackCount int              `json:"track-count"`
+	Tracks     []MBReleaseTrack `json:"tracks"`
+}
+
+// MBReleaseTrack is one track on a disc. Its ID is the release-track
+// entity; Recording.ID is the recording this track performance is of,
+// which is what lets enrichment find the track being enriched rather
+// than always taking Media[0].Tracks[0] (BUG-22).
+type MBReleaseTrack struct {
+	ID        string `json:"id"`
+	Position  int    `json:"position"`
+	Number    string `json:"number"`
+	Recording struct {
+		ID string `json:"id"`
+	} `json:"recording"`
+}
+
+// findReleaseTrack locates the track for recordingMBID inside a
+// release's media, returning the disc and the track. It returns false
+// when the recording is not listed, in which case callers keep the
+// previous first-track behavior.
+func findReleaseTrack(release MBRelease, recordingMBID string) (MBMedium, MBReleaseTrack, bool) {
+	for _, medium := range release.Media {
+		for _, track := range medium.Tracks {
+			if recordingMBID != "" && track.Recording.ID == recordingMBID {
+				return medium, track, true
+			}
+		}
+	}
+	return MBMedium{}, MBReleaseTrack{}, false
 }
 
 type TitleArgs struct {
@@ -551,16 +575,20 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 				canonicalTrackTotal, canonicalDiscTotal = CanonicalReleaseShape(mbData.Releases, mbReleaseGroupID)
 
 				discTotal = len(bestRelease.Media)
-				if len(bestRelease.Media) > 0 {
-					firstMedia := bestRelease.Media[0]
-					media = firstMedia.Format
-					discNumber = firstMedia.Position
-					trackTotal = firstMedia.TrackCount
-
-					if len(firstMedia.Tracks) > 0 {
-						firstTrack := firstMedia.Tracks[0]
-						trackNumber = firstTrack.Position
-						mbReleaseTrackID = firstTrack.ID
+				// Find the disc/track this recording is actually on. When
+				// the API omits recording links, fall back to the first
+				// track as before rather than leaving the numbers empty.
+				medium, mediumTrack, found := findReleaseTrack(bestRelease, track.MusicBrainzTrackID)
+				if !found && len(bestRelease.Media) > 0 && len(bestRelease.Media[0].Tracks) > 0 {
+					medium, mediumTrack = bestRelease.Media[0], bestRelease.Media[0].Tracks[0]
+				}
+				if found || len(bestRelease.Media) > 0 {
+					media = medium.Format
+					discNumber = medium.Position
+					trackTotal = medium.TrackCount
+					if len(medium.Tracks) > 0 {
+						trackNumber = mediumTrack.Position
+						mbReleaseTrackID = mediumTrack.ID
 					}
 				}
 			}
