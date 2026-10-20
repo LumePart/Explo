@@ -378,8 +378,22 @@ func (c *Plex) AddLibrary() error {
 	if err = util.ParseResp(body, &libraries); err != nil {
 		return err
 	}
-	c.LibraryID = libraries.MediaContainer.Library[0].Key
+	key, err := firstLibraryKey(libraries)
+	if err != nil {
+		return err
+	}
+	c.LibraryID = key
 	return nil
+}
+
+// firstLibraryKey returns the created library's key. Plex can answer a
+// library creation with an empty container (a hiccup, a race with another
+// client); indexing [0] without a check panicked the run.
+func firstLibraryKey(libraries Libraries) (string, error) {
+	if len(libraries.MediaContainer.Library) == 0 {
+		return "", fmt.Errorf("plex returned no library after creating one; check the Plex server and the configured library name and download directory")
+	}
+	return libraries.MediaContainer.Library[0].Key, nil
 }
 func (c *Plex) RefreshLibrary() error {
 	if c.AdminClient != nil {
