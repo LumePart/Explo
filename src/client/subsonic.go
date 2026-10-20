@@ -234,10 +234,25 @@ func (c *Subsonic) CheckRefreshState() bool {
 	}
 }
 
+// subsonicSongIDs returns the server song IDs to put in a playlist.
+// Tracks that were never matched keep their discovery ID (or none) and
+// Present=false; sending those as songId made the server reject the
+// whole playlist creation over one missing song (BUG-12).
+func subsonicSongIDs(tracks []*models.Track) []string {
+	ids := make([]string, 0, len(tracks))
+	for _, track := range tracks {
+		if !track.Present || track.ID == "" {
+			continue
+		}
+		ids = append(ids, track.ID)
+	}
+	return ids
+}
+
 func (c *Subsonic) CreatePlaylist(tracks []*models.Track) error {
 	var trackIDs strings.Builder
-	for _, track := range tracks { // build songID parameters
-		fmt.Fprintf(&trackIDs, "&songId=%s", track.ID)
+	for _, id := range subsonicSongIDs(tracks) { // build songID parameters
+		fmt.Fprintf(&trackIDs, "&songId=%s", id)
 	}
 
 	reqParam := fmt.Sprintf("createPlaylist?name=%s%s&f=json", url.QueryEscape(c.Cfg.PlaylistName), trackIDs.String())
