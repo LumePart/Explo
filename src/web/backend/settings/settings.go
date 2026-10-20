@@ -95,9 +95,36 @@ func writeEnvFileAtomic(path string, data []byte) error {
 	return os.Rename(tmpName, path)
 }
 
+// validateEnvUpdate rejects keys and values that could inject extra .env
+// lines. A value containing CR/LF would otherwise be written raw as
+// key=value and the remainder parsed as additional keys on next start.
+func validateEnvUpdate(key, value string) error {
+	if key == "" {
+		return fmt.Errorf("env key must not be empty")
+	}
+	for i, r := range key {
+		switch {
+		case r == '_' || ('A' <= r && r <= 'Z') || ('a' <= r && r <= 'z'):
+		case '0' <= r && r <= '9' && i > 0:
+		default:
+			return fmt.Errorf("invalid env key %q", key)
+		}
+	}
+	if strings.ContainsAny(value, "\r\n") {
+		return fmt.Errorf("env value for %s must not contain line breaks", key)
+	}
+	return nil
+}
+
 // updateEnvKeys reads the env file (falling back to fallback if missing), updates the
 // given key=value pairs in-place preserving comments, and writes the result back.
 func (s *Settings) UpdateEnvKeys(updates map[string]string, fallback []byte) error {
+	for k, v := range updates {
+		if err := validateEnvUpdate(k, v); err != nil {
+			return err
+		}
+	}
+
 	envFileMu.Lock()
 	defer envFileMu.Unlock()
 
