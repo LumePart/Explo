@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,9 +76,16 @@ func validateEnvText(text string) error {
 // content and the later write silently undid the earlier one's changes.
 var envFileMu sync.Mutex
 
+// renameFile is os.Rename as a variable so tests can simulate filesystems
+// where renaming over the target fails.
+var renameFile = os.Rename
+
 // writeEnvFileAtomic writes via a temp file in the same directory plus
 // rename, so a crash mid-save (or a concurrent reader) never sees a
-// truncated .env.
+// truncated .env. When the rename fails -- a .env bind-mounted as a single
+// file into the container cannot be renamed over ("device or resource
+// busy") -- it falls back to truncating the file in place, which that
+// same mount allows.
 func writeEnvFileAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".env-*.tmp")
 	if err != nil {
@@ -92,7 +100,13 @@ func writeEnvFileAtomic(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, path)
+	if err := renameFile(tmpName, path); err != nil {
+		if werr := os.WriteFile(path, data, 0666); werr != nil {
+			return fmt.Errorf("rename temp file: %v; in-place write: %w", err, werr)
+		}
+		slog.Warn("renaming over .env failed, wrote it in place instead", "error", err.Error())
+	}
+	return nil
 }
 
 // validateEnvUpdate rejects keys and values that could inject extra .env
