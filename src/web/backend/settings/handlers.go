@@ -220,6 +220,30 @@ func (s *Settings) HandleSaveEnrichMetadata(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleSaveAlbumsOnly writes ALBUMS_ONLY=true/false to the .env file.
+func (s *Settings) HandleSaveAlbumsOnly(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	val := "false"
+	if body.Enabled {
+		val = "true"
+	}
+	if err := s.UpdateEnvKeys(map[string]string{"ALBUMS_ONLY": val}, web.SampleEnv); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // localOnlyFlag builds the playlist from tracks already in the library instead
 // of downloading. It is the same flag the docs suggest putting in *_FLAGS by
 // hand; the UI just writes it for you.
