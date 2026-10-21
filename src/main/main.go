@@ -206,6 +206,13 @@ func main() {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
+	if cfg.DownloadCfg.AlbumsOnly {
+		tracks = discovery.FilterNonAlbums(tracks)
+		if len(tracks) == 0 {
+			slog.Error("albums-only filter removed every track, nothing to download", "notify", true)
+			os.Exit(1)
+		}
+	}
 	allTracks := append([]*models.Track(nil), tracks...)
 	if cfg.ServerCfg.WebDataDir != "" {
 		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist, allTracks, nil)

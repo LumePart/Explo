@@ -116,6 +116,10 @@ type DownloadConfig struct {
 	UseSubDir         bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
 	Discovery         string   `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
 	Services          []string `env:"DOWNLOAD_SERVICES" env-default:"youtube"`
+	// Skip tracks whose release group is not an album (singles, EPs) after
+	// enrichment. Needs ENRICH_TRACK_METADATA to know the release type;
+	// unenriched tracks are kept. Off by default.
+	AlbumsOnly bool `env:"ALBUMS_ONLY" env-default:"false"`
 }
 
 type Filters struct {
