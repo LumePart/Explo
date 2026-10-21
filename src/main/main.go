@@ -229,12 +229,6 @@ func main() {
 		slog.Error(err.Error(), "notify", true)
 		os.Exit(1)
 	}
-	if cfg.ReplacePlaylist {
-		err := client.DeletePlaylist()
-		if err != nil {
-			slog.Warn(err.Error(), "notify", true)
-		}
-	}
 	if cfg.Flags.CleanDownloads && cfg.DownloadCfg.UseSubDir {
 		downloader.DeleteSongs()
 	}
@@ -252,6 +246,16 @@ func main() {
 		}
 	}
 
+	// The old playlist stays up until the replacement is ready: deleting it
+	// before the download left a hours-long gap with no playlist at all, and
+	// a failed run left nothing behind (BUG-34). A run that exits early now
+	// keeps the previous playlist untouched.
+	if cfg.ReplacePlaylist {
+		err := client.DeletePlaylist()
+		if err != nil {
+			slog.Warn(err.Error(), "notify", true)
+		}
+	}
 	if err := client.CreatePlaylist(tracks); err != nil {
 		slog.Warn(err.Error())
 	} else {
