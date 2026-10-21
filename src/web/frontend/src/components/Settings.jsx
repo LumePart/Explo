@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata,
+  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata, saveAlbumsOnly,
   saveReplacePlaylist,
   saveLocalOnly, saveCleanDownloads,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
@@ -537,6 +537,7 @@ function DownloadPathSection() {
   const [showModal, setShowModal] = useState(false)
   const [openMenuIdx, setOpenMenuIdx] = useState(null)
   const [enrichEnabled, setEnrichEnabled] = useState(false)
+  const [albumsOnly, setAlbumsOnly] = useState(false)
   const [cleanDownloads, setCleanDownloads] = useState(false)
   const [templateEnabled, setTemplateEnabled] = useState(false)
 
@@ -550,6 +551,7 @@ function DownloadPathSection() {
         ...jsonPresets,
       ]
       setEnrichEnabled(values.ENRICH_TRACK_METADATA === 'true')
+      setAlbumsOnly(values.ALBUMS_ONLY === 'true')
       const anyFlags = values.WEEKLY_EXPLORATION_FLAGS || values.WEEKLY_JAMS_FLAGS || values.DAILY_JAMS_FLAGS || values.ON_REPEAT_FLAGS || ''
       setCleanDownloads(anyFlags.includes('--clean-downloads'))
       const t = values.PATH_TEMPLATE || ''
@@ -577,6 +579,12 @@ function DownloadPathSection() {
     const next = !enrichEnabled
     setEnrichEnabled(next)
     try { await saveEnrichMetadata(next) } catch { setEnrichEnabled(!next) }
+  }
+
+  const handleAlbumsOnlyToggle = async () => {
+    const next = !albumsOnly
+    setAlbumsOnly(next)
+    try { await saveAlbumsOnly(next) } catch { setAlbumsOnly(!next) }
   }
 
   const handleCleanToggle = async () => {
@@ -667,6 +675,22 @@ function DownloadPathSection() {
           className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${enrichEnabled ? 'bg-accent' : 'bg-[#383838]'}`}
         >
           <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${enrichEnabled ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
+        </button>
+      </div>
+
+      {/* ALBUMS_ONLY toggle */}
+      <div className="flex items-start justify-between mt-3 mb-1 gap-4">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[13px] text-white">Albums only</span>
+          <span className="text-[11px] text-muted">Skip singles, EPs and samplers so only complete albums download. Needs Auto-tag songs above to know each release's type.</span>
+        </div>
+        <button
+          role="switch"
+          aria-checked={albumsOnly}
+          onClick={handleAlbumsOnlyToggle}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${albumsOnly ? 'bg-accent' : 'bg-[#383838]'}`}
+        >
+          <span className={`inline-block h-[18px] w-[18px] my-[2px] rounded-full bg-white shadow transition-transform duration-200 ${albumsOnly ? 'translate-x-[20px]' : 'translate-x-[2px]'}`} />
         </button>
       </div>
 
