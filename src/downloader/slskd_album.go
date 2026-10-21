@@ -204,7 +204,17 @@ func (c Slskd) CollectAlbumFiles(track models.Track, results SearchResults) ([]F
 		if c.Cfg.PreferOriginalRelease {
 			trimToOriginal(dir, track)
 		}
-		score := c.scoreDirWithPreference(*dir, track)
+		// Before scoring, not after, for the same reason: the size terms
+		// must see the files that would actually download. Scoring the raw
+		// listing lets a folder win on files the quality floors then strip,
+		// leaving a one-song remnant queued in place of the album.
+		kept := c.qualityFiltered(*dir)
+		if len(kept) == 0 {
+			continue
+		}
+		probe := *dir
+		probe.files = kept
+		score := c.scoreDirWithPreference(probe, track)
 		if best == nil || score > bestScore {
 			best, bestScore = dir, score
 		}
@@ -214,7 +224,7 @@ func (c Slskd) CollectAlbumFiles(track models.Track, results SearchResults) ([]F
 		// either. Both stay eligible so a track with nothing better still
 		// downloads, but a right-sized release outranks them regardless of
 		// score.
-		if len(dir.files) > 1 && !oversizedDir(*dir, track) && (bestFull == nil || score > bestFullScore) {
+		if len(kept) > 1 && !oversizedDir(probe, track) && (bestFull == nil || score > bestFullScore) {
 			bestFull, bestFullScore = dir, score
 		}
 	}
