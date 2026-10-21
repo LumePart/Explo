@@ -184,6 +184,8 @@ func (c Slskd) CollectAlbumFiles(track models.Track, results SearchResults) ([]F
 
 	var best *peerDir
 	var bestScore int
+	var bestFull *peerDir
+	var bestFullScore int
 
 	for i := range candidates {
 		dir := &candidates[i]
@@ -202,9 +204,22 @@ func (c Slskd) CollectAlbumFiles(track models.Track, results SearchResults) ([]F
 		if c.Cfg.PreferOriginalRelease {
 			trimToOriginal(dir, track)
 		}
-		if score := c.scoreDirWithPreference(*dir, track); best == nil || score > bestScore {
+		score := c.scoreDirWithPreference(*dir, track)
+		if best == nil || score > bestScore {
 			best, bestScore = dir, score
 		}
+		// A lone file in an album-named folder is a stray, not a release --
+		// the one-song download in place of the album -- and a directory
+		// holding far more than the album should is a dump, not the album
+		// either. Both stay eligible so a track with nothing better still
+		// downloads, but a right-sized release outranks them regardless of
+		// score.
+		if len(dir.files) > 1 && !oversizedDir(*dir, track) && (bestFull == nil || score > bestFullScore) {
+			bestFull, bestFullScore = dir, score
+		}
+	}
+	if bestFull != nil {
+		best, bestScore = bestFull, bestFullScore
 	}
 
 	if best == nil {

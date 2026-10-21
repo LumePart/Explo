@@ -350,6 +350,40 @@ func TestReleaseSizeScore_FullerIsUnchanged(t *testing.T) {
 	}
 }
 
+// A 64-file folder is not a 10-track album, however well the folder is
+// named. Anything at or under twice the expected count stays eligible --
+// deluxe padding included.
+func TestOversizedDir_FlagsADump(t *testing.T) {
+	track := albumTrackOf(10, 1)
+
+	if !oversizedDir(releaseDir(64), track) {
+		t.Error("64 files for a 10-track album is not flagged oversized")
+	}
+	if oversizedDir(releaseDir(10), track) {
+		t.Error("the exact 10-track release is flagged oversized")
+	}
+	if oversizedDir(releaseDir(20), track) {
+		t.Error("a 20-track deluxe for a 10-track album is flagged oversized; the cap must leave deluxe padding alone")
+	}
+}
+
+// Same unknown-count cases as the scoring fallback: no expected count, no
+// verdict.
+func TestOversizedDir_NeverFiresWithoutAnExpectedCount(t *testing.T) {
+	cases := map[string]models.Track{
+		"no track total": albumTrackOf(0, 1),
+		"multi disc":     albumTrackOf(11, 2),
+	}
+
+	for name, track := range cases {
+		t.Run(name, func(t *testing.T) {
+			if oversizedDir(releaseDir(64), track) {
+				t.Errorf("64 files flagged oversized with no usable expected count (%s)", name)
+			}
+		})
+	}
+}
+
 // The cap is what stops a right-sized wrong album beating a wrong-sized right
 // one. Without it the size term could outrank the album name.
 func TestReleaseSizeScore_NeverExceedsTheCap(t *testing.T) {

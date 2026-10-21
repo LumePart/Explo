@@ -168,8 +168,8 @@ func scorePreference(files []File, pref string) int {
 // Release preferences. Where SizePreference is about how good each file is,
 // this is about how much of the release to take.
 const (
-	// PreferFullerRelease is how Explo has always chosen: the most complete
-	// directory wins.
+	// PreferFullerRelease takes the most complete directory: the historic
+	// default, still the fallback whenever the real track count is unknown.
 	PreferFullerRelease = "fuller"
 	// PreferSmallerRelease reaches for the release closest to the album's real
 	// track count, which is what keeps a 21-track deluxe edition from being
@@ -226,6 +226,25 @@ func expectedTrackCount(track models.Track) (int, bool) {
 		return 0, false
 	}
 	return expected, true
+}
+
+// oversizedReleaseCap bounds the strict selection pass: a candidate holding
+// more than this multiple of the expected track count is a compilation dump,
+// not the album (BUG-35: a 64-file folder won a 10-track album). Deluxe
+// padding stays well under it, and anything bigger still wins when nothing
+// better exists -- the cap only decides between candidates, never eligibility
+// outright.
+const oversizedReleaseCap = 2
+
+// oversizedDir reports whether dir holds far more files than the album should
+// have. Without a usable expected count it never fires: same unknown-count
+// cases as releaseSizeScore, same refusal to guess.
+func oversizedDir(dir peerDir, track models.Track) bool {
+	expected, ok := expectedTrackCount(track)
+	if !ok {
+		return false
+	}
+	return len(dir.files) > oversizedReleaseCap*expected
 }
 
 // releaseSizeScore rewards a release for being the size it ought to be.

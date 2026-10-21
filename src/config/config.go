@@ -164,10 +164,11 @@ type Slskd struct {
 	// lossy file and falls back to lossless only when there is none; "larger"
 	// is the reverse.
 	SizePreference   string `env:"SIZE_PREFERENCE" env-default:"none"`
-	// Which release to reach for in album mode: "fuller" takes the most
-	// complete one, as it always has; "smaller" takes the one closest to the
-	// album's real track count, which needs ENRICH_TRACK_METADATA to know it.
-	ReleasePreference string `env:"RELEASE_PREFERENCE" env-default:"fuller"`
+	// Which release to reach for in album mode: "smaller" takes the one
+	// closest to the album's real track count, which needs
+	// ENRICH_TRACK_METADATA to know it; "fuller" takes the most complete
+	// one, as it always has. Unknown counts fall back to fuller either way.
+	ReleasePreference string `env:"RELEASE_PREFERENCE" env-default:"smaller"`
 	// Trim a candidate release down to the original album before downloading it:
 	// drop extra discs a peer has flattened into one directory, and drop bonus
 	// tracks appended past the album's real length. Needs ENRICH_TRACK_METADATA

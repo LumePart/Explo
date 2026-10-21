@@ -230,7 +230,7 @@ func TestWizardStep3_DefaultsTheReleasePreference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading written env: %v", err)
 	}
-	assertEnvValue(t, written, "RELEASE_PREFERENCE", "fuller")
+	assertEnvValue(t, written, "RELEASE_PREFERENCE", "smaller")
 }
 
 func TestReleasePreferenceIsReadableByTheUI(t *testing.T) {

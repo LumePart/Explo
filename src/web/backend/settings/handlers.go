@@ -536,7 +536,7 @@ func (s *Settings) HandleWizardStep3(w http.ResponseWriter, r *http.Request) {
 		body.SizePreference = "none"
 	}
 	if body.ReleasePreference == "" {
-		body.ReleasePreference = "fuller"
+		body.ReleasePreference = "smaller"
 	}
 	preferOriginal := "true"
 	if body.PreferOriginalRelease != nil && !*body.PreferOriginalRelease {
