@@ -256,6 +256,15 @@ export async function saveEnrichMetadata(enabled) {
   if (!res.ok) throw new Error(await res.text())
 }
 
+export async function saveAlbumsOnly(enabled) {
+  const res = await apiFetch('/api/ui/config/albums-only', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
 export async function saveReplacePlaylist(id, name, replace) {
   const res = await apiFetch('/api/ui/config/replace-playlist', {
     method: 'POST',

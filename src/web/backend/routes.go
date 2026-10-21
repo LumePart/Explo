@@ -54,6 +54,7 @@ func (s *Server) registerSettingRoutes() {
 	s.mux.Handle("POST /api/ui/config/schedules", s.auth(s.settings.HandleSaveSchedule))
 	s.mux.Handle("POST /api/ui/config/path-template", s.auth(s.settings.HandleSavePathTemplate))
 	s.mux.Handle("POST /api/ui/config/enrich-metadata", s.auth(s.settings.HandleSaveEnrichMetadata))
+	s.mux.Handle("POST /api/ui/config/albums-only", s.auth(s.settings.HandleSaveAlbumsOnly))
 	s.mux.Handle("POST /api/ui/config/replace-playlist", s.auth(s.settings.HandleSaveReplacePlaylist))
 	s.mux.Handle("POST /api/ui/config/local-only", s.auth(s.settings.HandleSaveLocalOnly))
 	s.mux.Handle("POST /api/ui/config/clean-downloads", s.auth(s.settings.HandleSaveCleanDownloads))
