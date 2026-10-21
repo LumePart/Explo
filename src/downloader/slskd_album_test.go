@@ -213,6 +213,63 @@ func TestCollectAlbumFiles_PrefersFullReleaseOverSingleFileStray(t *testing.T) {
 	}
 }
 
+// A 64-file folder outscores the real 10-track album on the fuller-release
+// size term, so the cap has to exclude it from the strict pass. The track
+// carries the enriched count, the way a real recommendation does.
+func TestCollectAlbumFiles_SkipsAnOversizedDump(t *testing.T) {
+	client := selectionClient()
+	track := albumTrack()
+	track.TrackTotal = 10
+
+	dump := []string{"01 Bad Guy.flac"}
+	for i := 2; i <= 64; i++ {
+		dump = append(dump, "Dump Track.flac")
+	}
+	correct := []string{"01 Bury A Friend.flac", "02 Bad Guy.flac", "03 Xanny.flac",
+		"04 Everything I Wanted.flac", "05 Ocean Eyes.flac", "06 Lovely.flac",
+		"07 You Should See Me.flac", "08 All The Good Girls.flac",
+		"09 Wish You Were Gay.flac", "10 Ilomilo.flac"}
+
+	results := albumResults(
+		peer{"peer1", `@@x\Billie Eilish\When We All Fall Asleep`, dump},
+		peer{"peer2", `@@y\Billie Eilish\When We All Fall Asleep`, correct},
+	)
+
+	files, err := client.CollectAlbumFiles(track, results)
+	if err != nil {
+		t.Fatalf("CollectAlbumFiles() = %v, want nil", err)
+	}
+	if files[0].Username != "peer2" {
+		t.Errorf("selected peer %q, want peer2 -- the 64-file dump won over the 10-track album", files[0].Username)
+	}
+	if len(files) != 10 {
+		t.Errorf("got %d files, want the 10-track album", len(files))
+	}
+}
+
+// The dump stays eligible too: with nothing right-sized available, the big
+// folder still beats no music.
+func TestCollectAlbumFiles_FallsBackToADumpWhenNothingElse(t *testing.T) {
+	client := selectionClient()
+	track := albumTrack()
+	track.TrackTotal = 10
+
+	dump := []string{"01 Bad Guy.flac"}
+	for i := 2; i <= 64; i++ {
+		dump = append(dump, "Dump Track.flac")
+	}
+
+	results := albumResults(peer{"peer1", `@@x\Billie Eilish\When We All Fall Asleep`, dump})
+
+	files, err := client.CollectAlbumFiles(track, results)
+	if err != nil {
+		t.Fatalf("CollectAlbumFiles() = %v, want nil", err)
+	}
+	if len(files) != 64 {
+		t.Errorf("got %d files, want the 64-file dump as a last resort", len(files))
+	}
+}
+
 // The stray stays eligible: with nothing fuller available, one song still
 // beats no song.
 func TestCollectAlbumFiles_FallsBackToSingleFileWhenNothingElse(t *testing.T) {

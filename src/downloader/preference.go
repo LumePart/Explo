@@ -228,6 +228,25 @@ func expectedTrackCount(track models.Track) (int, bool) {
 	return expected, true
 }
 
+// oversizedReleaseCap bounds the strict selection pass: a candidate holding
+// more than this multiple of the expected track count is a compilation dump,
+// not the album (BUG-35: a 64-file folder won a 10-track album). Deluxe
+// padding stays well under it, and anything bigger still wins when nothing
+// better exists -- the cap only decides between candidates, never eligibility
+// outright.
+const oversizedReleaseCap = 2
+
+// oversizedDir reports whether dir holds far more files than the album should
+// have. Without a usable expected count it never fires: same unknown-count
+// cases as releaseSizeScore, same refusal to guess.
+func oversizedDir(dir peerDir, track models.Track) bool {
+	expected, ok := expectedTrackCount(track)
+	if !ok {
+		return false
+	}
+	return len(dir.files) > oversizedReleaseCap*expected
+}
+
 // releaseSizeScore rewards a release for being the size it ought to be.
 //
 // Without a usable expected count -- enrichment off, the lookup failed, or a
