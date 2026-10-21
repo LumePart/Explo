@@ -656,6 +656,10 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		}
 	}
 
+	// One release group per album: independent per-track resolution splits
+	// editions, and both downloaders key on this ID.
+	UnifyReleaseGroups(tracks)
+
 	return tracks, nil
 
 }
