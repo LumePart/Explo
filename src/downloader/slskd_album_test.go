@@ -165,6 +165,71 @@ func TestCollectAlbumFiles_DoesNotApplyTrackDurationToSiblings(t *testing.T) {
 	}
 }
 
+// selectionClient builds the same album-mode client as albumClient but
+// without the httptest server: release selection never touches the network,
+// so these tests also run where binding a local port is forbidden.
+func selectionClient() *Slskd {
+	client := NewSlskd(cfg.Slskd{
+		URL:       "http://localhost:5030",
+		APIKey:    "test-key",
+		Timeout:   5,
+		AlbumMode: true,
+		Filters: cfg.Filters{
+			Extensions:  []string{"flac", "mp3"},
+			MinBitRate:  256,
+			MinBitDepth: 8,
+			FilterList:  []string{"live", "remix"},
+		},
+	}, "/data/")
+	client.AddHeader()
+
+	return client
+}
+
+// A lone file in an album-named folder is a stray, not the album: the fuller
+// release must win even when the stray scores higher on name match alone.
+func TestCollectAlbumFiles_PrefersFullReleaseOverSingleFileStray(t *testing.T) {
+	client := selectionClient()
+
+	// The stray outscores the real thing on name match alone (artist and
+	// album in the folder vs album only), so only the full-release
+	// preference can save the correct pick.
+	results := albumResults(
+		peer{"peer1", `@@x\Billie Eilish\When We All Fall Asleep`,
+			[]string{"02 Bad Guy.flac"}},
+		peer{"peer2", `@@y\Music\When We All Fall Asleep`,
+			[]string{"01 Bury A Friend.flac", "02 Bad Guy.flac", "03 Xanny.flac"}},
+	)
+
+	files, err := client.CollectAlbumFiles(albumTrack(), results)
+	if err != nil {
+		t.Fatalf("CollectAlbumFiles() = %v, want nil", err)
+	}
+	if files[0].Username != "peer2" {
+		t.Errorf("selected peer %q, want peer2 -- the single-file stray won over the full release", files[0].Username)
+	}
+	if len(files) != 3 {
+		t.Errorf("got %d files, want the whole 3-track release", len(files))
+	}
+}
+
+// The stray stays eligible: with nothing fuller available, one song still
+// beats no song.
+func TestCollectAlbumFiles_FallsBackToSingleFileWhenNothingElse(t *testing.T) {
+	client := selectionClient()
+
+	results := albumResults(peer{"peer1", `@@x\Billie Eilish\When We All Fall Asleep`,
+		[]string{"02 Bad Guy.flac"}})
+
+	files, err := client.CollectAlbumFiles(albumTrack(), results)
+	if err != nil {
+		t.Fatalf("CollectAlbumFiles() = %v, want nil", err)
+	}
+	if len(files) != 1 {
+		t.Errorf("got %d files, want the lone stray as a last resort", len(files))
+	}
+}
+
 // One request per release, carrying every file, and the track left pointing at
 // the recommended one so the monitor and the playlist still work.
 func TestQueueAlbumDownload_QueuesEveryFileInOneRequest(t *testing.T) {
