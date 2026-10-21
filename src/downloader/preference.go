@@ -168,8 +168,8 @@ func scorePreference(files []File, pref string) int {
 // Release preferences. Where SizePreference is about how good each file is,
 // this is about how much of the release to take.
 const (
-	// PreferFullerRelease is how Explo has always chosen: the most complete
-	// directory wins.
+	// PreferFullerRelease takes the most complete directory: the historic
+	// default, still the fallback whenever the real track count is unknown.
 	PreferFullerRelease = "fuller"
 	// PreferSmallerRelease reaches for the release closest to the album's real
 	// track count, which is what keeps a 21-track deluxe edition from being

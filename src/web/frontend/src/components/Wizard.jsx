@@ -647,7 +647,7 @@ function Step3({ fields, setField, envSources, onBack, onFinish, saving }) {
                       { value: 'fuller', label: 'Fuller release' },
                       { value: 'smaller', label: 'Smaller release' },
                     ].map(opt => {
-                      const active = (releasePreference || 'fuller') === opt.value
+                      const active = (releasePreference || 'smaller') === opt.value
                       return (
                         <button
                           key={opt.value}
@@ -837,7 +837,7 @@ export default function Wizard({
       minBitrate: parseInt(config.MIN_BITRATE) || 256,
       maxBitrate: parseInt(config.MAX_BITRATE) || 0,
       sizePreference: config.SIZE_PREFERENCE || "none",
-      releasePreference: config.RELEASE_PREFERENCE || "fuller",
+      releasePreference: config.RELEASE_PREFERENCE || "smaller",
       // Defaults to on, so only an explicit "false" turns it off.
       preferOriginalRelease: config.PREFER_ORIGINAL_RELEASE !== "false",
       adminAuthMethod: config.ADMIN_AUTH_METHOD || "password",
