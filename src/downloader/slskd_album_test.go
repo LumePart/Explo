@@ -247,6 +247,52 @@ func TestCollectAlbumFiles_SkipsAnOversizedDump(t *testing.T) {
 	}
 }
 
+// Scoring sees the raw listing, so a folder wins on files the quality
+// floors then strip: 40 files at scoring, one survivor queued. The size
+// terms must see only what would actually download.
+func TestCollectAlbumFiles_IgnoresFilesThatFailQualityFloors(t *testing.T) {
+	client := selectionClient()
+	track := albumTrack()
+	track.TrackTotal = 13
+
+	// Twenty files stay under the oversize cap for a 13-track album, so only
+	// front-filtering can stop this folder -- scoring the raw listing must
+	// not see what the floors will strip.
+	dump := []string{"02 Bad Guy.flac"}
+	for i := 2; i <= 20; i++ {
+		dump = append(dump, "Filler Track.flac")
+	}
+	correct := []string{"01 Bury A Friend.flac", "02 Bad Guy.flac", "03 Xanny.flac",
+		"04 Everything I Wanted.flac", "05 Ocean Eyes.flac", "06 Lovely.flac",
+		"07 You Should See Me.flac", "08 All The Good Girls.flac",
+		"09 Wish You Were Gay.flac", "10 Ilomilo.flac", "11 Hostage.flac",
+		"12 Listen.flac", "13 Goodbye.flac"}
+
+	results := albumResults(
+		peer{"peer1", `@@x\Billie Eilish\When We All Fall Asleep`, dump},
+		peer{"peer2", `@@y\Billie Eilish\When We All Fall Asleep`, correct},
+	)
+	// Everything in the dump except the recommended track is below the
+	// bitrate floor: at scoring time it looks like 40 files, downloadable
+	// reality is one.
+	for i := range results[0].Files {
+		if !strings.Contains(string(results[0].Files[i].Name), "Bad Guy") {
+			results[0].Files[i].BitRate = 100
+		}
+	}
+
+	files, err := client.CollectAlbumFiles(track, results)
+	if err != nil {
+		t.Fatalf("CollectAlbumFiles() = %v, want nil", err)
+	}
+	if files[0].Username != "peer2" {
+		t.Errorf("selected peer %q, want peer2 -- the dump won on files the floors strip", files[0].Username)
+	}
+	if len(files) != 13 {
+		t.Errorf("got %d files, want the intact 13-track album", len(files))
+	}
+}
+
 // The dump stays eligible too: with nothing right-sized available, the big
 // folder still beats no music.
 func TestCollectAlbumFiles_FallsBackToADumpWhenNothingElse(t *testing.T) {
