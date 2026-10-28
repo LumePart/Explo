@@ -12,7 +12,6 @@ import (
 
 	"explo/src/discovery"
 	"explo/src/util"
-
 )
 
 // CustomPlaylist holds the metadata for a user-imported playlist.
@@ -121,10 +120,10 @@ type FetchResult struct {
 
 // fetchCustomPlaylistTracks dispatches to the appropriate source fetcher.
 // This is the single point where source-specific logic lives for fetching.
-func fetchCustomPlaylistTracks(p CustomPlaylist) (FetchResult, error) {
+func fetchCustomPlaylistTracks(p CustomPlaylist, enabled bool) (FetchResult, error) {
 	switch p.Source {
 	case "apple_music":
-		name, art, tracks, err := fetchAppleMusicPlaylist(p.SourceURL)
+		name, art, tracks, err := fetchAppleMusicPlaylist(p.SourceURL, enabled)
 		return FetchResult{name, art, tracks}, err
 	case "spotify":
 		name, art, tracks, err := fetchSpotifyPlaylist(p.SourceURL)
