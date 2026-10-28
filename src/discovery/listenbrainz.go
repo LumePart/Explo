@@ -206,13 +206,21 @@ func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *List
 	}
 }
 func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
-	// Stats-based playlists bypass the discovery mode switch
-	if c.cfg.ImportPlaylist == "on-repeat" {
-		tracks, err := c.getTopRecordings(c.cfg.User)
+	// on-repeat and fresh-releases skip the discovery mode switch
+	if c.cfg.ImportPlaylist == "on-repeat" || c.cfg.ImportPlaylist == "fresh-releases" {
+		var tracks []*models.Track
+		var err error
+		if c.cfg.ImportPlaylist == "on-repeat" {
+			tracks, err = c.getTopRecordings(c.cfg.User)
+		} else {
+			// Fresh releases already expand full tracklists via MusicBrainz.
+			tracks, err = c.getFreshReleaseTracks(c.cfg.User)
+		}
 		if err != nil {
 			return nil, err
 		}
-		if c.cfg.EnrichTrackMetadata && len(tracks) > 0 {
+		// Skip enrich for fresh-releases: tracksFromRelease already populated MB fields.
+		if c.cfg.ImportPlaylist == "on-repeat" && c.cfg.EnrichTrackMetadata && len(tracks) > 0 {
 			enrichedTracks, err := c.enrichTracks(tracks, c.cfg.SingleArtist)
 			if err != nil {
 				slog.Warn("failed to enrich playlist metadata", "error", err)
