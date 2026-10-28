@@ -23,12 +23,12 @@ Status values: `open` · `in-progress` · `blocked` · `done` · `wontfix`
 | App crashes | 5 | 5 | 0 |
 | Data loss and corruption | 3 | 3 | 0 |
 | Security | 2 | 2 | 0 |
-| Playlists broken or wrong | 7 | 7 | 0 |
+| Playlists broken or wrong | 8 | 8 | 0 |
 | Hangs and resource leaks | 4 | 4 | 0 |
-| Wrong songs and metadata | 4 | 4 | 0 |
-| Web UI and settings screens | 4 | 4 | 0 |
+| Wrong songs and metadata | 8 | 8 | 0 |
+| Web UI and settings screens | 5 | 5 | 0 |
 | Scheduling | 2 | 2 | 0 |
-| **Total** | **31** | **31** | **0** |
+| **Total** | **37** | **37** | **0** |
 
 Update this table whenever an issue changes status.
 
@@ -178,6 +178,14 @@ Update this table whenever an issue changes status.
   - Status: done · PR/commit: local branch `fix/bug-17-tracklist-replace-flag` (7045dcb, unpushed) · Verification: vite build passes; no JS test runner in repo so no committed test
   - Handoff: fixed locally, not pushed and no PR opened yet — review the branch, then push + open PR per issue
 
+- [x] **BUG-34 — Old playlist is deleted before downloads finish** · Severity: High
+  - Location: `src/main/main.go:225` (delete) vs `:241` (download) vs `:248` (create)
+  - User impact: Your playlist disappears at the start of a run and only comes back at the end — if the run fails, you are left with nothing.
+  - Detail: `DeletePlaylist()` runs before `StartDownload()`, with `CreatePlaylist()` after, so the gap between delete and create spans the entire (potentially hours-long) download. A failed run leaves no playlist at all.
+  - Fix direction: Move the delete to just before `CreatePlaylist()`, after downloads complete or time out, still gated on the `ReplacePlaylist` flag; verify the `clean-downloads` path (`main.go:231`) does not depend on the early delete.
+  - Status: done · PR/commit: branch `fix/bug-34-playlist-delete` (a67f6ca, PR #61) · Verification: `go vet` clean, `go build ./...` passes (no committed tests cover src/main)
+  - Handoff: merged (PR #61)
+
 ## Hangs and resource leaks
 
 - [x] **BUG-18 — A trickling download hangs the run forever** · Severity: Medium
@@ -246,6 +254,38 @@ Update this table whenever an issue changes status.
   - Status: done · PR/commit: local branch `fix/bug-25-cover-failure` (5da4767, unpushed) · Verification: new failure-path unit test passes; golangci-lint 0 issues
   - Handoff: fixed locally, not pushed and no PR opened yet — review the branch, then push + open PR per issue
 
+- [x] **BUG-37 — Winner picked on files the quality floors then strip** · Severity: High
+  - Location: `src/downloader/slskd_album.go:207` (score raw listing) vs `:229` (filter winner after)
+  - User impact: A big folder wins selection and then collapses to a single downloaded song instead of the album.
+  - Detail: Found live (Bebe Rexha DIRTY BLONDE): a 40-file folder scored 210 on pre-filter size, quality filtering stripped all but one file, and the 1-file remnant queued. Scoring never saw what would actually download.
+  - Fix direction: Quality-filter each candidate before scoring so the size terms see only downloadable files; fully-stripped candidates leave both passes, fallback unchanged.
+  - Status: done · PR/commit: branch `fix/score-filtered-files` (670c0ec, PR #60 merged) · Verification: new regression test fails unpatched (dump wins) and passes with the fix; 20+ selection/scoring tests pass; `go vet` clean
+  - Handoff: merged (TODO.md itself uncommitted)
+
+- [x] **BUG-32 — Same album downloads in multiple versions/editions** · Severity: Medium
+  - Location: `src/discovery/listenbrainz.go:560` (per-track release match); `src/downloader/downloader.go:99` (every downloader processes all tracks)
+  - User impact: The same album shows up two or more times in your library in different versions, like standard and deluxe.
+  - Detail: Each playlist track resolves to its own best-matching MusicBrainz release, so tracks from one album can land on different editions; with several `DOWNLOAD_SERVICES` configured, each downloader then fetches its own copy of tracks not yet marked present. The existing release-group consensus (`src/discovery/canonical.go`) is only used for track counts, not for pinning tracks to one release.
+  - Fix direction: Group tracks by release-group ID after enrichment, pin each group to a single canonical release, and skip tracks already claimed by an earlier downloader.
+  - Status: done · PR/commit: branch `fix/bug-32-release-unification` (ee7f788, PR #62) · Verification: 5 new UnifyReleaseGroups tests pass; full discovery suite passes; `go vet` clean
+  - Handoff: merged (PR #62)
+
+- [x] **BUG-33 — Singles, EPs, and samplers download even when only full albums are wanted** · Severity: Medium
+  - Location: `src/discovery/listenbrainz.go:581` (primary type read but never filtered)
+  - User impact: One-off singles and EPs land in your library even though you only want complete albums.
+  - Detail: Enrichment already reads the release group's primary type (`Album`/`Single`/`EP`/…), but nothing filters on it — every recommended track flows to the downloaders regardless of release type.
+  - Fix direction: Add an opt-in albums-only setting (default off) that drops non-`Album` tracks after enrichment, logging each skip so the run summary shows what was excluded and why.
+  - Status: done · PR/commit: branch `feat/albums-only` (d16b457, d9fc01b, 1e3f529, PR #58 merged) · Verification: new filter + handler tests pass; `go vet` clean; vite build passes; verified live (11 singles skipped, 39 kept in a Manual Run)
+  - Handoff: merged (TODO.md itself uncommitted)
+
+- [x] **BUG-35 — Release selection has no size sanity: bloated dumps and single strays both win** · Severity: High
+  - Location: `src/downloader/slskd_album.go:205` (pick highest score, no size bounds); `src/downloader/preference.go:238` (size term rewards fuller by default)
+  - User impact: You get a 64-track compilation instead of a 10-track album, or a single song instead of the album — the library fills with wrong-sized releases.
+  - Detail: Observed live: a 64-file `Weezer/Weezer` dump scored 210 (100 album-name + 50 artist-name + 40 capped size bonus) and beat every correct copy, then failed to queue; a 1-file `The Outfield/Play Deep` dir scored 180 on name match alone and won, downloading only one song. Name terms cannot distinguish a dump or stray in an album-named folder, the default `fuller` size preference actively rewards bloat, and nothing rejects 1-file releases in album mode. The existing `smaller` preference (closeness to the MusicBrainz expected count) would fix both directions but is opt-in and needs enrichment on.
+  - Fix direction: In album mode, bound acceptable release size around the expected track count (reject 1-file strays, cap bloated dumps), falling back to best-effort when the expected count is unknown; consider defaulting to `smaller` when known.
+  - Status: done · PR/commit: branch `fix/bug-35-release-size-sanity` (452a55e, 70894c8, 784ea91, PR #57 merged) · Verification: `go vet ./...` clean; 6 new tests pass (each mutation-checked to fail without its fix); settings package + vite build pass
+  - Handoff: merged (TODO.md itself uncommitted)
+
 ## Web UI and settings screens
 
 - [x] **BUG-26 — Buttons break after a restart or a week left open (CSRF)** · Severity: Medium
@@ -280,6 +320,14 @@ Update this table whenever an issue changes status.
   - Status: done · PR/commit: local branch `fix/bug-29-wizard-env-lock` (65e2c31, unpushed) · Verification: vite build passes; no JS test runner in repo so no committed test
   - Handoff: fixed locally, not pushed and no PR opened yet — review the branch, then push + open PR per issue
 
+- [x] **BUG-36 — No settings save works with a bind-mounted .env file** · Severity: High
+  - Location: `src/web/backend/settings/settings.go:81` (`writeEnvFileAtomic`)
+  - User impact: Every toggle and setting on the Settings screen flips back instead of saving, with a bare 500 and nothing in the logs.
+  - Detail: The atomic writer renames a temp file over `.env`, but a `.env` bind-mounted as a single file rejects rename-over with `device or resource busy`. Found live while debugging why Albums-only would not enable.
+  - Fix direction: Keep the atomic rename as the fast path; fall back to truncating the file in place when it fails, and report both errors when the fallback fails too.
+  - Status: done · PR/commit: branch `fix/env-bind-mount-write` (58e4689, PR #59 merged) · Verification: new fallback + combined-error tests pass; full settings package passes; `go vet` clean; verified live (in-place-write warnings in run logs, toggles stick)
+  - Handoff: merged (TODO.md itself uncommitted)
+
 ## Scheduling
 
 - [x] **BUG-30 — Legacy schedule setting disables all scheduling** · Severity: High
@@ -309,3 +357,7 @@ Record one line per working session so progress survives across sessions.
 | 2026-10-19 | Bug review | BUG-01 – BUG-31 created | Tracker created; all items open and unverified for fixes. |
 | 2026-10-19 | Per-issue local fixes | BUG-01–17, BUG-19–31 fixed | All 30 remaining bugs fixed, each on its own local fix/bug-* branch with its own commit (see BUG entries). Nothing pushed; branches await review, then push + one PR per issue. |
 | 2026-10-19 | Provider fallback port | BUG-18 done | Ported `FallbackAfter` from stale `b7122e3` onto `dev` (branch `feat/download-provider-fallback`, PR #25) and fixed BUG-18 deadline bypass. `feat/lidarr`/`feat/provider-fallback` remote branches deleted after the port landed on the new branch. |
+| 2026-10-20 | Live log watch (Manual Run) | BUG-32 – BUG-35 created | Added user-reported + observed issues (dup album versions, singles/EPs, early playlist delete, no size sanity). BUG-35 fixed on `fix/bug-35-release-size-sanity` (PR #57, merged). |
+| 2026-10-20 | Live log watch + Plex reads | BUG-33, BUG-36 fixed | ALBUMS_ONLY (PR #58, merged; verified live 11 dropped/39 kept); bind-mount .env write fallback (PR #59, merged; verified live). |
+| 2026-10-21 | Score-after-filter fix | BUG-37 created + fixed | Bebe Rexha collapse diagnosed; `fix/score-filtered-files` (PR #60, merged). |
+| 2026-10-21 | Final two issues | BUG-34, BUG-32 fixed | Playlist delete moved post-download (PR #61 merged); release-group unification (PR #62 merged). Tracker rebuilt after a `reset --hard` wiped uncommitted entries. |
