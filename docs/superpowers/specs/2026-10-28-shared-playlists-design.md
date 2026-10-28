@@ -1,6 +1,6 @@
 # Shared Plex playlists — design
 
-Status: draft, awaiting owner approval. Date: 2026-10-28.
+Status: draft, awaiting owner approval (open questions answered). Date: 2026-10-28.
 
 ## Intent
 
@@ -196,10 +196,12 @@ play for the recipient.
 - Whether the settings UI needs a frontend rebuild (see above).
 - Error aggregation shape returned from `SharePlaylist`.
 
-## Open questions for the owner
+## Decisions from the owner
 
-1. Do recipients have access to the Explo library in Plex? If not, copies
-   will appear empty. (Assumed yes.)
-2. Does each instance already have admin credentials configured? Sharing
-   cannot work without them. (Assumed yes.)
-3. Should custom-playlist artwork also go on the copies? (Default: no.)
+1. Recipients have access to the Explo library in Plex. Confirmed.
+2. Admin credentials: owner is unsure whether each instance has them. Sharing
+   needs `ADMIN_API_KEY`, or `ADMIN_SYSTEM_USERNAME` plus
+   `ADMIN_SYSTEM_PASSWORD`, set on the instance (see `sample.env`). The
+   feature logs one clear warning if they are missing. Each person checks
+   their own instance's env/settings before the manual test.
+3. No custom-playlist artwork on the copies. Confirmed.
