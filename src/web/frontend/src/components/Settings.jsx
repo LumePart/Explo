@@ -150,7 +150,7 @@ function CustomPlaylistsSection({
 
       {customPlaylists.length === 0 ? (
         <p className="text-[12px] text-muted mt-3">
-          No custom playlists yet. Import one from ListenBrainz or Apple Music.
+          No custom playlists yet. Import one from ListenBrainz, Apple Music or Spotify.
         </p>
       ) : (
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
@@ -320,7 +320,7 @@ function HomeSection() {
       onReplaceToggle: () => {
         const next = !(replacePlaylists[id] ?? true)
         setReplacePlaylists(prev => ({ ...prev, [id]: next }))
-        saveReplacePlaylist(id, next).catch(() =>
+        saveReplacePlaylist(id, s.name, next).catch(() =>
           setReplacePlaylists(prev => ({ ...prev, [id]: !next }))
         )
       },
@@ -384,7 +384,7 @@ function HomeSection() {
             playlist={openTracklist}
             refreshTick={refreshTick}
             onRun={async () => {
-              await startRun(openTracklist, 'normal')
+              await startRun(openTracklist, 'normal', replacePlaylists[playlist] ?? true)
               setRunning(true)
               setStatus('running…')
               setLogEntries([])
@@ -984,7 +984,7 @@ function LogsSection() {
 // Module-level cache so the picked cover survives component remounts.
 let _bgCoverCache = null
 
-export default function Settings({ onWizard, onLogout }) {
+export default function Settings({ authDisabled, onWizard, onLogout }) {
   const [activeTab, setActiveTab] = useState('run')
   const [bgCover, setBgCover] = useState(_bgCoverCache)
 
@@ -1039,12 +1039,21 @@ export default function Settings({ onWizard, onLogout }) {
               <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
               <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
             </nav>
-            <button
-              onClick={onLogout}
-              className="pb-2 text-[12px] text-muted hover:text-white transition-colors cursor-pointer bg-transparent border-none"
-            >
-              Sign out
-            </button>
+            {authDisabled ? (
+              <span
+                title="UI_USERNAME and UI_PASSWORD are not set, so the web UI is open to anyone who can reach it."
+                className="pb-2 text-[12px] text-muted/70 cursor-default select-none"
+              >
+                Auth disabled
+              </span>
+            ) : (
+              <button
+                onClick={onLogout}
+                className="pb-2 text-[12px] text-muted hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+              >
+                Sign out
+              </button>
+            )}
           </header>
 
           {activeTab === 'run' && <HomeSection />}

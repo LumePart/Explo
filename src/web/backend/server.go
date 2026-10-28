@@ -89,6 +89,9 @@ func (s *Server) Start() error {
 	if _, err := os.Stat(coversDir); os.IsNotExist(err) {
 		s.customPlaylist.PrefetchCovers()
 	}
+	if s.authStore.Disabled {
+		slog.Warn("web UI authentication is DISABLED - UI_USERNAME and UI_PASSWORD are not set; anyone who can reach this address has full control over Explo")
+	}
 	slog.Info("Explo web UI started", "addr", s.server.Addr)
 	go checkForUpdate()
 	return s.server.ListenAndServe()

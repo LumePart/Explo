@@ -11,7 +11,8 @@ services:
       - /path/to/.env:/opt/explo/.env
       - /path/to/explo/config:/opt/explo/config # required — stores playlist cache and cover art
       - /path/to/musiclibrary/explo:/data/ # has to be in the same path you have your music system pointed to (it's recommended to put explo under a subfolder)
-      # - /path/to/slskd/downloads:/slskd/ # if using slskd and MIGRATE_DOWNLOADS is set to true in .env
+      # - /path/to/slskd/downloads:/slskd/ # if using slskd and SLSKD_MIGRATE_DOWNLOADS is set to true in .env
+      # - /path/to/lidarr/downloads:/lidarr/ % if using lidarr and LIDARR_MIGRATE_DOWNLOADS is set to true
       # - $PLAYLIST_DIR:$PLAYLIST_DIR # for MPD. Both paths should be as defined in .env (e.g /my/playlists/:/my/playlists/)
       
       # - /path/to/cookies.txt:/opt/explo/cookies.txt # Path to optional cookies file (for yt-dlp)
@@ -22,9 +23,10 @@ services:
       # - PGID=0
       - TZ=UTC # Change this to the timezone set in ListenBrainz (default is UTC)
       - WEB_UI=true
-      # Web UI credentials (required for login)
-      - UI_USERNAME=
-      - UI_PASSWORD=
+
+      # Web UI credentials (optional)
+      #- UI_USERNAME=
+      #- UI_PASSWORD=
 
       # [Legacy] Schedules are managed through the web UI.
       # These can still be set here for backwards compatibility — they will take precedence over the UI.
@@ -37,4 +39,4 @@ services:
 
       # Uncomment for testing (runs explo right after launcing the container)
       #- EXECUTE_ON_START=false # Whether to run explo when starting the container (useful for testing)
-      #- START_FLAGS=--persist=false # if needed, set startup flags for testing
+      #- START_FLAGS=--replace-playlist=false # if needed, set startup flags for testing

@@ -12,14 +12,16 @@ export default function App() {
   const [bgUrl, setBgUrl] = useState(null)
   const [bgLoaded, setBgLoaded] = useState(false)
   const [fadingOut, setFadingOut] = useState(false)
+  const [authDisabled, setAuthDisabled] = useState(false)
 
   useEffect(() => {
     Promise.all([
       checkAuth(),
       fetchSetupStatus(),
-    ]).then(([authed, status]) => {
+    ]).then(([{ authenticated, authDisabled }, status]) => {
       setIsFirstTime(status ? !status.wizard_complete : false)
-      if (authed) {
+      setAuthDisabled(authDisabled)
+      if (authenticated) {
         handleLoginSuccess({ fromLogin: false })
       } else {
         setView('login')
@@ -83,6 +85,7 @@ export default function App() {
 
   return (
     <Settings
+      authDisabled={authDisabled}
       onWizard={() => setView('wizard')}
       onLogout={() => logout().then(() => setView('login'))}
     />

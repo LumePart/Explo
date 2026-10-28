@@ -1,0 +1,112 @@
+name: Chart Release
+
+on:
+  workflow_run:
+    workflows:
+      - Latest Release
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          TAG=$(git tag -l 'v*' --points-at "$SHA" | sort -V | tail -1)
+          if [ -z "$TAG" ]; then
+            echo "No v* tag found for ${SHA}; skipping chart publish"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          VERSION="${TAG#v}"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip when chart is missing
+        id: chart
+        if: steps.tag.outputs.skip != 'true'
+        run: |
+          if [ ! -f charts/explo/Chart.yaml ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No chart at this tag"
+            exit 0
+          fi
+          echo "present=true" >> "$GITHUB_OUTPUT"
+
+      - uses: azure/setup-helm@v4
+        if: steps.tag.outputs.skip != 'true' && steps.chart.outputs.present == 'true'
+
+      - name: Package chart
+        if: steps.tag.outputs.skip != 'true' && steps.chart.outputs.present == 'true'
+        run: |
+          mkdir -p dist
+          helm package charts/explo \
+            --version "${{ steps.tag.outputs.version }}" \
+            --app-version "${{ steps.tag.outputs.tag }}" \
+            --destination dist
+          echo "package=${GITHUB_WORKSPACE}/dist/$(ls dist)" >> "$GITHUB_ENV"
+
+      - name: Upload release asset
+        if: steps.tag.outputs.skip != 'true' && steps.chart.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" "$package" --clobber
+
+      - name: Publish gh-pages
+        if: steps.tag.outputs.skip != 'true' && steps.chart.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PAGES_DIR="${RUNNER_TEMP}/gh-pages"
+          REPO="${{ github.repository }}"
+          PAGES_URL="https://lumepart.github.io/Explo"
+          TAG="${{ steps.tag.outputs.tag }}"
+
+          if git ls-remote --exit-code --heads "https://github.com/${REPO}.git" gh-pages >/dev/null 2>&1; then
+            git clone --branch gh-pages \
+              "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" \
+              "$PAGES_DIR"
+          else
+            mkdir -p "$PAGES_DIR"
+            cd "$PAGES_DIR"
+            git init
+            git checkout -b gh-pages
+            git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          fi
+
+          cp "$package" "$PAGES_DIR/"
+          if [ -f pages/index.html ]; then
+            cp pages/index.html "$PAGES_DIR/index.html"
+          fi
+
+          if [ -f "$PAGES_DIR/index.yaml" ]; then
+            helm repo index "$PAGES_DIR" --url "$PAGES_URL" --merge "$PAGES_DIR/index.yaml"
+          else
+            helm repo index "$PAGES_DIR" --url "$PAGES_URL"
+          fi
+
+          cd "$PAGES_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff --staged --quiet; then
+            echo "No gh-pages changes for ${TAG}"
+            exit 0
+          fi
+          git commit -m "chore(chart): publish ${TAG}"
+          git push origin gh-pages

@@ -13,10 +13,20 @@ import (
 type AuthStore struct {
 	Username string
 	Hash string
+	Disabled bool // true when no credentials are configured; all routes become public
 	sessionManager *SessionManager
 }
 
 func NewAuthStore(user, password string, sessionManager *SessionManager) *AuthStore{
+	// No credentials configured at all: run the UI unauthenticated instead of
+	// showing a login screen that accepts empty input anyway.
+	if user == "" && password == "" {
+		return &AuthStore{
+			Disabled: true,
+			sessionManager: sessionManager,
+		}
+	}
+
 	hashPass, err := hashPassword(password)
 	if err != nil {
 		panic("failed to hash password")
@@ -38,6 +48,10 @@ func (a *AuthStore) CompareCreds(formUser, formPass string) bool {
 }
 
 func (a *AuthStore) RequireAuth(next http.Handler) http.Handler {
+	if a.Disabled {
+		return next
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sess := a.sessionManager.GetSession(r)
 

@@ -62,6 +62,7 @@ type ClientConfig struct {
 	PlaylistDir     string `env:"PLAYLIST_DIR"`
 	PlaylistName    string
 	PlaylistNFormat string `env:"PLAYLISTNAME_FORMAT" env-default:"week"`
+	MatchScore      int    `env:"TRACK_MATCH_SCORE" env-default:"60"`
 	PlaylistDescr   string
 	PlaylistID      string
 	PublicPlaylist  bool   `env:"PUBLIC_PLAYLIST" env-default:"false"`
@@ -93,14 +94,15 @@ type SubsonicConfig struct {
 }
 
 type DownloadConfig struct {
-	DownloadDir       string `env:"DOWNLOAD_DIR" env-default:"/data/"`
-	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	DownloadDir       string   `env:"DOWNLOAD_DIR" env-default:"/data/"`
+	PathTemplate	  string   `env:"PATH_TEMPLATE"`
 	Youtube           Youtube
 	YoutubeMusic      YoutubeMusic
 	Slskd             Slskd
+	Lidarr            Lidarr
 	ExcludeLocal      bool
-	DownloadLimiter   int    `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
-	OverwriteMetadata bool   `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
+	DownloadLimiter   int      `env:"DOWNLOAD_LIMITER" env-default:"1"` // rate limit download operations
+	OverwriteMetadata bool     `env:"OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
 	KeepPermissions   bool     `env:"KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
 	RenameTrack       bool     `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format
 	UseSubDir         bool     `env:"USE_SUBDIRECTORY" env-default:"true"`
@@ -134,26 +136,53 @@ type YoutubeMusic struct {
 }
 
 type Slskd struct {
-	APIKey           string `env:"SLSKD_API_KEY"`
-	URL              string `env:"SLSKD_URL"`
-	Retry            int    `env:"SLSKD_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
-	DownloadAttempts int    `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
-	SlskdDir         string `env:"SLSKD_DIR" env-default:"/slskd/"`
-	MigrateDL        bool   `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
-	Timeout          int    `env:"SLSKD_TIMEOUT" env-default:"20"`
-	Filters          Filters
-	MonitorConfig    SlskdMon
+	APIKey            string `env:"SLSKD_API_KEY"`
+	URL               string `env:"SLSKD_URL"`
+	Retry             int    `env:"SLSKD_RETRY" env-default:"5"`       // Number of times to check search status before skipping the track
+	DownloadAttempts  int    `env:"SLSKD_DL_ATTEMPTS" env-default:"3"` // Max number of files to attempt downloading per track
+	SlskdDir          string `env:"SLSKD_DIR" env-default:"/slskd/"`
+	MigrateDL         bool   `env:"SLSKD_MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir
+	MigrateDLOld         bool   `env:"MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from SlskdDir to DownloadDir (Old)
+	RenameTrack       bool   `env:"RENAME_TRACK" env-default:"false"`    // Rename track in {title}-{artist} format (will be deprecated)
+	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	OverwriteMetadata bool   `env:"SLSKD_OVERWRITE_METADATA" env-default:"false"` // overwrite metadata when migrating downloads
+	KeepPermissions   bool   `env:"SLSKD_KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
+	Timeout           int    `env:"SLSKD_TIMEOUT" env-default:"20"`
+	Filters           Filters
+	MonitorConfig     SlskdMon
 }
 
 type SlskdMon struct {
-	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"`
-	Duration int `env:"SLSKD_MONITOR_DURATION" env-default:"15"`
+	OldMonDuration int `env:"MONITOR_DURATION" env-default:"15"` // replaced with SLSKD_STALL_DURATION
+	Interval int `env:"SLSKD_MONITOR_INTERVAL" env-default:"1"` // in minutes
+	StallDuration int `env:"SLSKD_STALL_DURATION" env-default:"15"` // in minutes
+	MaxDuration int `env:"SLSKD_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
+}
+
+type Lidarr struct {
+	APIKey           string `env:"LIDARR_API_KEY"`
+	URL              string `env:"LIDARR_URL"`
+	Retry            int    `env:"LIDARR_RETRY" env-default:"8"`       // Number of times to check album/track search status before skipping the track
+	LidarrDir        string `env:"LIDARR_DIR" env-default:"/lidarr/"`
+	MigrateDL        bool   `env:"LIDARR_MIGRATE_DOWNLOADS" env-default:"false"` // Move downloads from LidarrDir to DownloadDir
+	Timeout          int    `env:"LIDARR_TIMEOUT" env-default:"20"`
+	RootFolder       string `env:"LIDARR_ROOT_FOLDER" env-default:"Music"` // Root folder name to use in Lidarr
+	PathTemplate	  string `env:"PATH_TEMPLATE"`
+	KeepPermissions   bool   `env:"LIDARR_KEEP_PERMISSIONS" env-default:"true"` // keep original file permissions when migrating download
+	Filters          Filters
+	MonitorConfig    LidarrMon
+}
+
+type LidarrMon struct {
+	Interval int `env:"LIDARR_MONITOR_INTERVAL" env-default:"1"` // in minutes
+	StallDuration int `env:"LIDARR_STALL_DURATION" env-default:"20"` // in minutes
+	MaxDuration int `env:"LIDARR_MONITOR_MAX_DURATION" env-default:"120"` // in minutes
 }
 
 type DiscoveryConfig struct {
-	Discovery    string `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
+	Discovery       string   `env:"DISCOVERY_SERVICE" env-default:"listenbrainz"`
 	ArtistBlacklist []string `env:"ARTIST_BLACKLIST"`
-	Listenbrainz Listenbrainz
+	Listenbrainz    Listenbrainz
 }
 type Listenbrainz struct {
 	Discovery              string `env:"LISTENBRAINZ_DISCOVERY" env-default:"playlist"`
@@ -223,6 +252,7 @@ func (cfg *Config) CommonFixes() {
 	cfg.DownloadCfg.Youtube.CoversDir = filepath.Join(filepath.Dir(cfg.ServerCfg.WebDataDir), "cache", "covers")
 	cfg.ClientCfg.URL = fixBaseURL(cfg.ClientCfg.URL)
 	cfg.DownloadCfg.Slskd.URL = fixBaseURL(cfg.DownloadCfg.Slskd.URL)
+	cfg.DownloadCfg.Lidarr.URL = fixBaseURL(cfg.DownloadCfg.Lidarr.URL)
 	cfg.NormalizeDir()
 }
 
@@ -231,6 +261,7 @@ func (cfg *Config) NormalizeDir() {
 		cfg.ClientCfg.PlaylistDir = fixDir(cfg.ClientCfg.PlaylistDir)
 	}
 	cfg.DownloadCfg.Slskd.SlskdDir = fixDir(cfg.DownloadCfg.Slskd.SlskdDir)
+	cfg.DownloadCfg.Lidarr.LidarrDir = fixDir(cfg.DownloadCfg.Lidarr.LidarrDir)
 	cfg.DownloadCfg.DownloadDir = fixDir(cfg.DownloadCfg.DownloadDir)
 }
 
@@ -252,11 +283,9 @@ func fixBaseURL(rawURL string) string {
 	return strings.TrimRight(u, "/")
 }
 
-func (cfg *Config) HandleDeprecation() { //
-	if cfg.Debug {
-		slog.Warn("'DEBUG' variable is deprecated, please use LOG_LEVEL=DEBUG instead")
-		cfg.LogLevel = "DEBUG"
-	}
+
+// deprecation logs and remappings
+func (cfg *Config) HandleDeprecation() {
 	if cfg.Flags.PersistSet {
 		slog.Warn("--persist has been deprecated since v1.1.3, please use --replace-playlist")
 	}
@@ -267,15 +296,47 @@ func (cfg *Config) HandleDeprecation() { //
 	if cfg.Flags.CleanDownloads && !cfg.DownloadCfg.UseSubDir {
 		slog.Warn("Deleting tracks requires 'USE_SUBDIRECTORY' to be true")
 	}
+
+	if cfg.DownloadCfg.Slskd.MonitorConfig.OldMonDuration != 15 {
+		cfg.DownloadCfg.Slskd.MonitorConfig.StallDuration = cfg.DownloadCfg.Slskd.MonitorConfig.OldMonDuration
+		slog.Warn("MONITOR_DURATION is deprecated as of v1.2; using SLSKD_STALL_DURATION instead. Consider renaming the variable in your env file")
+	}
+
+	if cfg.DownloadCfg.OverwriteMetadata {
+		cfg.DownloadCfg.Slskd.OverwriteMetadata = cfg.DownloadCfg.OverwriteMetadata
+		slog.Warn("OVERWRITE_METADATA is deprecated as of v1.2; using SLSKD_OVERWRITE_METADATA instead. Consider renaming the variable in your env file")
+	}
+
+	if !cfg.DownloadCfg.KeepPermissions {
+		cfg.DownloadCfg.Slskd.KeepPermissions = cfg.DownloadCfg.KeepPermissions
+		slog.Warn("KEEP_PERMISSIONS is deprecated as of v1.2; using SLSKD_KEEP_PERMISSIONS instead. Consider renaming the variable in your env file")
+	}
+
+	if cfg.DownloadCfg.Slskd.MigrateDLOld {
+		cfg.DownloadCfg.Slskd.MigrateDL = cfg.DownloadCfg.Slskd.MigrateDLOld
+		slog.Warn("MIGRATE_DOWNLOADS is deprecated as of v1.2; using SLSKD_MIGRATE_DOWNLOADS instead. Consider renaming the variable in your env file")
+	}
+	if cfg.DownloadCfg.RenameTrack {
+		slog.Warn("RENAME_TRACK has been superseded by path templating. Check the wiki or UI Settings page to configure path templates")
+	}
 }
 
 // Generate playlist name and description
 func (cfg *Config) GenPlaylistDetails() {
 
 	cfg.ClientCfg.PlaylistName = getPlaylistName(cfg.Flags.Playlist, cfg.ClientCfg.PlaylistNFormat, cfg.ReplacePlaylist)
-	cfg.ClientCfg.PlaylistDescr = fmt.Sprintf(
-		"Created for %s by Explo, using ListenBrainz recommendations.",
-		cfg.DiscoveryCfg.Listenbrainz.User)
+
+	desc := fmt.Sprintf(
+    "Created for %s by Explo, using ListenBrainz recommendations.",
+    cfg.DiscoveryCfg.Listenbrainz.User)
+
+	if strings.HasPrefix(cfg.Flags.Playlist, "custom-") {
+		desc = fmt.Sprintf(
+			"Imported by Explo for %s",
+			cfg.DiscoveryCfg.Listenbrainz.User)
+	}
+
+	cfg.ClientCfg.PlaylistDescr = desc
 
 	if cfg.DownloadCfg.UseSubDir {
 		// add playlist name to downloadDir so all songs get downloaded to a single sub directory.

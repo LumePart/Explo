@@ -1,0 +1,60 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/lumepart/explo
+  tag: ""
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+deploymentStrategy:
+  type: Recreate
+
+service:
+  type: ClusterIP
+  port: 7288
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
+
+env:
+  TZ: UTC
+  WEB_UI: "true"
+  WEB_ADDR: ":7288"
+  WEB_DATA_PATH: /opt/explo/config/
+  WEB_ENV_PATH: /opt/explo/config/.env
+
+auth:
+  existingSecret: ""
+  username: ""
+  password: ""
+  usernameKey: username
+  passwordKey: password
+
+persistence:
+  config:
+    enabled: true
+    existingClaim: ""
+    size: 2Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  media:
+    enabled: true
+    existingClaim: ""
+    mountPath: /data
+    subPath: ""
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+
+extraEnv: {}
+extraVolumes: []
+extraVolumeMounts: []
+
+resources: {}
+

@@ -1,0 +1,48 @@
+name: Chart CI
+
+on:
+  pull_request:
+    paths:
+      - charts/**
+      - .github/workflows/chart-ci.yml
+      - .github/workflows/chart-release.yml
+      - .kube-linter.yaml
+  push:
+    branches:
+      - dev
+    paths:
+      - charts/**
+      - .github/workflows/chart-ci.yml
+      - .github/workflows/chart-release.yml
+      - .kube-linter.yaml
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint charts/explo --strict
+
+      - name: Render chart
+        run: |
+          helm template test charts/explo
+          helm template test charts/explo \
+            --set auth.username=admin \
+            --set auth.password=ci-only
+          helm template test charts/explo \
+            --set persistence.media.existingClaim=media-pvc \
+            --set persistence.media.subPath=explo
+          helm template test charts/explo \
+            --set ingress.enabled=true \
+            --set ingress.className=traefik \
+            --set-json 'ingress.hosts=[{"host":"explo.example.com","paths":[{"path":"/","pathType":"Prefix"}]}]'
+
+      - name: Lint manifests
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: charts/explo
+          config: .kube-linter.yaml

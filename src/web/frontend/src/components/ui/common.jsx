@@ -80,6 +80,7 @@ const KEY_LABELS = {
   'duration':       'Duration',
   'notify':         'Notify',
   'slskd':          'Slskd',
+  'lidarr':         'Lidarr',
   'youtube':        'YouTube',
   'context':        'Context',
   'force_refresh':  'Force refresh',

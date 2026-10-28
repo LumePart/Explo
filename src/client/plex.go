@@ -86,16 +86,18 @@ type SongSearch struct {
 type Media struct {
 	ID       int `json:"id"`
 	Duration int `json:"duration"`
-	Part     []struct {
+	Part     []Part `json:"Part"`
+	AudioChannels int    `json:"audioChannels"`
+	AudioCodec    string `json:"audioCodec"`
+	Container     string `json:"container"`
+}
+
+type Part     struct {
 		ID       int    `json:"id"`
 		Key      string `json:"key"`
 		Duration int    `json:"duration"`
 		File     string `json:"file"`
 		Size     int    `json:"size"`
-	} `json:"Part"`
-	AudioChannels int    `json:"audioChannels"`
-	AudioCodec    string `json:"audioCodec"`
-	Container     string `json:"container"`
 }
 
 type PlexSearch struct {
@@ -134,11 +136,15 @@ type PlexPlaylist struct {
 	} `json:"MediaContainer"`
 }
 
-type GUID struct {
-	ID string `json:"id"`
-}
-type Metadata struct {
-	GUID []GUID `json:"Guid"`
+type MetadataResponse struct {
+	MediaContainer struct {
+		Metadata []struct {
+			PlexGUID string `json:"guid"`
+			GUID []struct {
+				ID string `json:"id"`
+			} `json:"Guid"`
+		} `json:"Metadata"`
+	} `json:"MediaContainer"`
 }
 
 type Plex struct {
@@ -389,9 +395,9 @@ func (c *Plex) CheckRefreshState() bool {
 }
 func (c *Plex) SearchSongs(tracks []*models.Track) error {
 	for _, track := range tracks {
+		searchQuery := util.CleanSearchTitle(track.CleanTitle)
 		params := fmt.Sprintf(
-			"/hubs/search?query=%s&limit=10",
-			url.QueryEscape(util.CleanSearchTitle(track.CleanTitle)),
+			"/hubs/search?query=%s&limit=20", url.QueryEscape(searchQuery),
 		)
 
 		var body []byte
@@ -414,17 +420,15 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 		}
 
 		if err != nil {
-			slog.Warn("search request failed", "title", track.Title, "err", err)
+			slog.Warn("search request failed", "searchQuery", searchQuery, "err", err)
 			continue
 		}
 
 		var hubResults PlexHubSearch
 		if err := util.ParseResp(body, &hubResults); err != nil {
-			slog.Warn("failed to parse hub response", "title", track.Title, "err", err)
+			slog.Warn("failed to parse hub response", "searchQuery", searchQuery, "err", err)
 			continue
 		}
-
-		var matched bool
 
 		var all []SongMetadata
 
@@ -433,20 +437,19 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 				all = append(all, hub.Metadata...)
 			}
 		}
-
-		key, err := c.getPlexSong(track, all)
-		if err != nil {
-			slog.Warn("failed to find match", "title", track.Title, "err", err)
+		if len(all) == 0 {
+			slog.Debug("no results returned for query", "query", searchQuery, "trackArtist", track.MainArtist, "trackAlbum", track.Album)
 			continue
 		}
-		if key != "" {
-			track.ID = key
-			track.Present = true
-			matched = true
+
+		trackMatch, err := c.getPlexSong(track, all)
+		if err != nil {
+			slog.Debug("failed to find match, no results returned above threshold score", "threshold", c.Cfg.MatchScore, "searchQuery", searchQuery)
+			continue
 		}
-		if !matched {
-			slog.Debug("no match found for track", "title", track.Title)
-		}
+		track.ID = trackMatch.ID
+		track.Present = true
+		slog.Debug("matched track", "searchQuery", searchQuery, "matchScore", trackMatch.Score, "trackArtist", trackMatch.Artist, "trackAlbum", trackMatch.Album)
 	}
 
 	return nil
@@ -573,50 +576,45 @@ func (c *Plex) getServer() error {
 	return nil
 }
 
-func (c *Plex) getPlexSong(track *models.Track, metadata []SongMetadata) (string, error) {
-	normArtist := util.AlnumOnly(track.MainArtist)
-	normalizedCleanTitle := util.NormalizeTitle(track.CleanTitle)
-	normalizedAlbum := util.AlnumOnly(strings.ToLower(track.Album))
-
+func (c *Plex) getPlexSong(track *models.Track, metadata []SongMetadata) (SearchResult, error) {
+	searchResults := make([]SearchResult, 0, len(metadata))
 	for _, md := range metadata {
 		if md.Type != "track" {
 			continue
 		}
-
-                var mbid string;
-                if c.AdminClient != nil {
-                    mbid = c.AdminClient.getPlexMBID(md.RatingKey)
-                } else {
-                    mbid = c.getPlexMBID(md.RatingKey)
-                }
-
-		normalizedSongTitle := util.NormalizeTitle(md.Title)
-		musicBrainzMatch := mbid != "" && track.MusicBrainzReleaseTrackID == mbid
-		titleMatch := normalizedSongTitle == normalizedCleanTitle
-		albumMatch := util.AlnumOnly(strings.ToLower(md.ParentTitle)) == normalizedAlbum
-		artistMatch := util.ContainsFold(util.AlnumOnly(md.OriginalTitle), normArtist) || util.ContainsFold(util.AlnumOnly(md.GrandparentTitle), normArtist)
-
-		if musicBrainzMatch || (titleMatch && (albumMatch || artistMatch)) {
-			slog.Debug("matched track via metadata", "title", track.Title, "artist", track.Artist)
-			return md.Key, nil
+		var mbid string
+        if c.AdminClient != nil {
+            mbid = c.AdminClient.getPlexMBID(md.RatingKey)
+        } else {
+            mbid = c.getPlexMBID(md.RatingKey)
+        }
+		var media Media
+		if len(md.Media) > 0 {
+			media = md.Media[0]
 		}
-
-		if track.File == "" || len(md.Media) == 0 || len(md.Media[0].Part) == 0 {
-			continue
+		if len(media.Part) == 0 {
+			media.Part = []Part{{File: "", Duration: 0}}
 		}
-
-		media := md.Media[0]
-		pathMatch := util.ContainsFold(media.Part[0].File, track.File)
-		durationMatch := util.Abs(media.Duration-track.Duration) < 10000 // duration within 10s
-
-		if durationMatch && pathMatch {
-			slog.Debug("matched track via path", "title", track.Title, "artist", track.Artist)
-			return md.Key, nil
-		}
+		searchResults = append(searchResults, SearchResult{
+			ID: md.Key,
+			Title: md.Title,
+			Album: md.ParentTitle,
+			Artist: md.OriginalTitle,
+			Artists: []string{md.GrandparentTitle},
+			Path: media.Part[0].File,
+			Duration: (media.Part[0].Duration / 1000),
+			MBID: mbid,
+		})
 	}
 
-	slog.Debug(fmt.Sprintf("full search result: %v", metadata))
-	return "", fmt.Errorf("failed to find '%s' by '%s' in '%s'", track.Title, track.Artist, track.Album)
+	trackMatch, ok := BestMatch(track, searchResults, c.Cfg.MatchScore)
+
+	if !ok {
+		slog.Debug("full search result", "results", metadata)
+		slog.Debug("failed to find match, no results returned above threshold score", "threshold", c.Cfg.MatchScore)
+		return SearchResult{}, fmt.Errorf("failed to find match, no results returned above threshold score, threshold %d", c.Cfg.MatchScore)
+	}
+	return trackMatch, nil
 }
 
 func (c *Plex) getPlexMBID(ratingKey string) string {
@@ -627,17 +625,20 @@ func (c *Plex) getPlexMBID(ratingKey string) string {
 	if err != nil {
 		return ""
 	}
-
-	var metadata Metadata
-	if err = util.ParseResp(body, &metadata); err != nil {
+	var meta MetadataResponse
+	err = json.Unmarshal(body, &meta)
+	if err != nil {
 		return ""
 	}
 	prefix := "mbid://"
-	for _, guid := range metadata.GUID {
-		if strings.HasPrefix(guid.ID, prefix) {
-			return strings.TrimPrefix(guid.ID, prefix)
-		}
+	for _, metadata := range meta.MediaContainer.Metadata {
+		for _, guid := range metadata.GUID {
+			if strings.HasPrefix(guid.ID, prefix) {
+				mbid := strings.TrimPrefix(guid.ID, prefix)
+				return mbid
+			}
 	}
+}
 	return ""
 }
 

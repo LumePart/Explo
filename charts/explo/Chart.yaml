@@ -1,0 +1,17 @@
+apiVersion: v2
+name: explo
+description: Helm chart for Explo music discovery
+type: application
+version: 0.0.0
+appVersion: dev
+home: https://github.com/LumePart/Explo
+sources:
+  - https://github.com/LumePart/Explo
+maintainers:
+  - name: LumePart
+    url: https://github.com/LumePart
+keywords:
+  - explo
+  - music
+  - listenbrainz
+  - jellyfin

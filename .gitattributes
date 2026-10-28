@@ -1,0 +1,5 @@
+# Shell scripts run inside Linux containers. On a Windows checkout with
+# core.autocrlf=true they would otherwise get CRLF endings, and a CRLF shebang
+# makes the image fail at startup with:
+#   exec /start.sh: no such file or directory
+*.sh text eol=lf

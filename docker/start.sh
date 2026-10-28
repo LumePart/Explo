@@ -3,6 +3,18 @@
 PUID="${PUID:-0}"
 PGID="${PGID:-0}"
 
+
+# Update yt-dlp on startup
+pip install --disable-pip-version-check --root-user-action=ignore --no-cache-dir --upgrade  yt-dlp
+# Clear crontabs
+crontab -r
+
+# Update yt-dlp periodically
+YTDLP_UPDATE="${YTDLP_UPDATE:-59 23 * * *}"
+echo "$YTDLP_UPDATE echo 'Updating yt-dlp...' && pip install --disable-pip-version-check --root-user-action=ignore --no-cache-dir --upgrade yt-dlp >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
+echo "[setup] Registered yt-dlp update job"
+echo "        Schedule: $YTDLP_UPDATE"
+
 if [ "$PUID" != "0" ] || [ "$PGID" != "0" ]; then
     groupmod -o -g "$PGID" explo
     usermod -o -u "$PUID" explo
@@ -12,7 +24,6 @@ else
     echo "[setup] WARN: running as root. Consider defining PUID & PGID in docker-compose to run as a non-root user"
     RUN_USER="root"
     RUNNER=""
-    
 fi
 
 mkdir -p /opt/explo
@@ -27,7 +38,7 @@ if [ -d "$WEB_ENV_PATH" ]; then
     WEB_ENV_PATH="$WEB_ENV_PATH/.env"
     echo "[setup] Config path is a directory, using $WEB_ENV_PATH"
 fi
-WEB_UI=true WEB_ENV_PATH="$WEB_ENV_PATH" WEB_ADDR="${WEB_ADDR:-:7288}" $RUNNER ./explo &
+WEB_UI=true WEB_ENV_PATH="$WEB_ENV_PATH" WEB_ADDR="${WEB_ADDR:-:7288}" $RUNNER ./explo --config "$WEB_ENV_PATH" &
 echo "[setup] Web UI available at http://localhost:${WEB_ADDR##*:}"
 
 echo "[setup] Initializing cron jobs..."
@@ -52,7 +63,7 @@ fi
 
 # $CRON_SHCEDULE was deprecated in v0.11.0, keeping this block for backwards compatibility
 if [ -n "$CRON_SCHEDULE" ]; then
-    echo "$CRON_SCHEDULE apk add --no-cache --upgrade yt-dlp && cd /opt/explo && $RUNNER ./explo >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
+    echo "$CRON_SCHEDULE cd /opt/explo && $RUNNER ./explo --config \"$_cfg\" >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
     chmod 600 /etc/crontabs/root
     echo "[setup] Registered single CRON_SCHEDULE job: $CRON_SCHEDULE"
     crond -f -l 2
@@ -71,12 +82,12 @@ for var in $(env | grep "_SCHEDULE=" | cut -d= -f1); do
   fi
 
   # Default: just run explo if flags are empty
-  cmd="apk add --no-cache --upgrade yt-dlp && cd /opt/explo && $RUNNER ./explo $flags >> /proc/1/fd/1 2>&1"
+  cmd="cd /opt/explo && $RUNNER ./explo --config \"$_cfg\" $flags >> /proc/1/fd/1 2>&1"
 
   echo "$schedule $cmd" >> /etc/crontabs/root
   echo "[setup] Registered job: $job"
   echo "        Schedule: $schedule"
-  echo "        Command : ./explo $flags"
+  echo "        Command : ./explo --config $_cfg $flags"
 done
 
 chmod 600 /etc/crontabs/root
@@ -85,7 +96,7 @@ echo "[setup] Starting cron..."
 
 if [ "$EXECUTE_ON_START" = "true" ]; then
     echo "[setup] Executing startup task..."  
-    apk add --no-cache --upgrade yt-dlp && cd /opt/explo && $RUNNER ./explo $START_FLAGS
+    cd /opt/explo && $RUNNER ./explo --config "$_cfg" $START_FLAGS
     
 fi
 crond -f -l 2

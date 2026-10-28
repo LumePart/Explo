@@ -1,0 +1,9 @@
+Explo is installed in namespace {{ .Release.Namespace }}.
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  http{{- if $.Values.ingress.tls }}s{{- end }}://{{ .host }}
+{{- end }}
+{{- else }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "explo.fullname" . }} 7288:{{ .Values.service.port }}
+{{- end }}
