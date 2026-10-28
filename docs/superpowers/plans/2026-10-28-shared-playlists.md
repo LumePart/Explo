@@ -74,7 +74,7 @@ Found while planning: `HandleWizardStep2` writes `ADMIN_SYSTEM_APIKEY` but confi
   - `func ParseShareList(entries []string, self string) []string`
 
 - [ ] **Step 1: Write failing tests** in `share_test.go`:
-  - `TestShareTitle`: `("Gabe","", "Weekly Exploration")` → `Gabe's Weekly Exploration`; `("", "gabe_plex", "Weekly Exploration")` → `gabe_plex's Weekly Exploration`; `("O'Brien","", "X")` → `O'Brien's X`; both owners empty → `Shared X` is NOT used: return `Weekly Exploration` unchanged-prefix-less title `Shared Weekly Exploration`? No: assert it returns `playlistName` with no prefix when no owner is known.
+  - `TestShareTitle`: `("Gabe","", "Weekly Exploration")` → `Gabe's Weekly Exploration`; `("", "gabe_plex", "Weekly Exploration")` → `gabe_plex's Weekly Exploration`; `("O'Brien","", "X")` → `O'Brien's X`; both owners empty → returns `playlistName` unchanged (no prefix).
   - `TestParseShareList`: `[]string{"kelly"," ","Kelly","gabe"," Sam "}` with self `"Gabe"` → `[]string{"kelly","Sam"}` (trimmed, blanks dropped, case-insensitive dedupe keeping first spelling, self dropped case-insensitively, order kept).
 - [ ] **Step 2: Run** `go test ./src/client/ -run 'ShareTitle|ParseShareList' -v`; expect FAIL (undefined).
 - [ ] **Step 3: Add the config fields and implement both functions** in `share.go`.
@@ -159,4 +159,3 @@ Behaviour of the owner's path must not change.
 
 - [ ] **Step 1:** `go vet ./... && golangci-lint run ./... && go test -race ./...`; expect no issues. Report any failures, and any tests skipped because localhost sockets were blocked.
 - [ ] **Step 2: Manual test on the real server** (cannot be automated): with admin credentials set, set `PLAYLIST_SHARE_WITH` to the other user and run once with `--replace`-style config. Confirm the owner sees `Weekly Exploration`, the recipient sees `<Owner>'s Weekly Exploration`, tracks play, and a second run replaces rather than duplicates. Repeat from Kelly's instance.
-- [ ] **Step 3:** Update `TODO.md` is not needed (this is a feature, not a tracked bug).
