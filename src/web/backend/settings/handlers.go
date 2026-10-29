@@ -528,9 +528,17 @@ func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PLAYLIST_DIR":          body.PlaylistDir,
 		"SLEEP":                 body.Sleep,
 		"PUBLIC_PLAYLIST":       publicPlaylist,
+	}
+	// The wizard cannot prefill admin secrets, so with users configured an
+	// empty value means "keep the stored one" (multi-user runs depend on them).
+	for k, v := range map[string]string{
 		"ADMIN_SYSTEM_USERNAME": body.AdminSystemUsername,
 		"ADMIN_SYSTEM_PASSWORD": body.AdminSystemPassword,
 		"ADMIN_API_KEY":         body.AdminAPIKey,
+	} {
+		if v != "" || !multi {
+			updates[k] = v
+		}
 	}
 	switch {
 	case body.Username != nil:

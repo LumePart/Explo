@@ -189,3 +189,66 @@ func TestWizardStep2_MultiUser(t *testing.T) {
 		}
 	})
 }
+
+const storedAdmin = "ADMIN_SYSTEM_USERNAME=adm\nADMIN_SYSTEM_PASSWORD=pw\nADMIN_API_KEY=key\n"
+
+func TestWizardStep2_AdminCreds(t *testing.T) {
+	t.Run("users present, empty admin fields keep stored values", func(t *testing.T) {
+		s, envPath, dir := newSettingsInDir(t)
+		seedUsers(t, dir, oneUser)
+		if err := os.WriteFile(envPath, []byte(storedAdmin), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rec := postWizard(t, s.HandleWizardStep2, map[string]any{"system": "plex", "admin_api_key": "", "admin_system_username": "", "admin_system_password": ""})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		env := readEnv(t, envPath)
+		for _, want := range []string{"ADMIN_SYSTEM_USERNAME=adm", "ADMIN_SYSTEM_PASSWORD=pw", "ADMIN_API_KEY=key"} {
+			if !strings.Contains(env, want) {
+				t.Errorf("missing %q in:\n%s", want, env)
+			}
+		}
+	})
+	t.Run("users present, non-empty admin fields written", func(t *testing.T) {
+		s, envPath, dir := newSettingsInDir(t)
+		seedUsers(t, dir, oneUser)
+		if err := os.WriteFile(envPath, []byte(storedAdmin), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rec := postWizard(t, s.HandleWizardStep2, map[string]any{"system": "plex", "admin_api_key": "k2", "admin_system_username": "u2", "admin_system_password": "p2"})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d", rec.Code)
+		}
+		env := readEnv(t, envPath)
+		for _, want := range []string{"ADMIN_SYSTEM_USERNAME=u2", "ADMIN_SYSTEM_PASSWORD=p2", "ADMIN_API_KEY=k2"} {
+			if !strings.Contains(env, want) {
+				t.Errorf("missing %q in:\n%s", want, env)
+			}
+		}
+	})
+	t.Run("no users, empty admin fields cleared", func(t *testing.T) {
+		s, envPath, _ := newSettingsInDir(t)
+		if err := os.WriteFile(envPath, []byte(storedAdmin), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rec := postWizard(t, s.HandleWizardStep2, map[string]any{"system": "plex", "username": ""})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d", rec.Code)
+		}
+		env := readEnv(t, envPath)
+		for _, bad := range []string{"ADMIN_SYSTEM_USERNAME=adm", "ADMIN_SYSTEM_PASSWORD=pw", "ADMIN_API_KEY=key"} {
+			if strings.Contains(env, bad) {
+				t.Errorf("%q not cleared:\n%s", bad, env)
+			}
+		}
+	})
+	t.Run("corrupt users.json is 500", func(t *testing.T) {
+		s, _, dir := newSettingsInDir(t)
+		seedUsers(t, dir, "{bad")
+		rec := postWizard(t, s.HandleWizardStep2, map[string]any{"system": "plex"})
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("status %d", rec.Code)
+		}
+	})
+}
