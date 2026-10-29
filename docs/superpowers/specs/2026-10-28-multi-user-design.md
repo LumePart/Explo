@@ -117,7 +117,7 @@ accept a new value on update). They are added to the log redaction in
 - Manual run: the existing manual-run endpoint accepts an optional user
   (`all` or an id) and passes `--user` to the child.
 - Playlist cache files become per user when `--user` is used:
-  `cache/<user-id>/<playlist-type>.json`. The playlist view in the web UI
+  `cache/users/<user-id>/<playlist-type>.json` (the `users/` level keeps an id from colliding with `cache/covers` and other cache entries). The playlist view in the web UI
   reads the cache for the user being viewed. Single-user installs keep the
   current path.
 - Covers stay shared (they are keyed by release, not by user).
@@ -171,6 +171,13 @@ tab. Two small changes:
   settings; users are a separate resource and a separate API.
 
 ### Validation and errors
+
+- The ListenBrainz token is optional when saving a user and required to run. A
+  user without a token is skipped with a warning during `--user all`; the skip
+  does not make the overall run fail.
+- Creating a user whose name slugs to an existing id is rejected with a clear
+  message (no automatic suffix). Ids are immutable: renaming the display name
+  never changes the id.
 
 - Add/edit validates: non-empty name, unique id, non-empty ListenBrainz user,
   non-empty Plex user. Optionally verify the Plex user exists on the server and
