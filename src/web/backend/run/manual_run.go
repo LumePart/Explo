@@ -307,7 +307,7 @@ func writeFileAtomic(path string, data []byte) error {
 }
 
 // helper to build flag arguments
-func buildArgs(playlist, downloadMode, WebEnvPath string, replacePlaylist bool) []string {
+func buildArgs(playlist, downloadMode, WebEnvPath string, replacePlaylist bool, user string) []string {
 	args := []string{"--config", WebEnvPath}
 	if playlist != "" {
 		args = append(args, "--playlist", playlist)
@@ -317,6 +317,9 @@ func buildArgs(playlist, downloadMode, WebEnvPath string, replacePlaylist bool) 
 	}
 	if !replacePlaylist {
 		args = append(args, "--replace-playlist=false")
+	}
+	if user != "" {
+		args = append(args, "--user", user)
 	}
 	return args
 }

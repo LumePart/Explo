@@ -66,7 +66,7 @@ fi
 # everything below (per-playlist schedules, EXECUTE_ON_START, the final crond),
 # so legacy users silently lost all scheduling.
 if [ -n "$CRON_SCHEDULE" ]; then
-    echo "$CRON_SCHEDULE cd /opt/explo && /explo-run.sh legacy $RUNNER ./explo --config \"$_cfg\" >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
+    echo "$CRON_SCHEDULE cd /opt/explo && /explo-run.sh legacy $RUNNER ./explo --config \"$_cfg\" --user all >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
     chmod 600 /etc/crontabs/root
     echo "[setup] Registered single CRON_SCHEDULE job: $CRON_SCHEDULE"
 fi
@@ -91,12 +91,12 @@ for var in $(env | grep "_SCHEDULE=" | cut -d= -f1); do
   # Default: just run explo if flags are empty
   # Wrapped so a run that outlasts its own schedule does not get a second copy
   # started on top of it. The lock is per job, so other playlists still run.
-  cmd="cd /opt/explo && /explo-run.sh \"$job\" $RUNNER ./explo --config \"$_cfg\" $flags >> /proc/1/fd/1 2>&1"
+  cmd="cd /opt/explo && /explo-run.sh \"$job\" $RUNNER ./explo --config \"$_cfg\" $flags --user all >> /proc/1/fd/1 2>&1"
 
   echo "$schedule $cmd" >> /etc/crontabs/root
   echo "[setup] Registered job: $job"
   echo "        Schedule: $schedule"
-  echo "        Command : ./explo --config $_cfg $flags"
+  echo "        Command : ./explo --config $_cfg $flags --user all"
 done
 
 chmod 600 /etc/crontabs/root
@@ -105,7 +105,7 @@ echo "[setup] Starting cron..."
 
 if [ "$EXECUTE_ON_START" = "true" ]; then
     echo "[setup] Executing startup task..."  
-    cd /opt/explo && $RUNNER ./explo --config "$_cfg" $START_FLAGS
+    cd /opt/explo && $RUNNER ./explo --config "$_cfg" $START_FLAGS --user all
     
 fi
 crond -f -l 2

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"fmt"
+
+	"explo/src/web/backend/users"
 )
 
 // handleRun starts an explo run in the background. Clients follow output via /api/ui/run/events.
@@ -16,7 +18,12 @@ func (mr *ManualRun) HandleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	replacePlaylist := r.FormValue("replace_playlist") != "false"
-	args := buildArgs(r.FormValue("playlist"), r.FormValue("download_mode"), mr.cfg.WebEnvPath, replacePlaylist)
+	user := r.FormValue("user")
+	if user != "" && user != "all" && !users.IDRe.MatchString(user) {
+		http.Error(w, "invalid user", http.StatusBadRequest)
+		return
+	}
+	args := buildArgs(r.FormValue("playlist"), r.FormValue("download_mode"), mr.cfg.WebEnvPath, replacePlaylist, user)
 
 	if err := mr.startRun(args); err != nil {
 		if errors.Is(err, errRunAlreadyStarted) {

@@ -357,7 +357,12 @@ func (p *Playlist) HandleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachePath := filepath.Join(p.cfg.WebDataDir, "cache", playlistType+".json")
+	cacheDir, err := CacheDir(p.cfg.WebDataDir, r.URL.Query().Get("user"))
+	if err != nil {
+		http.Error(w, "invalid user", http.StatusBadRequest)
+		return
+	}
+	cachePath := filepath.Join(cacheDir, playlistType+".json")
 	if raw, err := os.ReadFile(cachePath); err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(raw); err != nil {
@@ -374,12 +379,21 @@ func (p *Playlist) HandleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// prefetchLBPlaylist is a seam so tests can avoid the network.
+var prefetchLBPlaylist = func(username, playlistType string) ([]PlaylistTrack, error) {
+	if playlistType == "on-repeat" {
+		return fetchOnRepeatTracks(username)
+	}
+	return fetchMostRecentLBPlaylist(username, playlistType)
+}
+
 // handlePrefetchCovers fetches the most recent LB playlists for the given user,
 // writes a preliminary JSON cache for the web UI, then downloads cover art.
 // Runs in the background — returns 202 immediately.
 func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		User      string   `json:"user"`
+		User      string   `json:"user"`    // ListenBrainz username (legacy single-user)
+		UserID    string   `json:"user_id"` // Explo user whose cache and LB name to use
 		Playlists []string `json:"playlists"`
 		Source    string   `json:"source"`
 	}
@@ -387,14 +401,41 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if body.User == "" || len(body.Playlists) == 0 {
+	lbUser := body.User
+	if body.UserID != "" {
+		if !users.IDRe.MatchString(body.UserID) {
+			http.Error(w, "invalid user_id", http.StatusBadRequest)
+			return
+		}
+		all, err := users.Load(p.cfg.WebDataDir)
+		if err != nil {
+			http.Error(w, "failed to load users: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		lbUser = ""
+		for _, u := range all {
+			if u.ID == body.UserID {
+				lbUser = u.ListenBrainzUser
+			}
+		}
+		if lbUser == "" {
+			http.Error(w, "unknown user_id or no ListenBrainz username", http.StatusBadRequest)
+			return
+		}
+	}
+	if lbUser == "" || len(body.Playlists) == 0 {
 		http.Error(w, "user and playlists are required", http.StatusBadRequest)
+		return
+	}
+	cacheDir, err := CacheDir(p.cfg.WebDataDir, body.UserID)
+	if err != nil {
+		http.Error(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
 	forceRefresh := body.Source == "wizard"
 	w.WriteHeader(http.StatusAccepted)
 
-	slog.Info("prefetch: starting", "user", body.User, "playlists", body.Playlists, "source", body.Source, "force_refresh", forceRefresh)
+	slog.Info("prefetch: starting", "user", lbUser, "playlists", body.Playlists, "source", body.Source, "force_refresh", forceRefresh)
 	go func() {
 		for _, pt := range body.Playlists {
 			if !validPlaylistTypes[pt] {
@@ -403,24 +444,18 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 			}
 			// Normal prefetch keeps an existing cache intact; wizard prefetch refreshes it
 			// after the user updates discovery settings.
-			cachePath := filepath.Join(p.cfg.WebDataDir, "cache", pt+".json")
+			cachePath := filepath.Join(cacheDir, pt+".json")
 			if _, err := os.Stat(cachePath); err == nil && !forceRefresh {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
 			}
-			var tracks []PlaylistTrack
-			var err error
-			if pt == "on-repeat" {
-				tracks, err = fetchOnRepeatTracks(body.User)
-			} else {
-				tracks, err = fetchMostRecentLBPlaylist(body.User, pt)
-			}
+			tracks, err := prefetchLBPlaylist(lbUser, pt)
 			if err != nil {
 				slog.Warn("prefetch: failed to fetch LB playlist", "type", pt, "err", err)
 				continue
 			}
 			slog.Info("prefetch: fetched tracks", "playlist", pt, "count", len(tracks))
-			writePrefetchCache(p.cfg.WebDataDir, "", pt, tracks)
+			writePrefetchCache(p.cfg.WebDataDir, body.UserID, pt, tracks)
 		}
 	}()
 }
