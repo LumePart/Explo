@@ -567,6 +567,18 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 		userClient = c
 	}
 
+	id, err := c.createPlaylistAs(userClient, userClient.Cfg.PlaylistName, tracks)
+	if err != nil {
+		return err
+	}
+	c.Cfg.PlaylistID = id
+
+	return nil
+}
+
+// createPlaylistAs creates a playlist titled title as userClient, adds tracks
+// with userClient's token, and returns the new rating key.
+func (c *Plex) createPlaylistAs(userClient *Plex, title string, tracks []*models.Track) (string, error) {
 	metadataURI := fmt.Sprintf(
 		"server://%s/com.plexapp.plugins.library/%s",
 		userClient.machineID,
@@ -575,7 +587,7 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 
 	params := fmt.Sprintf(
 		"/playlists?title=%s&type=audio&smart=0&uri=%s",
-		url.QueryEscape(userClient.Cfg.PlaylistName),
+		url.QueryEscape(title),
 		url.QueryEscape(metadataURI),
 	)
 
@@ -588,26 +600,25 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 		headers,
 	)
 	if err != nil {
-		return fmt.Errorf("playlist create failed: %w", err)
+		return "", fmt.Errorf("playlist create failed: %w", err)
 	}
 
 	var playlist PlexPlaylist
 	if err := util.ParseResp(body, &playlist); err != nil {
-		return fmt.Errorf("failed parsing playlist response: %w", err)
+		return "", fmt.Errorf("failed parsing playlist response: %w", err)
 	}
 
 	if len(playlist.MediaContainer.Metadata) == 0 {
-		return fmt.Errorf("playlist created but no metadata returned")
+		return "", fmt.Errorf("playlist created but no metadata returned")
 	}
 
 	userClient.Cfg.PlaylistID = playlist.MediaContainer.Metadata[0].RatingKey
 
 	userClient.addtoPlaylist(tracks)
 
-	c.Cfg.PlaylistID = userClient.Cfg.PlaylistID
-
-	return nil
+	return userClient.Cfg.PlaylistID, nil
 }
+
 func (c *Plex) UpdatePlaylist() error {
 	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
 
