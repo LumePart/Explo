@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './ui/Toggle'
 import { Button, SectionLabel, Panel, LogRow } from './ui/common'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
+import { Users } from './Users'
 import { ImportModal } from './ui/ImportModal'
 import { SEED_PRESETS, PathLine, PathTemplateModal } from './ui/PathTemplateModal'
 import { UpdateNotification } from './ui/UpdateNotification'
@@ -1095,6 +1096,7 @@ export default function Settings({ authDisabled, onWizard, onLogout }) {
             <span className="text-[16px] leading-none font-bold tracking-tight text-accent">Explo</span>
             <nav className="flex gap-0.5 items-baseline flex-1">
               <button className={tabBtnCls(activeTab === 'run')} onClick={() => setActiveTab('run')}>Home</button>
+              <button className={tabBtnCls(activeTab === 'users')} onClick={() => setActiveTab('users')}>Users</button>
               <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
               <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
             </nav>
@@ -1116,6 +1118,7 @@ export default function Settings({ authDisabled, onWizard, onLogout }) {
           </header>
 
           {activeTab === 'run' && <HomeSection />}
+          {activeTab === 'users' && <Users />}
           {activeTab === 'config' && <ConfigSection onWizard={onWizard} />}
           {activeTab === 'logs' && <LogsSection />}
         </div>

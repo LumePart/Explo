@@ -302,3 +302,34 @@ export async function fetchBackgroundArt() {
     return null
   }
 }
+
+export async function fetchUsers() {
+  const res = await apiFetch('/api/ui/users')
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function createUser(user) {
+  const res = await apiFetch('/api/ui/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json().catch(() => ({}))
+}
+
+export async function updateUser(id, user) {
+  const res = await apiFetch('/api/ui/users/' + encodeURIComponent(id), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json().catch(() => ({}))
+}
+
+export async function deleteUser(id) {
+  const res = await apiFetch('/api/ui/users/' + encodeURIComponent(id), { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+}
