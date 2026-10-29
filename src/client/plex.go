@@ -217,9 +217,42 @@ func (c *Plex) findSharedUser(username string) (*PlexSharedUser, error) {
 	return nil, fmt.Errorf("unable to find shared user: %s", username)
 }
 
+// isOwnerAccount reports whether username identifies the account that owns the
+// client's token. The server owner is never in the shared-servers list, so
+// SwitchUser has to recognise it separately.
+func (c *Plex) isOwnerAccount(username string) bool {
+	headers := c.cloneHeaders()
+	headers["Accept"] = "application/json"
+
+	body, err := c.HttpClient.MakeRequest("GET", "https://plex.tv/api/v2/user", nil, headers)
+	if err != nil {
+		return false
+	}
+
+	var me struct {
+		Username string `json:"username"`
+		Title    string `json:"title"`
+		Email    string `json:"email"`
+	}
+	if err := json.Unmarshal(body, &me); err != nil {
+		return false
+	}
+
+	for _, id := range []string{me.Username, me.Title, me.Email} {
+		if id != "" && strings.EqualFold(id, username) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Plex) SwitchUser(username string) (*Plex, error) {
 	user, err := c.findSharedUser(username)
 	if err != nil {
+		if c.isOwnerAccount(username) {
+			ownerClient := *c
+			return &ownerClient, nil
+		}
 		return nil, err
 	}
 
@@ -243,7 +276,22 @@ func (c *Plex) ensureUserClient() (*Plex, error) {
 	}
 
 	// Switch using admin client (correct source of truth)
+	c.AdminClient.machineID = c.machineID
 	return c.AdminClient.SwitchUser(c.Cfg.Creds.User)
+}
+
+// playlistHeaders returns the request headers of the account that owns the
+// playlist. Playlists are created under the switched user, so finding,
+// updating, deleting and posting artwork must use that user's token too. A
+// failed switch is an error rather than a fallback to the instance token:
+// that token may belong to a different person, whose playlists a delete would
+// then hit.
+func (c *Plex) playlistHeaders() (map[string]string, error) {
+	userClient, err := c.ensureUserClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to switch user: %w", err)
+	}
+	return userClient.Cfg.Creds.Headers, nil
 }
 func (c *Plex) AddHeader() error {
 	if c.Cfg.Creds.Headers == nil {
@@ -479,7 +527,12 @@ func (c *Plex) SearchSongs(tracks []*models.Track) error {
 func (c *Plex) SearchPlaylist() error {
 	params := "/playlists"
 
-	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers)
+	headers, err := c.playlistHeaders()
+	if err != nil {
+		return err
+	}
+
+	body, err := c.HttpClient.MakeRequest("GET", c.Cfg.URL+params, nil, headers)
 	if err != nil {
 		return err
 	}
@@ -558,7 +611,12 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 func (c *Plex) UpdatePlaylist() error {
 	params := fmt.Sprintf("/playlists/%s?summary=%s", c.Cfg.PlaylistID, url.QueryEscape(c.Cfg.PlaylistDescr))
 
-	if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+	headers, err := c.playlistHeaders()
+	if err != nil {
+		return err
+	}
+
+	if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, headers); err != nil {
 		return err
 	}
 	return nil
@@ -575,7 +633,12 @@ func (c *Plex) DeletePlaylist() error {
 
 	params := fmt.Sprintf("/playlists/%s", c.Cfg.PlaylistID)
 
-	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
+	headers, err := c.playlistHeaders()
+	if err != nil {
+		return err
+	}
+
+	if _, err := c.HttpClient.MakeRequest("DELETE", c.Cfg.URL+params, nil, headers); err != nil {
 		return err
 	}
 	return nil
@@ -586,7 +649,11 @@ func (c *Plex) SetPlaylistArtwork(localPath string) error {
 	if c.Cfg.PlaylistID == "" {
 		return fmt.Errorf("plex: no PlaylistID set")
 	}
-	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/library/metadata/"+c.Cfg.PlaylistID+"/posters", localPath, c.Cfg.Creds.Headers)
+	headers, err := c.playlistHeaders()
+	if err != nil {
+		return err
+	}
+	return uploadPlaylistArtwork(c.HttpClient, c.Cfg.URL+"/library/metadata/"+c.Cfg.PlaylistID+"/posters", localPath, headers)
 }
 
 func (c *Plex) getServer() error {

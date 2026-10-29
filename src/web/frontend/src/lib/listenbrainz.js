@@ -1,16 +1,18 @@
 // Session-level cache — avoids repeat fetches on open/close within the same page load.
 const memCache = new Map()
 
-export function clearPlaylistCache(playlistType) {
-  if (playlistType) memCache.delete(playlistType)
+const cacheKey = (playlistType, user) => `${user || ''}:${playlistType}`
+
+export function clearPlaylistCache(playlistType, user) {
+  if (playlistType) memCache.delete(cacheKey(playlistType, user))
   else memCache.clear()
 }
 
 export async function fetchPlaylistTracks(playlistType, options = {}) {
-  const key = playlistType
+  const key = cacheKey(playlistType, options.user)
   if (!options.force && memCache.has(key)) return memCache.get(key)
 
-  const res = await fetch(`/api/ui/playlists?type=${encodeURIComponent(playlistType)}`, {
+  const res = await fetch(`/api/ui/playlists?type=${encodeURIComponent(playlistType)}${options.user ? `&user=${encodeURIComponent(options.user)}` : ''}`, {
     credentials: 'include',
   })
   if (res.status === 404) {

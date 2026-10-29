@@ -51,7 +51,7 @@ function CoverThumb({ src, index, onLoaded }) {
   )
 }
 
-function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
+function SuccessPanel({ result, syncUser = '', onImported, onSync, onClose, onError }) {
   const unique = [...new Map((result.cover_urls ?? []).map(u => [u, u])).values()].slice(0, 6)
   const cols = unique.length <= 1 ? 1 : unique.length <= 4 ? 2 : 3
   const [loadedCount, setLoadedCount] = useState(0)
@@ -98,7 +98,7 @@ function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
         {onSync && (
           <button
             onClick={async () => {
-              try { await onSync(result.id); onImported(result); onClose() }
+              try { await onSync(result.id, syncUser); onImported(result); onClose() }
               catch (e) { onError(e.message || 'Sync failed') }
             }}
             className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
@@ -117,7 +117,7 @@ function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
   )
 }
 
-export function ImportModal({ onClose, onImported, onSync }) {
+export function ImportModal({ onClose, onImported, onSync, users = [], defaultUserId = '' }) {
   const [source, setSource] = useState(null)   // 'listenbrainz' | 'apple_music'
   const [url, setUrl] = useState('')
   const [refreshDays, setRefreshDays] = useState(0)
@@ -125,14 +125,18 @@ export function ImportModal({ onClose, onImported, onSync }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const multi = users.length > 0
+  const [userId, setUserId] = useState(
+    multi ? (users.find(u => u.id === defaultUserId)?.id ?? users.find(u => u.enabled)?.id ?? '') : ''
+  )
 
   const sourceCfg = SOURCES.find(s => s.key === source)
 
   const handleImport = async () => {
-    if (!url.trim() || loading) return
+    if (!url.trim() || loading || (multi && !userId)) return
     setLoading(true)
     try {
-      const data = await importCustomPlaylist(url.trim(), source, refreshDays)
+      const data = await importCustomPlaylist(url.trim(), source, refreshDays, multi ? userId : '')
       setResult(data)
       setPhase('success')
     } catch (e) {
@@ -143,7 +147,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
     }
   }
 
-  const canSubmit = url.trim() && !loading
+  const canSubmit = url.trim() && !loading && (!multi || !!userId)
 
   return (
     <motion.div
@@ -276,6 +280,21 @@ export function ImportModal({ onClose, onImported, onSync }) {
                   />
                 </div>
 
+                {multi && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-muted">For user</label>
+                    <select
+                      value={userId}
+                      onChange={e => setUserId(e.target.value)}
+                      disabled={loading}
+                      className="bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] cursor-pointer outline-none focus:border-[var(--brand)] transition-colors disabled:opacity-50"
+                    >
+                      <option value="" disabled>Select a user…</option>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-medium text-muted">
                     Auto-refresh
@@ -330,6 +349,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
                 result={result}
                 onImported={onImported}
                 onSync={onSync}
+                syncUser={multi ? (result?.user_id || userId) : ''}
                 onClose={onClose}
                 onError={msg => { setErrorMsg(msg); setPhase('error') }}
               />

@@ -14,7 +14,7 @@ import (
 
 	"explo/src/discovery"
 	"explo/src/util"
-
+	"explo/src/web/backend/users"
 )
 
 // CustomPlaylist holds the metadata for a user-imported playlist.
@@ -29,6 +29,9 @@ type CustomPlaylist struct {
 	RefreshDays     int       `json:"refresh_days"`
 	ColorIndex      int       `json:"color_index"`
 	LastFetched     time.Time `json:"last_fetched"`
+	// UserID is the owning user. Empty means the first user in users.json
+	// (legacy entries) or single-user mode, where it is ignored.
+	UserID string `json:"user_id,omitempty"`
 }
 
 // CustomPlaylistArtworkPath returns the local file path where a playlist's
@@ -162,6 +165,45 @@ func updateCustomPlaylists(cfgDir string, fn func([]CustomPlaylist) ([]CustomPla
 		return err
 	}
 	return saveCustomPlaylistsUnlocked(cfgDir, updated)
+}
+
+// fetchTracks is a seam so tests can import without network access.
+var fetchTracks = fetchCustomPlaylistTracks
+
+// OwnerOf returns the user that owns a custom playlist. Entries without a
+// (still existing) user_id belong to the first user in users.json. It
+// returns "" when no users are configured.
+func OwnerOf(dataDir, playlistID string) string {
+	all, err := users.Load(dataDir)
+	if err != nil || len(all) == 0 {
+		return ""
+	}
+	if cp := GetCustomPlaylist(dataDir, playlistID); cp != nil && cp.UserID != "" {
+		for _, u := range all {
+			if u.ID == cp.UserID {
+				return u.ID
+			}
+		}
+	}
+	return all[0].ID
+}
+
+// OnUserDeleted reassigns the deleted user's custom playlists to the first
+// remaining user, or clears their owner when none remain (single-user mode).
+// Plex playlists are never touched.
+func OnUserDeleted(dataDir, deletedID string, remaining []users.User) error {
+	newOwner := ""
+	if len(remaining) > 0 {
+		newOwner = remaining[0].ID
+	}
+	return updateCustomPlaylists(dataDir, func(list []CustomPlaylist) ([]CustomPlaylist, error) {
+		for i := range list {
+			if list[i].UserID == deletedID {
+				list[i].UserID = newOwner
+			}
+		}
+		return list, nil
+	})
 }
 
 // FetchResult is the uniform return type for fetching playlist data from any source.

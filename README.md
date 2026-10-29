@@ -48,6 +48,16 @@ Generate a token in Settings → Diagnostics access (shown once; use
 `Authorization: Bearer <token>`). Generating again revokes the old
 one. The token is read-only: status, logs and runs only.
 
+## Multiple users
+
+One Explo instance can serve several people, each with their own ListenBrainz and Plex account. Each person's playlist is generated from their own listening and created in their own Plex account. Sharing playlists between users is handled by the separate shared-playlists feature.
+
+Add users in the web UI's Users tab. Schedules are shared, and custom playlists belong to the user chosen at import. For manual CLI runs, use `--user <id|all>`.
+
+Requirements: Plex only, with Plex admin credentials set (`ADMIN_API_KEY`, or `ADMIN_SYSTEM_USERNAME` and `ADMIN_SYSTEM_PASSWORD`).
+
+Single-user setups are unaffected: if you add no users, nothing changes.
+
 ## Documentation
 
 See the [Wiki Home](https://github.com/LumePart/Explo/wiki) for an overview of supported systems and next steps.

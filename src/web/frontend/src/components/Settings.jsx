@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata, saveAlbumsOnly,
+  fetchCustomPlaylists, deleteCustomPlaylist, reassignCustomPlaylist, savePathTemplate, saveEnrichMetadata, saveAlbumsOnly,
   saveReplacePlaylist,
   saveLocalOnly, saveCleanDownloads,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
@@ -24,8 +24,10 @@ import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks, clearPlaylistCache } from '../lib/listenbrainz'
 import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './ui/Toggle'
-import { Button, SectionLabel, Panel, LogRow } from './ui/common'
+import { Button, SectionLabel, Panel, LogRow, ManagedInUsers } from './ui/common'
+import { useUsers } from '../lib/useUsers'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
+import { Users } from './Users'
 import { ImportModal } from './ui/ImportModal'
 import { SEED_PRESETS, PathLine, PathTemplateModal } from './ui/PathTemplateModal'
 import { UpdateNotification } from './ui/UpdateNotification'
@@ -124,7 +126,97 @@ function TracklistSlide({ show, slideKey, children }) {
   )
 }
 
+// Owner of a custom playlist: explicit user_id, else the first user. '' with no users.
+function playlistOwner(cp, users) {
+  return users.length > 0 ? (cp?.user_id || users[0].id) : ''
+}
+
+// Name resolver for log lines: display name, falling back to the id.
+const userNameFn = users => id => users.find(u => u.id === id)?.name || id
+
+function ReassignModal({ playlist, users, ownerId, onClose, onDone }) {
+  const [target, setTarget] = useState(ownerId)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const save = async () => {
+    if (!target || busy) return
+    if (target === ownerId) return onClose()
+    setBusy(true)
+    setError('')
+    try {
+      await reassignCustomPlaylist(playlist.id, target)
+      onDone()
+    } catch (e) {
+      setError(e.message || 'Reassign failed.')
+      setBusy(false)
+    }
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      onClick={busy ? undefined : onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0, 0, 0, 0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.97 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-[420px] mx-4 border border-ui-border rounded-lg overflow-hidden"
+        style={{ background: '#0d0d0df0', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', boxShadow: '0 24px 64px #00000099' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ui-border">
+          <h2 className="text-[15px] font-semibold text-white leading-none">Reassign playlist</h2>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted hover:text-white transition-colors text-[18px] leading-none p-0 bg-transparent border-none cursor-pointer disabled:opacity-40"
+          >
+            &times;
+          </button>
+        </div>
+        <div className="px-5 pt-5 pb-5 flex flex-col gap-4">
+          <div className="text-[13px] text-muted">Move <span className="text-white">{playlist.name}</span> to:</div>
+          <select
+            value={target}
+            onChange={e => setTarget(e.target.value)}
+            disabled={busy}
+            className="bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] cursor-pointer outline-none focus:border-accent transition-colors disabled:opacity-50"
+          >
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          {error && <div className="text-[12px] text-[#e05050]">{error}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 pb-5">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={busy || !target}
+            className="bg-[var(--brand)] text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer disabled:opacity-50"
+          >
+            {busy ? 'Saving\u2026' : 'Reassign'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 function CustomPlaylistsSection({
+  users = [],
+  viewedUser = null,
+  onReassigned,
   customPlaylists,
   schedules,
   scheduleProps,
@@ -138,10 +230,17 @@ function CustomPlaylistsSection({
   setShowImportModal,
   refreshTick = 0,
 }) {
+  const multi = users.length > 0
+  const [reassigning, setReassigning] = useState(null)
+  const ownerOf = cp => playlistOwner(cp, users)
+  const ownerName = cp => users.find(u => u.id === ownerOf(cp))?.name ?? ''
+  const visible = multi && viewedUser
+    ? customPlaylists.filter(cp => ownerOf(cp) === viewedUser.id)
+    : customPlaylists
   return (
     <div className="mt-6">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists</div>
+        <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists{multi && viewedUser && <span className="text-[12px] font-normal text-muted ml-2">for {viewedUser.name}</span>}</div>
         <button
           onClick={() => setShowImportModal(true)}
           className="bg-transparent border border-ui-border text-muted rounded-full px-3 py-1 text-[12px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
@@ -150,13 +249,13 @@ function CustomPlaylistsSection({
         </button>
       </div>
 
-      {customPlaylists.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="text-[12px] text-muted mt-3">
           No custom playlists yet. Import one from ListenBrainz, Apple Music or Spotify.
         </p>
       ) : (
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
-          {customPlaylists.map((cp, i) => {
+          {visible.map((cp, i) => {
             if (!schedules[cp.id]) return null
             return (
               <PlaylistCard
@@ -173,6 +272,8 @@ function CustomPlaylistsSection({
                 onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
                 sourceUrl={cp.source_url || undefined}
                 onDelete={(opts) => onDelete(cp.id, opts)}
+                tag={multi ? ownerName(cp).toUpperCase() : undefined}
+                onReassign={multi ? () => setReassigning(cp) : undefined}
                 refreshTick={refreshTick}
               />
             )
@@ -195,6 +296,17 @@ function CustomPlaylistsSection({
             onClose={() => setShowImportModal(false)}
             onImported={onImportedRefresh}
             onSync={onSync}
+            users={users}
+            defaultUserId={viewedUser?.id ?? ''}
+          />
+        )}
+        {reassigning && (
+          <ReassignModal
+            playlist={reassigning}
+            users={users}
+            ownerId={ownerOf(reassigning)}
+            onClose={() => setReassigning(null)}
+            onDone={() => { setReassigning(null); onReassigned?.() }}
           />
         )}
       </AnimatePresence>
@@ -211,6 +323,9 @@ function HomeSection() {
   const [openTracklist, setOpenTracklist] = useState(null)
   const [customPlaylists, setCustomPlaylists] = useState([])
   const [showImportModal, setShowImportModal] = useState(false)
+  const users = useUsers()
+  const [viewUser, setViewUser] = useState('')
+  const [runUser, setRunUser] = useState('all')
 
   const [playlist, setPlaylist] = useState('weekly-exploration')
   const [dlmode, setDlmode] = useState('normal')
@@ -222,6 +337,14 @@ function HomeSection() {
   const logRef = useRef(null)
 
   const [refreshTick, setRefreshTick] = useState(0)
+
+  // Users (multi-user mode). On failure or when empty, Home behaves as single-user.
+  const multi = users.length > 0
+  const viewedUser = multi
+    ? (users.find(u => u.id === viewUser) ?? users.find(u => u.enabled) ?? users[0])
+    : null
+  const viewId = viewedUser?.id ?? ''
+  const tracklistLbUser = viewedUser ? (viewedUser.listenbrainz_user || '') : lbUser
 
   useEffect(() => {
     Promise.all([
@@ -356,7 +479,7 @@ function HomeSection() {
     setLogEntries([])
     setStatus('running…')
     try {
-      await startRun(playlist, dlmode, replacePlaylists[playlist] ?? true)
+      await startRun(playlist, dlmode, replacePlaylists[playlist] ?? true, multi ? runUser : '')
       connect()
     } catch (e) {
       if (e.conflict) { setStatus('already running'); setRunning(false); return }
@@ -377,7 +500,26 @@ function HomeSection() {
     <div>
       {/* Scheduled Playlists */}
       <div className="mt-6">
-        <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Scheduled Playlists</div>
+        {multi ? (
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3.5">
+            <div className="text-[16px] font-bold tracking-tight text-white">Scheduled Playlists</div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[12px] text-muted">Viewing</span>
+              {users.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => setViewUser(u.id)}
+                  className={`bg-transparent border rounded-full px-3 py-1 text-[12px] cursor-pointer transition-colors
+                    ${u.id === viewId ? 'border-accent text-accent' : 'border-ui-border text-muted hover:text-white hover:border-[#444]'}`}
+                >
+                  {u.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Scheduled Playlists</div>
+        )}
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
           {PLAYLISTS.map((p, i) => (
             <PlaylistCard
@@ -390,16 +532,18 @@ function HomeSection() {
               tracklistOpen={openTracklist === p.value}
               onTracklistToggle={() => setOpenTracklist(v => v === p.value ? null : p.value)}
               refreshTick={refreshTick}
+              user={viewId}
             />
           ))}
         </div>
         <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
           <TracklistDropdown
-            lbUser={lbUser}
+            lbUser={tracklistLbUser}
             playlist={openTracklist}
             refreshTick={refreshTick}
+            user={viewId}
             onRun={async () => {
-              await startRun(openTracklist, 'normal', replacePlaylists[openTracklist] ?? true)
+              await startRun(openTracklist, 'normal', replacePlaylists[openTracklist] ?? true, viewId)
               setRunning(true)
               setStatus('running…')
               setLogEntries([])
@@ -412,6 +556,9 @@ function HomeSection() {
 
       {/* Custom Playlists */}
       <CustomPlaylistsSection
+        users={users}
+        viewedUser={viewedUser}
+        onReassigned={() => { fetchCustomPlaylists().then(setCustomPlaylists).catch(() => {}) }}
         customPlaylists={customPlaylists}
         refreshTick={refreshTick}
         schedules={schedules}
@@ -439,8 +586,10 @@ function HomeSection() {
           }).catch(() => {})
           setShowImportModal(false)
         }}
-        onSync={async (id) => {
-          await startRun(id, 'normal')
+        onSync={async (id, userId = '') => {
+          const cp = customPlaylists.find(p => p.id === id)
+          const owner = multi ? (userId || (cp ? playlistOwner(cp, users) : '')) : ''
+          await startRun(id, 'normal', true, owner)
           setRunning(true)
           setStatus('running…')
           setLogEntries([])
@@ -488,6 +637,15 @@ function HomeSection() {
             {customPlaylists.length > 0 && <option disabled>---</option>}
             {customPlaylists.map(cp => <option key={cp.id} value={cp.id}>{cp.name}</option>)}
           </select>
+          {multi && (
+            <>
+              <label className="text-[12px] text-muted">User</label>
+              <select className={selectCls} value={runUser} onChange={e => setRunUser(e.target.value)}>
+                <option value="all">All users</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </>
+          )}
         </div>
         <div className="flex gap-2.5 items-center">
           <Button onClick={handleRun} disabled={running}>▶ Run</Button>
@@ -515,7 +673,7 @@ function HomeSection() {
           {logEntries.map((e, i) => (
             rawLog
               ? <div key={i} className="font-mono text-[11px] text-accent whitespace-pre-wrap break-all py-px">{e.raw}</div>
-              : <LogRow key={i} entry={e} />
+              : <LogRow key={i} entry={e} userName={multi ? userNameFn(users) : undefined} />
           ))}
         </Panel>
       </div>
@@ -902,7 +1060,8 @@ function DownloadPathSection() {
 // Raw .env file viewer/editor, plus wizard re-run and full reset actions.
 // Fetches its own raw config text from the API.
 
-function ConfigSection({ onWizard }) {
+function ConfigSection({ onWizard, onOpenUsers }) {
+  const users = useUsers()
   const [rawConfig, setRawConfig] = useState('')
   const [editing, setEditing] = useState(false)
   const [saveStatus, setSaveStatus] = useState('')
@@ -970,6 +1129,13 @@ function ConfigSection({ onWizard }) {
         )}
       </div>
 
+      {users.length > 0 && (
+        <div className="mt-6">
+          <SectionLabel>ListenBrainz</SectionLabel>
+          <ManagedInUsers label="Username and token" onOpenUsers={onOpenUsers} />
+        </div>
+      )}
+
       <DownloadPathSection />
 
       <DiagnosticsTokenSection />
@@ -999,6 +1165,9 @@ function ConfigSection({ onWizard }) {
 // Displays the full server log file. Fetches its own log data from the API.
 
 function LogsSection() {
+  const users = useUsers()
+  const multi = users.length > 0
+  const [logUser, setLogUser] = useState('all')
   const [logFileEntries, setLogFileEntries] = useState([])
   const panelRef = useRef(null)
 
@@ -1014,10 +1183,20 @@ function LogsSection() {
     if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight
   }, [logFileEntries])
 
+  const shown = multi && logUser !== 'all'
+    ? logFileEntries.filter(e => !e.extras?.user || e.extras.user === logUser)
+    : logFileEntries
+
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-3.5">
         <SectionLabel className="">Log</SectionLabel>
+        {multi && (
+          <select aria-label="Filter by user" className={selectCls} value={logUser} onChange={e => setLogUser(e.target.value)}>
+            <option value="all">All users</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        )}
         <button
           onClick={loadLog}
           className="bg-transparent border-none text-muted text-[11px] cursor-pointer p-0 hover:text-white transition-colors"
@@ -1030,7 +1209,7 @@ function LogsSection() {
         <p className="text-[12px] text-muted py-1">No log output yet.</p>
       ) : (
         <Panel ref={panelRef} className="h-[400px]">
-          {logFileEntries.map((e, i) => <LogRow key={i} entry={e} />)}
+          {shown.map((e, i) => <LogRow key={i} entry={e} userName={multi ? userNameFn(users) : undefined} />)}
         </Panel>
       )}
     </div>
@@ -1095,6 +1274,7 @@ export default function Settings({ authDisabled, onWizard, onLogout }) {
             <span className="text-[16px] leading-none font-bold tracking-tight text-accent">Explo</span>
             <nav className="flex gap-0.5 items-baseline flex-1">
               <button className={tabBtnCls(activeTab === 'run')} onClick={() => setActiveTab('run')}>Home</button>
+              <button className={tabBtnCls(activeTab === 'users')} onClick={() => setActiveTab('users')}>Users</button>
               <button className={tabBtnCls(activeTab === 'config')} onClick={() => setActiveTab('config')}>Settings</button>
               <button className={tabBtnCls(activeTab === 'logs')} onClick={() => setActiveTab('logs')}>Logs</button>
             </nav>
@@ -1116,7 +1296,8 @@ export default function Settings({ authDisabled, onWizard, onLogout }) {
           </header>
 
           {activeTab === 'run' && <HomeSection />}
-          {activeTab === 'config' && <ConfigSection onWizard={onWizard} />}
+          {activeTab === 'users' && <Users />}
+          {activeTab === 'config' && <ConfigSection onWizard={onWizard} onOpenUsers={() => setActiveTab('users')} />}
           {activeTab === 'logs' && <LogsSection />}
         </div>
       </div>

@@ -108,7 +108,7 @@ function nextUpdateLabel(playlistType) {
   return `Next update ${nextMonday.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}`
 }
 
-export function TracklistDropdown({ playlist, lbUser, onRun, refreshTick = 0 }) {
+export function TracklistDropdown({ playlist, lbUser, onRun, refreshTick = 0, user = '' }) {
   const [tracks, setTracks] = useState([])
   const [generatedAt, setGeneratedAt] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -124,7 +124,7 @@ export function TracklistDropdown({ playlist, lbUser, onRun, refreshTick = 0 }) 
     setLoading(true)
     setError(null)
     const load = () => {
-      fetchPlaylistTracks(playlist, { force: retry > 0 || withRetry })
+      fetchPlaylistTracks(playlist, { force: retry > 0 || withRetry, user })
         .then(({ tracks: t, generatedAt: g }) => {
           if (cancelled) return
           if (t.length === 0 && withRetry && retry < 8) {
@@ -145,12 +145,12 @@ export function TracklistDropdown({ playlist, lbUser, onRun, refreshTick = 0 }) 
   useEffect(() => {
     if (!playlist) return
     return loadTracks(false)
-  }, [playlist, refreshTick])
+  }, [playlist, refreshTick, user])
 
   const handleFetch = () => {
     if (!lbUser) return
     setFetching(true)
-    prefetchPlaylists(lbUser, [playlist])
+    prefetchPlaylists(lbUser, [playlist], user ? { user_id: user } : {})
       .then(() => loadTracks(true))
       .catch(e => setError(e.message))
       .finally(() => setFetching(false))
@@ -380,6 +380,9 @@ export function PlaylistCard({
   artworkUrl,
   sourceUrl,
   refreshTick = 0,
+  user = '',
+  tag,
+  onReassign,
 }) {
   const { value, name } = playlist
   // trackFetchId: use real playlist ID (custom playlists) if provided, else fall back to value
@@ -393,7 +396,8 @@ export function PlaylistCard({
     preset = customMatch ? CUSTOM_PRESETS[Number(customMatch[1]) % CUSTOM_PRESETS.length] : FALLBACK
   }
   const bg = gradientOverride ?? preset.background
-  const { accent, label } = preset
+  const { accent } = preset
+  const label = tag ?? preset.label
 
   // Split gradient string into radial layers + solid base color so album art can sit between them.
   const bgLines = bg.trim().split('\n').map(l => l.trim()).filter(Boolean)
@@ -410,11 +414,12 @@ export function PlaylistCard({
 
   useEffect(() => {
     if (!s.enabled) return
+    if (user) setBgCovers([])
     let cancelled = false
     let retry = 0
     let retryTimer = null
     const load = () => {
-      fetchPlaylistTracks(trackFetchId, { force: retry > 0 })
+      fetchPlaylistTracks(trackFetchId, { force: retry > 0, user })
         .then(({ tracks }) => {
           if (cancelled) return
           const covers = tracks.map(t => t.coverUrl).filter(Boolean)
@@ -432,7 +437,7 @@ export function PlaylistCard({
       cancelled = true
       if (retryTimer) clearTimeout(retryTimer)
     }
-  }, [trackFetchId, s.enabled, refreshTick])
+  }, [trackFetchId, s.enabled, refreshTick, user])
 
   useEffect(() => {
     if (bgCovers.length < 2) return
@@ -452,7 +457,7 @@ export function PlaylistCard({
   const [localOnlyInfoOpen, setLocalOnlyInfoOpen] = useState(false)
   const menuBtnRef = useRef(null)
   const canEdit = !fixedSchedule && !!onToggleEdit
-  const hasMenu = canEdit || !!onDelete || !!sourceUrl || !!onReplaceToggle || !!onLocalOnlyToggle
+  const hasMenu = canEdit || !!onDelete || !!onReassign || !!sourceUrl || !!onReplaceToggle || !!onLocalOnlyToggle
 
   useEffect(() => {
     if (!menuOpen) { setConfirmDelete(false); setDeleteTracksChecked(false); return }
@@ -743,6 +748,21 @@ export function PlaylistCard({
                 </span>
               )}
             </div>
+          )}
+          {onReassign && (
+            <button
+              onClick={e => { e.stopPropagation(); setMenuOpen(false); onReassign() }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'none', border: 'none',
+                padding: '8px 14px', fontSize: 13, color: '#c0c0c0',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1a1a1a' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              Reassign
+            </button>
           )}
           {onDelete && !confirmDelete && (
             <button

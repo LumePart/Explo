@@ -6,6 +6,7 @@ import (
 	"explo/src/models"
 	"explo/src/web/backend"
 	"explo/src/web/backend/playlist"
+	"explo/src/web/backend/users"
 	"fmt"
 	"log"
 	"log/slog"
@@ -131,7 +132,35 @@ func main() {
 	}
 	cfg.ReadEnv()
 	cfg.MergeFlags()
+	if cfg.Flags.User == "all" {
+		if err := runAllUsers(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist, os.Args[1:], execSelf); err != nil {
+			slog.Error("run failed", "err", err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	// Must run before setup(): GenPlaylistDetails reads the ListenBrainz user,
+	// and discovery/client construction read the token and Plex creds.
+	// "all" is handled separately; an empty value leaves single-user mode as is.
+	if cfg.Flags.User != "" && cfg.Flags.User != "all" {
+		all, err := users.Load(cfg.ServerCfg.WebDataDir)
+		if err != nil {
+			slog.Error("failed to load users", "err", err.Error())
+			os.Exit(1)
+		}
+		if len(all) == 0 {
+			slog.Error("no users configured", "dir", cfg.ServerCfg.WebDataDir)
+			os.Exit(1)
+		}
+		if err := cfg.ApplyUser(cfg.Flags.User, all); err != nil {
+			slog.Error("failed to apply user", "err", err.Error())
+			os.Exit(1)
+		}
+	}
 	setup(&cfg)
+	if cfg.UserID != "" {
+		slog.SetDefault(slog.Default().With("user", cfg.UserID))
+	}
 
 	httpClient := initHttpClient()
 
@@ -215,7 +244,7 @@ func main() {
 	}
 	allTracks := append([]*models.Track(nil), tracks...)
 	if cfg.ServerCfg.WebDataDir != "" {
-		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist, allTracks, nil)
+		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, cacheUserID(cfg.Flags.Playlist, cfg.UserID), cfg.Flags.Playlist, allTracks, nil)
 		slog.Info("Saved playlist", "playlist", cfg.Flags.Playlist, "tracks", len(allTracks))
 	}
 

@@ -71,7 +71,7 @@ func (p *Playlist) RegisterCustomPlaylistRefresh(j *jobs.Jobs) error {
 					slog.Warn("custom-playlists: refresh fetch failed", "id", plist.ID, "err", err)
 					return
 				}
-				writePrefetchCache(p.cfg.WebDataDir, plist.ID, result.Tracks)
+				writePrefetchCache(p.cfg.WebDataDir, "", plist.ID, result.Tracks)
 				if err := updateCustomPlaylists(p.cfg.WebDataDir, func(playlists []CustomPlaylist) ([]CustomPlaylist, error) {
 					for i, pl := range playlists {
 						if pl.ID == plist.ID {

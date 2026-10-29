@@ -2,6 +2,7 @@ package playlist
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"explo/src/util"
 	"explo/src/web/backend/defs"
+	"explo/src/web/backend/users"
 	"explo/src/web"
 
 	"golang.org/x/text/cases"
@@ -60,10 +62,24 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		URL         string `json:"url"`
 		Source      string `json:"source"` // "listenbrainz" | "apple_music"
 		RefreshDays int    `json:"refresh_days"`
+		UserID      string `json:"user_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// A user is required only when users.json has at least one user.
+	owner := ""
+	if all, err := users.Load(p.cfg.WebDataDir); err != nil {
+		http.Error(w, "failed to load users: "+err.Error(), http.StatusInternalServerError)
+		return
+	} else if len(all) > 0 {
+		if !userExists(all, body.UserID) {
+			http.Error(w, "user_id is required and must be an existing user", http.StatusBadRequest)
+			return
+		}
+		owner = body.UserID
 	}
 
 	existing := loadCustomPlaylists(p.cfg.WebDataDir)
@@ -85,7 +101,7 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	result, err := fetchCustomPlaylistTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL})
+	result, err := fetchTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL})
 	if err != nil {
 		slog.Error("custom-playlists: fetch failed", "source", body.Source, "err", err)
 		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
@@ -113,11 +129,11 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 	// Write cache with remote cover URLs synchronously so the response is fast,
 	// then download local copies of cover art in the background.
 	slog.Info("custom-playlists: writing cache", "id", id)
-	if !writePreliminaryCache(p.cfg.WebDataDir, id, tracks) {
+	if !writePreliminaryCache(p.cfg.WebDataDir, "", id, tracks) {
 		http.Error(w, "failed to write playlist cache", http.StatusInternalServerError)
 		return
 	}
-	go downloadAndCacheCovers(p.cfg.WebDataDir, id, tracks)
+	go downloadAndCacheCovers(p.cfg.WebDataDir, "", id, tracks)
 
 	// Cache the playlist's own artwork locally so we can later push it to the
 	// music app on first playlist creation. Apple Music imports have artwork;
@@ -147,6 +163,7 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		RefreshDays: body.RefreshDays,
 		ColorIndex:  len(existing),
 		LastFetched: time.Now().UTC(),
+		UserID:      owner,
 	}
 	if err := updateCustomPlaylists(p.cfg.WebDataDir, func(current []CustomPlaylist) ([]CustomPlaylist, error) {
 		cp.ColorIndex = len(current)
@@ -231,11 +248,11 @@ func (p *Playlist) HandleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Re
 	}
 	tracks := result.Tracks
 
-	if !writePreliminaryCache(p.cfg.WebDataDir, id, tracks) {
+	if !writePreliminaryCache(p.cfg.WebDataDir, "", id, tracks) {
 		http.Error(w, "failed to write playlist cache", http.StatusInternalServerError)
 		return
 	}
-	go downloadAndCacheCovers(p.cfg.WebDataDir, id, tracks)
+	go downloadAndCacheCovers(p.cfg.WebDataDir, "", id, tracks)
 
 	if err := updateCustomPlaylists(p.cfg.WebDataDir, func(current []CustomPlaylist) ([]CustomPlaylist, error) {
 		for i := range current {
@@ -340,7 +357,12 @@ func (p *Playlist) HandleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachePath := filepath.Join(p.cfg.WebDataDir, "cache", playlistType+".json")
+	cacheDir, err := CacheDir(p.cfg.WebDataDir, r.URL.Query().Get("user"))
+	if err != nil {
+		http.Error(w, "invalid user", http.StatusBadRequest)
+		return
+	}
+	cachePath := filepath.Join(cacheDir, playlistType+".json")
 	if raw, err := os.ReadFile(cachePath); err == nil {
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write(raw); err != nil {
@@ -357,12 +379,21 @@ func (p *Playlist) HandleGetPlaylist(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// prefetchLBPlaylist is a seam so tests can avoid the network.
+var prefetchLBPlaylist = func(username, playlistType string) ([]PlaylistTrack, error) {
+	if playlistType == "on-repeat" {
+		return fetchOnRepeatTracks(username)
+	}
+	return fetchMostRecentLBPlaylist(username, playlistType)
+}
+
 // handlePrefetchCovers fetches the most recent LB playlists for the given user,
 // writes a preliminary JSON cache for the web UI, then downloads cover art.
 // Runs in the background — returns 202 immediately.
 func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		User      string   `json:"user"`
+		User      string   `json:"user"`    // ListenBrainz username (legacy single-user)
+		UserID    string   `json:"user_id"` // Explo user whose cache and LB name to use
 		Playlists []string `json:"playlists"`
 		Source    string   `json:"source"`
 	}
@@ -370,14 +401,41 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if body.User == "" || len(body.Playlists) == 0 {
+	lbUser := body.User
+	if body.UserID != "" {
+		if !users.IDRe.MatchString(body.UserID) {
+			http.Error(w, "invalid user_id", http.StatusBadRequest)
+			return
+		}
+		all, err := users.Load(p.cfg.WebDataDir)
+		if err != nil {
+			http.Error(w, "failed to load users: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		lbUser = ""
+		for _, u := range all {
+			if u.ID == body.UserID {
+				lbUser = u.ListenBrainzUser
+			}
+		}
+		if lbUser == "" {
+			http.Error(w, "unknown user_id or no ListenBrainz username", http.StatusBadRequest)
+			return
+		}
+	}
+	if lbUser == "" || len(body.Playlists) == 0 {
 		http.Error(w, "user and playlists are required", http.StatusBadRequest)
+		return
+	}
+	cacheDir, err := CacheDir(p.cfg.WebDataDir, body.UserID)
+	if err != nil {
+		http.Error(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
 	forceRefresh := body.Source == "wizard"
 	w.WriteHeader(http.StatusAccepted)
 
-	slog.Info("prefetch: starting", "user", body.User, "playlists", body.Playlists, "source", body.Source, "force_refresh", forceRefresh)
+	slog.Info("prefetch: starting", "user", lbUser, "playlists", body.Playlists, "source", body.Source, "force_refresh", forceRefresh)
 	go func() {
 		for _, pt := range body.Playlists {
 			if !validPlaylistTypes[pt] {
@@ -386,24 +444,18 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 			}
 			// Normal prefetch keeps an existing cache intact; wizard prefetch refreshes it
 			// after the user updates discovery settings.
-			cachePath := filepath.Join(p.cfg.WebDataDir, "cache", pt+".json")
+			cachePath := filepath.Join(cacheDir, pt+".json")
 			if _, err := os.Stat(cachePath); err == nil && !forceRefresh {
 				slog.Info("prefetch: cache already exists, skipping", "playlist", pt)
 				continue
 			}
-			var tracks []PlaylistTrack
-			var err error
-			if pt == "on-repeat" {
-				tracks, err = fetchOnRepeatTracks(body.User)
-			} else {
-				tracks, err = fetchMostRecentLBPlaylist(body.User, pt)
-			}
+			tracks, err := prefetchLBPlaylist(lbUser, pt)
 			if err != nil {
 				slog.Warn("prefetch: failed to fetch LB playlist", "type", pt, "err", err)
 				continue
 			}
 			slog.Info("prefetch: fetched tracks", "playlist", pt, "count", len(tracks))
-			writePrefetchCache(p.cfg.WebDataDir, pt, tracks)
+			writePrefetchCache(p.cfg.WebDataDir, body.UserID, pt, tracks)
 		}
 	}()
 }
@@ -423,4 +475,59 @@ func (p *Playlist) HandleBackgroundArt(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{"url": url}); err != nil {
 		slog.Error("background-art: failed to write response", "err", err.Error())
 	}
+}
+func userExists(all []users.User, id string) bool {
+	if !users.IDRe.MatchString(id) {
+		return false
+	}
+	for _, u := range all {
+		if u.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// HandleReassignCustomPlaylist changes which user owns a custom playlist.
+func (p *Playlist) HandleReassignCustomPlaylist(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !defs.CustomIDRe.MatchString(id) {
+		http.Error(w, "invalid playlist id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	all, err := users.Load(p.cfg.WebDataDir)
+	if err != nil {
+		http.Error(w, "failed to load users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !userExists(all, body.UserID) {
+		http.Error(w, "unknown user_id", http.StatusBadRequest)
+		return
+	}
+	err = updateCustomPlaylists(p.cfg.WebDataDir, func(list []CustomPlaylist) ([]CustomPlaylist, error) {
+		for i := range list {
+			if list[i].ID == id {
+				list[i].UserID = body.UserID
+				return list, nil
+			}
+		}
+		return nil, errPlaylistNotFound
+	})
+	if errors.Is(err, errPlaylistNotFound) {
+		http.Error(w, "playlist not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "failed to save: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }

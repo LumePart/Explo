@@ -115,7 +115,7 @@ func modelTracksToPlaylistTracks(tracks []*models.Track) []PlaylistTrack {
 
 // writePlaylistCache downloads cover art and writes a tracklist JSON for the web UI.
 // added maps "CleanTitle|Artist" → true for tracks that made it into the playlist; nil means status unknown.
-func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added map[string]bool) {
+func WritePlaylistCache(cfgPath, userID, playlist string, tracks []*models.Track, added map[string]bool) {
 	type cachedTrack struct {
 		Rank      int    `json:"rank"`
 		Title     string `json:"title"`
@@ -159,7 +159,11 @@ func WritePlaylistCache(cfgPath, playlist string, tracks []*models.Track, added 
 	if err != nil {
 		return
 	}
-	cacheDir := filepath.Join(cfgPath, "cache")
+	cacheDir, err := CacheDir(cfgPath, userID)
+	if err != nil {
+		slog.Error("invalid cache dir", "msg", err.Error())
+		return
+	}
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		slog.Error("failed creating cache dir", "msg", err.Error())
 	}
@@ -198,12 +202,12 @@ type cachedPrefetchTrack struct {
 
 // writePreliminaryCache writes the track cache with remote cover URLs immediately.
 // Returns false if the write fails.
-func writePreliminaryCache(cfgDir, playlistType string, tracks []PlaylistTrack) bool {
+func writePreliminaryCache(cfgDir, userID, playlistType string, tracks []PlaylistTrack) bool {
 	ct := make([]cachedPrefetchTrack, len(tracks))
 	for i, t := range tracks {
 		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: t.CoverURL, MusicBrainzTrackID: t.MusicBrainzTrackID}
 	}
-	if !writeTrackCache(cfgDir, playlistType, ct) {
+	if !writeTrackCache(cfgDir, userID, playlistType, ct) {
 		return false
 	}
 	slog.Info("prefetch: cache written", "playlist", playlistType, "covers", "remote")
@@ -212,7 +216,7 @@ func writePreliminaryCache(cfgDir, playlistType string, tracks []PlaylistTrack) 
 
 // downloadAndCacheCovers downloads cover art and rewrites the cache with local URLs.
 // Safe to call in a goroutine.
-func downloadAndCacheCovers(cfgDir, playlistType string, tracks []PlaylistTrack) {
+func downloadAndCacheCovers(cfgDir, userID, playlistType string, tracks []PlaylistTrack) {
 	coversDir := filepath.Join(cfgDir, "cache", "covers")
 	if err := os.MkdirAll(coversDir, 0755); err != nil {
 		slog.Error("prefetch: failed to create covers dir", "err", err.Error())
@@ -223,16 +227,16 @@ func downloadAndCacheCovers(cfgDir, playlistType string, tracks []PlaylistTrack)
 		APIPath, coverPath := util.DownloadCover(t.CoverURL, coversDir)
 		ct[i] = cachedPrefetchTrack{Rank: i + 1, Title: t.Title, Artist: t.Artist, MainArtist: t.MainArtist, Release: t.Album, CoverURL: APIPath, CoverPath: coverPath, MusicBrainzTrackID: t.MusicBrainzTrackID}
 	}
-	if writeTrackCache(cfgDir, playlistType, ct) {
+	if writeTrackCache(cfgDir, userID, playlistType, ct) {
 		slog.Info("prefetch: cache updated", "playlist", playlistType, "covers", "local")
 	}
 }
 
-func writePrefetchCache(cfgDir, playlistType string, tracks []PlaylistTrack) {
-	if !writePreliminaryCache(cfgDir, playlistType, tracks) {
+func writePrefetchCache(cfgDir, userID, playlistType string, tracks []PlaylistTrack) {
+	if !writePreliminaryCache(cfgDir, userID, playlistType, tracks) {
 		return
 	}
-	downloadAndCacheCovers(cfgDir, playlistType, tracks)
+	downloadAndCacheCovers(cfgDir, userID, playlistType, tracks)
 }
 
 // ── Background art ───────────────────────────────────────────────────────────
@@ -343,7 +347,7 @@ func fetchSitewideCovers(coversDir string) string {
 	return ""
 }
 
-func writeTrackCache(cfgDir, playlistType string, tracks []cachedPrefetchTrack) bool {
+func writeTrackCache(cfgDir, userID, playlistType string, tracks []cachedPrefetchTrack) bool {
 	type cache struct {
 		Tracks []cachedPrefetchTrack `json:"tracks"`
 	}
@@ -352,7 +356,11 @@ func writeTrackCache(cfgDir, playlistType string, tracks []cachedPrefetchTrack) 
 		slog.Error("prefetch: failed to marshal cache", "err", err.Error())
 		return false
 	}
-	cacheDir := filepath.Join(cfgDir, "cache")
+	cacheDir, err := CacheDir(cfgDir, userID)
+	if err != nil {
+		slog.Error("prefetch: invalid cache dir", "err", err.Error())
+		return false
+	}
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		slog.Error("prefetch: failed to create cache dir", "err", err.Error())
 		return false

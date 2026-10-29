@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explo multi-user demo (throwaway prototype)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#121212; --surface:#1a1a1a; --border:#282828; --muted:#b3b3b3;
+    --accent:#1ed760; --well:#0d0d0d; --danger:#e05555;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:#fff; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; min-height:100vh; }
+  button, select, input { font:inherit; }
+  .page { max-width:980px; margin:0 auto; padding:0 24px 48px; }
+  .demo-bar { background:#2a2410; border-bottom:1px solid #5c4d12; color:#f0d878; padding:7px 24px; font-size:12px; display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+  .demo-bar label { display:flex; gap:6px; align-items:center; cursor:pointer; }
+
+  /* header + tabs (matches Settings.jsx shell) */
+  header { display:flex; align-items:baseline; gap:16px; padding-top:20px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+  header .brand { font-size:16px; line-height:1; font-weight:700; letter-spacing:-.01em; color:var(--accent); }
+  nav { display:flex; gap:2px; align-items:baseline; flex:1; }
+  nav button { background:none; border:none; border-bottom:2px solid transparent; padding:0 14px 8px; font-size:13px; line-height:1; color:var(--muted); cursor:pointer; transition:color .15s; }
+  nav button:hover { color:#fff; }
+  nav button.active { color:var(--accent); border-bottom-color:var(--accent); }
+  header .out { padding-bottom:8px; font-size:12px; color:var(--muted); }
+
+  .sec-title { font-size:16px; font-weight:700; letter-spacing:-.01em; color:#fff; }
+  .mt6 { margin-top:24px; }
+  .mt3 { margin-top:12px; }
+  .muted { color:var(--muted); }
+  .small { font-size:12px; }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .between { justify-content:space-between; }
+
+  .pill-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:999px; padding:4px 12px; font-size:12px; cursor:pointer; transition:color .15s,border-color .15s; }
+  .pill-btn:hover { color:#fff; border-color:#444; }
+  .btn { background:transparent; border:1px solid var(--border); color:#fff; border-radius:6px; padding:7px 18px; font-size:13px; cursor:pointer; transition:border-color .15s; }
+  .btn:hover { border-color:var(--accent); }
+  .btn.danger { border-color:var(--danger); color:var(--danger); }
+  .btn.danger:hover { background:var(--danger); color:#fff; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  .btn.sm { padding:4px 12px; font-size:12px; }
+  select.sel, input.inp { background:var(--surface); border:1px solid var(--border); color:#fff; border-radius:6px; padding:6px 10px; font-size:13px; outline:none; }
+  select.sel { cursor:pointer; }
+  select.sel:focus, input.inp:focus { border-color:var(--accent); }
+  input.inp { width:100%; background:var(--well); }
+  label.lbl { display:block; font-size:12px; color:var(--muted); margin:12px 0 6px; }
+
+  /* playlist cards (matches PlaylistCard.jsx) */
+  .grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px; }
+  @media (min-width:420px) { .grid { grid-template-columns:repeat(2,1fr); } }
+  @media (min-width:720px) { .grid { grid-template-columns:repeat(4,1fr); } }
+  .pcard { position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; isolation:isolate; cursor:pointer;
+           box-shadow:0 8px 32px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08); transition:filter .4s, box-shadow .35s; }
+  @media (max-width:419px) { .pcard { aspect-ratio:4/1; } }
+  .pcard.open { box-shadow:0 8px 32px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(255,255,255,.08); }
+  .pcard.off { filter:grayscale(1) brightness(.55); cursor:default; box-shadow:0 4px 16px rgba(0,0,0,.35); }
+  .pcard .layer { position:absolute; inset:0; }
+  .pcard .wash { background:#000; opacity:.38; }
+  .pcard .vig { position:absolute; bottom:0; left:0; right:0; height:55%; background:linear-gradient(0deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.2) 60%,transparent 100%); }
+  .pcard .tag { position:absolute; top:7px; left:8px; font-size:12px; font-weight:700; letter-spacing:.10em; color:#fff; mix-blend-mode:overlay; }
+  .pcard .dots { position:absolute; top:6px; right:8px; color:#fff; font-size:18px; line-height:1; opacity:.5; padding:2px 6px; }
+  .pcard .name { position:absolute; bottom:8px; left:10px; max-width:calc(100% - 50px); min-width:0; }
+  .pcard .name .t { font-family:'Bebas Neue',Impact,sans-serif; line-height:.95; color:#fff; text-shadow:0 1px 8px rgba(0,0,0,.5); letter-spacing:.025em; font-size:clamp(11px,3.5vw,20px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pcard .name .t.b { opacity:.88; }
+  .pcard .name .s { display:block; margin-top:4px; font-size:8px; font-weight:300; color:rgba(255,255,255,.55); letter-spacing:.02em; white-space:nowrap; }
+  .pcard .tg { position:absolute; bottom:8px; right:8px; }
+  .tog { width:26px; height:15px; border-radius:999px; background:var(--border); position:relative; cursor:pointer; flex:none; transition:background .15s; }
+  .tog::after { content:""; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:#fff; transition:transform .15s; }
+  .tog.on { background:var(--accent); } .tog.on::after { transform:translateX(11px); }
+  .tog.lg { width:36px; height:20px; } .tog.lg::after { top:3px; left:3px; width:14px; height:14px; } .tog.lg.on::after { transform:translateX(16px); }
+
+  /* tracklist (matches TracklistDropdown) */
+  .tl { margin-top:16px; }
+  .tl-head { padding-bottom:12px; border-bottom:1px solid #232323; display:flex; align-items:center; gap:10px; }
+  .tl-head .h { font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+  .tl-head .g { font-size:10px; color:#565656; }
+  .tl-head .run { margin-left:auto; background:none; border:none; padding:0; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#565656; cursor:pointer; }
+  .tl-head .run:hover { color:#fff; }
+  .trow { display:flex; align-items:center; gap:12px; padding:0 2px; min-height:52px; border-bottom:1px solid rgba(255,255,255,.04); }
+  .trow .n { width:24px; font-size:11px; color:#3a3a3a; text-align:right; }
+  .trow .c { width:42px; height:42px; border-radius:3px; flex:none; display:flex; align-items:center; justify-content:center; color:#2e2e2e; }
+  .trow .m { flex:1; min-width:0; }
+  .trow .m .a { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .trow .m .b { font-size:11px; color:#4e4e4e; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .trow .ok { font-size:10px; font-weight:600; color:#34d399; }
+  .trow .no { font-size:10px; font-weight:600; color:#3a3a3a; }
+
+  /* manual run + output */
+  .dl button { padding:6px 12px; font-size:12px; border-radius:6px; border:1px solid var(--border); background:var(--well); color:var(--muted); cursor:pointer; }
+  .dl button.on { border-color:var(--accent); color:var(--accent); }
+  .dl button:not(.on):hover { border-color:#404040; color:#fff; }
+  .panel { background:var(--well); border:1px solid var(--border); border-radius:6px; overflow-y:auto; padding:12px; height:300px; font:11px/1.6 ui-monospace,monospace; }
+  .panel .u { color:var(--accent); } .panel .w { color:#e0b055; } .panel .e { color:var(--danger); }
+  .sec-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+
+  /* new in multi-user: user pills */
+  .upill { padding:3px 11px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:12px; cursor:pointer; }
+  .upill:hover { color:#fff; border-color:#444; }
+  .upill.active { border-color:var(--accent); color:var(--accent); }
+
+  /* generic surface card (Users tab) */
+  .scard { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:14px 16px; margin-top:10px; }
+  .badge { font-size:11px; padding:1px 8px; border-radius:999px; background:var(--well); border:1px solid var(--border); color:var(--muted); }
+  .banner { background:#2b1414; border:1px solid #6b2a2a; color:#f2a3a3; padding:10px 12px; border-radius:6px; margin-bottom:16px; font-size:13px; }
+  .note { border:1px dashed #3a3a3a; border-radius:6px; padding:10px 12px; color:var(--muted); font-size:12px; margin-top:10px; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; padding:16px; z-index:50; }
+  .modal { background:#141414; border:1px solid var(--border); border-radius:10px; padding:18px; width:100%; max-width:440px; }
+  .modal h3 { margin:0 0 2px; font-size:15px; }
+  .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  .err { font-size:11px; color:#e0b055; margin-top:6px; min-height:14px; }
+
+  /* highlight additions */
+  body.hl .new { outline:1.5px dashed #f0d878; outline-offset:3px; }
+  .hide { display:none !important; }
+</style>
+</head>
+<body>
+<div class="demo-bar">
+  <span>Throwaway prototype of multi-user Explo. Fake data, in memory only; reload resets.</span>
+  <label><input id="hl" type="checkbox" checked> Outline what's new vs today's UI</label>
+  <label><input id="adm" type="checkbox" checked> Plex admin credentials set</label>
+</div>
+<div class="page">
+  <header>
+    <span class="brand">Explo</span>
+    <nav id="nav"></nav>
+    <span class="out">Sign out</span>
+  </header>
+  <div id="view"></div>
+</div>
+<div id="modalRoot"></div>
+
+<script>
+// ── data ──────────────────────────────────────────────────────
+const PLAYLISTS = [
+  { value:'weekly-exploration', name:'Weekly Exploration', label:'WEEKLY',  g:['#2979ff','#7c3aed','#0ea5e9'], sched:'Every Tuesday', on:true },
+  { value:'weekly-jams',        name:'Weekly Jams',        label:'WEEKLY',  g:['#fb923c','#ef4444','#f472b6'], sched:'Every Monday',  on:true },
+  { value:'daily-jams',         name:'Daily Jams',         label:'DAILY',   g:['#10b981','#06b6d4','#22c55e'], sched:'Every day',     on:true },
+  { value:'on-repeat',          name:'On Repeat',          label:'MONTHLY', g:['#e11d48','#9f1239','#fb7185'], sched:'Monthly (1st)', on:false },
+];
+const CUSTOM_G = [['#6366f1','#8b5cf6','#a78bfa'],['#0891b2','#0e7490','#67e8f9'],['#d97706','#b45309','#fcd34d'],['#16a34a','#15803d','#4ade80']];
+const TRACKS = {
+  gabe:  [['Lost in the Light','Bahamas','Bahamas Is Afie',1],['Heavy Heart','Wilco','Cruel Country',1],['Slow Burn','Kacey Musgraves','Golden Hour',0],['Gimme Shelter','The Rolling Stones','Let It Bleed',1],['Cosmic Dancer','T. Rex','Electric Warrior',1],['Needle in the Hay','Elliott Smith','Elliott Smith',0]],
+  kelly: [['Dreams','Fleetwood Mac','Rumours',1],['Motion Sickness','Phoebe Bridgers','Stranger in the Alps',1],['Cherry Wine','Hozier','Hozier',1],['Bloodline','Ariana Grande','Thank U, Next',0],['Stay','Rihanna','Unapologetic',1],['Fast Car','Tracy Chapman','Tracy Chapman',1]],
+};
+const state = {
+  tab:'run', viewUser:'gabe', runUser:'all', runPlaylist:'weekly-exploration', dl:'normal',
+  open:null, admin:true,
+  users:[
+    { id:'gabe',  name:'Gabe',  lb:'gabe-lb',  token:true, plex:'gabriel', enabled:true },
+    { id:'kelly', name:'Kelly', lb:'kelly_lb', token:true, plex:'kelly.w', enabled:true },
+  ],
+  custom:[
+    { id:'c1', name:'Road Trip Mix', user:'gabe',  on:true, sched:'Every day', ci:0 },
+    { id:'c2', name:'Focus',         user:'kelly', on:true, sched:'Every Sunday', ci:1 },
+  ],
+  out:[],   // run output
+  logs:[['info','','Explo started']],
+};
+
+// ── helpers ───────────────────────────────────────────────────
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uById = id=>state.users.find(u=>u.id===id);
+const enabled = ()=>state.users.filter(u=>u.enabled);
+const slug = n=>n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const wa = (hex,a)=>hex+Math.round(a*255).toString(16).padStart(2,'0');
+const grad = g=>`linear-gradient(135deg, ${wa(g[0],.36)} 0%, ${wa(g[1],.28)} 48%, ${wa(g[2],.18)} 100%), ${g[0]}`;
+const multi = ()=>state.users.length>0;
+function addLog(level,user,msg){ const e=[level,user,msg]; state.logs.push(e); state.out.push(e); }
+function fix(){ if(multi()&&!uById(state.viewUser)) state.viewUser=state.users[0].id; if(state.runUser!=='all'&&!uById(state.runUser)) state.runUser='all'; }
+
+// ── pieces ────────────────────────────────────────────────────
+function card(p, i, opts={}) {
+  const [l1,...r]=p.name.split(' '); const l2=r.join(' ');
+  const tag = opts.tag ?? p.label;
+  return `<div class="pcard ${p.on?'':'off'} ${state.open===opts.key?'open':''}" data-card="${opts.key}" ${opts.custom?`data-custom="${p.id}"`:''}>
+    <div class="layer" style="background-image:${grad(p.g)}"></div>
+    <div class="layer wash"></div><div class="vig"></div>
+    ${tag?`<div class="tag ${opts.tagNew?'new':''}">${esc(tag)}</div>`:''}
+    <div class="dots">⋮</div>
+    <div class="name"><div class="t">${esc(l1)}</div>${l2?`<div class="t b">${esc(l2)}</div>`:''}<span class="s">${p.on?esc(p.sched):'Disabled'}</span></div>
+    <div class="tg" data-tg="${opts.key}"><div class="tog ${p.on?'on':''}"></div></div>
+  </div>`;
+}
+function tracklist() {
+  const u = uById(state.viewUser); const tr = (u&&TRACKS[u.id])||[];
+  const covers=['#5b4b8a','#3b6e8f','#8f5b3b','#3b8f6a','#8a3b5b','#6a6a3b'];
+  return `<div class="tl"><div class="tl-head"><span class="h">${tr.length} Tracks</span><span class="g">Generated Oct 27</span>
+    ${multi()&&u?`<span class="g new" style="color:var(--accent)">${esc(u.name)}</span>`:''}
+    <button class="run" id="tlRun">▶ Run</button></div>
+    ${tr.map((t,i)=>`<div class="trow"><span class="n">${i+1}</span><div class="c" style="background:${covers[i%6]}55">♪</div>
+      <div class="m"><div class="a">${esc(t[0])}</div><div class="b">${esc(t[1])} — ${esc(t[2])}</div></div>
+      <span class="${t[3]?'ok':'no'}">${t[3]?'✓':'✕'}</span></div>`).join('') || '<div class="small muted" style="padding:16px 2px">No playlist found yet.</div>'}</div>`;
+}
+function adminBanner(){ return state.admin||!multi() ? '' :
+  `<div class="banner"><strong>Plex admin credentials are missing.</strong> Users can't be switched to without them. Add an admin API key (or admin username and password) in Settings.</div>`; }
+
+// ── tabs ──────────────────────────────────────────────────────
+function home() {
+  const cu = multi() ? state.custom.filter(c=>c.user===state.viewUser) : state.custom;
+  const openIsBuiltin = PLAYLISTS.some(p=>p.value===state.open);
+  const openIsCustom = state.open && state.open.startsWith('custom:');
+  return `${adminBanner()}
+  <div class="mt6">
+    <div class="row between">
+      <div class="sec-title">Scheduled Playlists</div>
+      ${multi()?`<div class="row new" style="gap:6px" id="vpills"><span class="small muted">Viewing</span>${state.users.map(u=>`<button class="upill ${u.id===state.viewUser?'active':''}" data-vu="${u.id}">${esc(u.name)}</button>`).join('')}</div>`:''}
+    </div>
+    <div class="grid">${PLAYLISTS.map((p,i)=>card(p,i,{key:p.value})).join('')}</div>
+    ${openIsBuiltin?tracklist():''}
+    <p class="small muted mt3">Schedule changes take effect after restarting the container.</p>
+  </div>
+
+  <div class="mt6">
+    <div class="row between">
+      <div class="sec-title">Custom Playlists</div>
+      <button class="pill-btn" id="imp">+ Import</button>
+    </div>
+    ${cu.length? `<div class="grid">${cu.map(c=>card({...c,g:CUSTOM_G[c.ci%4]},0,{key:'custom:'+c.id,custom:true,tag:multi()?uById(c.user)?.name.toUpperCase():'',tagNew:true})).join('')}</div>`
+      : `<p class="small muted mt3">${multi()?'No custom playlists for '+esc(uById(state.viewUser)?.name||'this user')+' yet.':'No custom playlists yet. Import one from ListenBrainz, Apple Music or Spotify.'}</p>`}
+    ${openIsCustom?tracklist():''}
+  </div>
+
+  <div class="mt6">
+    <div class="sec-title" style="margin-bottom:14px">Manual Run</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+      <label class="small muted">Download mode</label>
+      <div class="dl row" style="gap:6px">${[['normal','Normal'],['skip','Skip'],['force','Force']].map(m=>`<button class="${state.dl===m[0]?'on':''}" data-dl="${m[0]}">${m[1]}</button>`).join('')}</div>
+      <p style="font-size:11px;margin:0" class="muted">${{normal:"Download only if the track isn't found locally",skip:'No downloads — builds a playlist from tracks already in your library. Good for testing.',force:'Always download, ignoring local tracks'}[state.dl]}</p>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <label class="small muted">Playlist</label>
+      <select class="sel" id="rp">${PLAYLISTS.map(p=>`<option value="${p.value}" ${state.runPlaylist===p.value?'selected':''}>${p.name}</option>`).join('')}</select>
+      ${multi()?`<label class="small muted new">User</label>
+      <select class="sel new" id="ru"><option value="all" ${state.runUser==='all'?'selected':''}>All users</option>${state.users.map(u=>`<option value="${u.id}" ${state.runUser===u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:''}
+    </div>
+    <div class="row"><button class="btn" id="run">▶ Run</button><span class="small muted" id="rstat"></span></div>
+  </div>
+
+  <div class="mt6">
+    <div class="row between" style="margin-bottom:14px"><span class="sec-label">Output</span>
+      <label class="small muted row" style="gap:6px"><input type="checkbox"> Raw</label></div>
+    <div class="panel" id="outbox">${logHtml(state.out,'')}</div>
+  </div>`;
+}
+
+function users() {
+  return `${adminBanner()}
+  <div class="mt6">
+    <div class="row between"><div class="sec-title">Users</div><button class="pill-btn" id="addU">+ Add user</button></div>
+    ${state.users.length? state.users.map(u=>`
+      <div class="scard"><div class="row" style="gap:14px">
+        <div style="flex:1;min-width:200px">
+          <div><strong style="font-weight:600">${esc(u.name)}</strong> <span class="badge">${esc(u.id)}</span></div>
+          <div class="small muted" style="margin-top:2px">ListenBrainz ${esc(u.lb)} · token ${u.token?'set':'<span style="color:var(--danger)">not set</span>'} · Plex ${esc(u.plex)}</div>
+          <div class="small" style="margin-top:2px;color:#565656">${u.enabled&&enabled().length>1?'Copies shared with '+enabled().filter(o=>o.id!==u.id).map(o=>esc(o.name)).join(', '):'Sharing needs two or more enabled users'}</div>
+        </div>
+        <span class="small muted">Enabled</span><div class="tog lg ${u.enabled?'on':''}" data-te="${u.id}"></div>
+        <button class="btn sm" data-ed="${u.id}">Edit</button>
+        <button class="btn sm danger" data-del="${u.id}">Delete</button>
+      </div></div>`).join('')
+    : `<div class="note">No users yet. Add one to switch this instance to multi-user. Until then everything works as it does today.</div>`}
+    <p class="small muted mt3">Deleting a user removes their record and cached playlists from Explo. Nothing in Plex is touched.</p>
+  </div>`;
+}
+
+function settings() {
+  return `${adminBanner()}<div class="mt6"><div class="sec-title" style="margin-bottom:12px">ListenBrainz</div>
+    ${multi()?`<div class="note new" style="margin-top:0">Managed per user in the <a href="#" id="toU" style="color:var(--accent)">Users</a> tab.</div>`
+      :`<div class="scard" style="margin-top:0"><label class="lbl" style="margin-top:0">Username</label><input class="inp" value="gabe-lb"><label class="lbl">Token</label><input class="inp" type="password" value="••••••••"></div>`}</div>
+    <div class="mt6"><div class="sec-title" style="margin-bottom:12px">Plex</div><div class="scard" style="margin-top:0">
+      <label class="lbl" style="margin-top:0">Server URL</label><input class="inp" value="http://plex.local:32400">
+      <label class="lbl">Admin API key</label><input class="inp" type="password" placeholder="not set" value="${state.admin?'••••••••':''}">
+      ${multi()?`<div class="small muted new" style="margin-top:10px">Share list and owner name come from Users.</div>`
+       :`<label class="lbl">Share playlists with (Plex usernames)</label><input class="inp" placeholder="kelly.w, sam">
+         <label class="lbl">Your name on shared playlists</label><input class="inp" placeholder="Gabe">`}
+    </div></div>
+    <div class="mt6"><div class="sec-title">Everything else</div><p class="small muted mt3">Downloader, quality, path templates: unchanged.</p></div>`;
+}
+
+function logHtml(list,f){ return list.filter(l=>!f||l[1]===f).map(l=>`<div class="${l[0]==='warn'?'w':l[0]==='error'?'e':''}" style="color:${l[0]==='info'?'var(--accent)':''}">${l[1]?`<span class="u new" style="color:#fff">[${esc(uById(l[1])?.name||l[1])}]</span> `:''}${esc(l[2])}</div>`).join(''); }
+function logsTab(){ return `<div class="mt6"><div class="row between" style="margin-bottom:14px"><div class="sec-title">Logs</div>
+  ${multi()?`<select class="sel new" id="lf"><option value="">All users</option>${state.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('')}</select>`:''}</div>
+  <div class="panel" id="lbox">${logHtml(state.logs,'')}</div></div>`; }
+
+// ── modals ────────────────────────────────────────────────────
+function modal(h){ $('#modalRoot').innerHTML=`<div class="overlay" id="ov"><div class="modal">${h}</div></div>`; $('#ov').onclick=e=>{if(e.target.id==='ov')closeM();}; }
+function closeM(){ $('#modalRoot').innerHTML=''; }
+function userForm(u){
+  const ed=!!u;
+  modal(`<h3>${ed?'Edit user':'Add user'}</h3>
+    <label class="lbl">Display name</label><input class="inp" id="fn" value="${esc(u?.name||'')}" placeholder="e.g. Sam">
+    ${ed?'':'<div class="small muted" style="margin-top:4px">The id is generated from the name and can\'t change later.</div>'}
+    <label class="lbl">ListenBrainz username</label><input class="inp" id="fl" value="${esc(u?.lb||'')}">
+    <label class="lbl">ListenBrainz token ${ed&&u.token?'<span style="color:#565656">(set; leave blank to keep)</span>':''}</label><input class="inp" id="ft" type="password" placeholder="${ed&&u.token?'••••••••':'paste token'}">
+    <label class="lbl">Plex username</label><input class="inp" id="fp" value="${esc(u?.plex||'')}">
+    <div class="err" id="fe"></div>
+    <div class="actions"><button class="btn" id="cx">Cancel</button><button class="btn" id="sv" style="border-color:var(--accent);color:var(--accent)">Save</button></div>`);
+  $('#cx').onclick=closeM;
+  $('#sv').onclick=()=>{
+    const name=$('#fn').value.trim(), lb=$('#fl').value.trim(), px=$('#fp').value.trim(), tk=$('#ft').value;
+    const e=!name?'Name is required.':!lb?'ListenBrainz username is required.':!px?'Plex username is required.':(!ed&&!slug(name))?'Name needs letters or numbers.':(!ed&&state.users.some(x=>x.id===slug(name)))?'A user with that id already exists.':'';
+    if(e){$('#fe').textContent=e;return;}
+    if(ed){Object.assign(u,{name,lb,plex:px}); if(tk)u.token=true; addLog('info',u.id,'user updated');}
+    else{state.users.push({id:slug(name),name,lb,token:!!tk,plex:px,enabled:true}); addLog('info',slug(name),'user added');}
+    closeM(); render();
+  };
+}
+function importForm(ex){
+  modal(`<h3>${ex?'Reassign playlist':'Import playlist'}</h3>
+    ${ex?'':'<label class="lbl">Playlist URL</label><input class="inp" id="iu" placeholder="https://open.spotify.com/playlist/…">'}
+    ${multi()?`<div class="new"><label class="lbl">For user <span style="color:#565656">(required)</span></label>
+      <select class="sel" id="iw" style="width:100%"><option value="">Choose a user…</option>${state.users.map(u=>`<option value="${u.id}" ${ex&&ex.user===u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>`:''}
+    <div class="err" id="ie"></div>
+    <div class="actions"><button class="btn" id="cx">Cancel</button><button class="btn" id="sv" style="border-color:var(--accent);color:var(--accent)">${ex?'Save':'Import'}</button></div>`);
+  $('#cx').onclick=closeM;
+  $('#sv').onclick=()=>{
+    const w=multi()?$('#iw').value:'';
+    if(!ex&&!$('#iu').value.trim()){$('#ie').textContent='Paste a playlist URL.';return;}
+    if(multi()&&!w){$('#ie').textContent='Choose which user this playlist belongs to.';return;}
+    if(ex){ex.user=w; addLog('info',w,'custom playlist reassigned');}
+    else{state.custom.push({id:'c'+Date.now(),name:'Imported Playlist',user:w,on:true,sched:'Every day',ci:state.custom.length}); addLog('info',w,'custom playlist imported');}
+    closeM(); render();
+  };
+}
+function confirmDel(u){
+  modal(`<h3>Delete ${esc(u.name)}?</h3><p class="small muted">This removes ${esc(u.name)}'s record and cached playlists from Explo. Nothing in Plex is touched.</p>
+    <div class="actions"><button class="btn" id="cx">Cancel</button><button class="btn danger" id="y">Delete</button></div>`);
+  $('#cx').onclick=closeM;
+  $('#y').onclick=()=>{ state.users=state.users.filter(x=>x.id!==u.id); state.custom.forEach(c=>{if(c.user===u.id)c.user=state.users[0]?.id||'';}); closeM(); render(); };
+}
+
+// ── fake run ──────────────────────────────────────────────────
+function fakeRun(){
+  const pl=PLAYLISTS.find(p=>p.value===state.runPlaylist);
+  state.out=[]; $('#rstat').textContent='running…';
+  if(!multi()){ addLog('info','',`${pl.name}: fetching recommendations`); addLog('info','','5 tracks found, 0 to download'); addLog('info','','playlist created'); }
+  else if(!state.admin){ addLog('error','','Plex admin credentials missing; cannot switch users'); }
+  else {
+    const targets=state.runUser==='all'?enabled():[uById(state.runUser)].filter(Boolean);
+    if(!targets.length) addLog('warn','','No enabled users to run');
+    targets.forEach(u=>{
+      addLog('info',u.id,`${pl.name}: fetching recommendations for ${u.lb}`);
+      if(!u.token){ addLog('warn',u.id,'no ListenBrainz token; skipping'); return; }
+      addLog('info',u.id,'5 tracks found, 0 to download');
+      addLog('info',u.id,`playlist "${pl.name}" created in Plex account ${u.plex}`);
+      enabled().filter(o=>o.id!==u.id).forEach(o=>addLog('info',u.id,`shared copy "${u.name}'s ${pl.name}" created for ${o.plex}`));
+    });
+  }
+  addLog('info','','Run finished');
+  render(); const b=$('#outbox'); if(b) b.scrollTop=b.scrollHeight;
+}
+
+// ── render + events ───────────────────────────────────────────
+function render(){
+  fix();
+  $('#nav').innerHTML=[['run','Home'],['users','Users'],['config','Settings'],['logs','Logs']].map(t=>`<button class="${state.tab===t[0]?'active':''} ${t[0]==='users'?'new':''}" data-t="${t[0]}">${t[1]}</button>`).join('');
+  $$('#nav button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.t;render();});
+  $('#view').innerHTML={run:home,users,config:settings,logs:logsTab}[state.tab]();
+  bind();
+}
+function bind(){
+  $$('[data-vu]').forEach(b=>b.onclick=()=>{state.viewUser=b.dataset.vu;render();});
+  $$('[data-card]').forEach(c=>c.onclick=e=>{
+    if(e.target.closest('[data-tg]')) return;
+    const k=c.dataset.card; const p=PLAYLISTS.find(x=>x.value===k)||state.custom.find(x=>'custom:'+x.id===k);
+    if(p&&!p.on) return; state.open=state.open===k?null:k; render();
+  });
+  $$('[data-tg]').forEach(t=>t.onclick=e=>{ e.stopPropagation(); const k=t.dataset.tg; const p=PLAYLISTS.find(x=>x.value===k)||state.custom.find(x=>'custom:'+x.id===k); p.on=!p.on; if(!p.on&&state.open===k)state.open=null; render(); });
+  $$('[data-dl]').forEach(b=>b.onclick=()=>{state.dl=b.dataset.dl;render();});
+  const rp=$('#rp'); if(rp) rp.onchange=()=>{state.runPlaylist=rp.value;};
+  const ru=$('#ru'); if(ru) ru.onchange=()=>{state.runUser=ru.value;};
+  const run=$('#run'); if(run) run.onclick=fakeRun;
+  const tl=$('#tlRun'); if(tl) tl.onclick=fakeRun;
+  const imp=$('#imp'); if(imp) imp.onclick=()=>importForm(null);
+  const au=$('#addU'); if(au) au.onclick=()=>userForm(null);
+  $$('[data-ed]').forEach(b=>b.onclick=()=>userForm(uById(b.dataset.ed)));
+  $$('[data-del]').forEach(b=>b.onclick=()=>confirmDel(uById(b.dataset.del)));
+  $$('[data-te]').forEach(t=>t.onclick=()=>{const u=uById(t.dataset.te);u.enabled=!u.enabled;render();});
+  const tu=$('#toU'); if(tu) tu.onclick=e=>{e.preventDefault();state.tab='users';render();};
+  const lf=$('#lf'); if(lf) lf.onchange=()=>{$('#lbox').innerHTML=logHtml(state.logs,lf.value);};
+}
+$('#hl').onchange=e=>document.body.classList.toggle('hl',e.target.checked);
+document.body.classList.add('hl');
+$('#adm').onchange=e=>{state.admin=e.target.checked;render();};
+render();
+</script>
+</body>
+</html>

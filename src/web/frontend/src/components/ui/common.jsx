@@ -92,7 +92,24 @@ function formatValue(k, v) {
   return v
 }
 
-export function LogRow({ entry }) {
+// Read-only stand-in for fields that are managed per user in multi-user mode.
+export function ManagedInUsers({ label, onOpenUsers }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[13px] font-medium text-muted">{label}</span>
+      <span className="text-[13px] text-muted">
+        Managed in{' '}
+        {onOpenUsers
+          ? <button type="button" onClick={onOpenUsers} className="bg-transparent border-none p-0 text-accent text-[13px] cursor-pointer">Users</button>
+          : <span className="text-accent">Users</span>}
+      </span>
+    </div>
+  )
+}
+
+// userName: display name for entry.extras.user (falls back to the id).
+export function LogRow({ entry, userName }) {
+  const userId = entry.extras?.user
   return (
     <div className="flex gap-2.5 items-baseline py-0.5 flex-wrap">
       <span className="text-[11px] text-muted flex-shrink-0 tabular-nums">{entry.time}</span>
@@ -103,8 +120,9 @@ export function LogRow({ entry }) {
           {entry.level}
         </span>
       )}
+      {userId && userName && <span className="text-[12px] text-white flex-shrink-0">[{userName(userId)}]</span>}
       <span className="text-[12px] text-white break-words">{entry.msg}</span>
-      {Object.entries(entry.extras ?? {}).map(([k, v]) => {
+      {Object.entries(entry.extras ?? {}).filter(([k]) => !(k === 'user' && userName)).map(([k, v]) => {
         const label = KEY_LABELS[k] ?? k.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
         const color = VALUE_COLOR[k] ?? 'text-white'
         return (

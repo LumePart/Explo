@@ -19,6 +19,7 @@ import (
 	"explo/src/web/backend/jobs"
 	"explo/src/web/backend/settings"
 	"explo/src/web/backend/auth"
+	"explo/src/web/backend/users"
 )
 
 // ConfigResponse is returned by GET /api/config.
@@ -36,6 +37,7 @@ type Server struct {
 	cronJobs       *jobs.Jobs
 	manualRun      *run.ManualRun
 	customPlaylist *playlist.Playlist
+	users          *users.Handlers
 	apiTokens      *auth.APITokens
 	startedAt      time.Time
 }
@@ -72,7 +74,7 @@ func NewServer(cfg config.ServerConfig) *Server {
 
 	cronJobs := jobs.NewJobs()
 	manualRun := run.NewManualRun(webCfg)
-	playlist := playlist.NewPlaylist(webCfg, settings)
+	customPlaylist := playlist.NewPlaylist(webCfg, settings)
 
 	mux := http.NewServeMux()
 	s := &Server{
@@ -86,7 +88,11 @@ func NewServer(cfg config.ServerConfig) *Server {
 		settings:       settings,
 		cronJobs:       cronJobs,
 		manualRun:      manualRun,
-		customPlaylist: playlist,
+		customPlaylist: customPlaylist,
+		users: users.NewHandlers(webCfg.WebDataDir, users.Hooks{
+			RemoveCache: playlist.RemoveUserCache,
+			OnUserDeleted: playlist.OnUserDeleted,
+		}),
 		apiTokens:      auth.NewAPITokens(auth.DefaultTokenPath(webCfg.WebDataDir)),
 		startedAt:      time.Now(),
 	}

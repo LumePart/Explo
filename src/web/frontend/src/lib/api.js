@@ -129,11 +129,12 @@ export async function fetchBrowse(path) {
   return res.json()
 }
 
-export async function startRun(playlist, download_mode, replace = true) {
+export async function startRun(playlist, download_mode, replace = true, user = '') {
   const form = new FormData()
   form.set('playlist', playlist)
   form.set('download_mode', download_mode)
   form.set('replace_playlist', replace ? 'true' : 'false')
+  if (user) form.set('user', user)
   const res = await apiFetch('/api/ui/run', { method: 'POST', body: form })
   if (res.status === 409) throw Object.assign(new Error('already running'), { conflict: true })
   if (!res.ok) throw new Error(await res.text())
@@ -194,15 +195,27 @@ export async function fetchCustomPlaylists() {
   return res.json()
 }
 
-export async function importCustomPlaylist(url, source, refresh_days) {
+export async function importCustomPlaylist(url, source, refresh_days, user_id = '') {
+  const body = { url, source, refresh_days }
+  if (user_id) body.user_id = user_id
   const res = await apiFetch('/api/ui/custom-playlists', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, source, refresh_days }),
+    body: JSON.stringify(body),
   })
   if (res.status === 409) throw Object.assign(new Error('already imported'), { duplicate: true })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
+}
+
+export async function reassignCustomPlaylist(id, userId) {
+  const res = await apiFetch(`/api/ui/custom-playlists/${encodeURIComponent(id)}/user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json().catch(() => ({}))
 }
 
 export async function deleteCustomPlaylist(id, { deleteTracks = false } = {}) {
@@ -301,4 +314,35 @@ export async function fetchBackgroundArt() {
   } catch {
     return null
   }
+}
+
+export async function fetchUsers() {
+  const res = await apiFetch('/api/ui/users')
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function createUser(user) {
+  const res = await apiFetch('/api/ui/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json().catch(() => ({}))
+}
+
+export async function updateUser(id, user) {
+  const res = await apiFetch('/api/ui/users/' + encodeURIComponent(id), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json().catch(() => ({}))
+}
+
+export async function deleteUser(id) {
+  const res = await apiFetch('/api/ui/users/' + encodeURIComponent(id), { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
 }

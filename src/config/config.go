@@ -24,6 +24,7 @@ type Config struct {
 	ServerCfg    ServerConfig
 	Flags        Flags
 	ReplacePlaylist bool
+	UserID       string // set by ApplyUser; empty in single-user mode
 	System       string `env:"EXPLO_SYSTEM"`
 	Debug        bool   `env:"DEBUG" env-default:"false"`
 	LogLevel     string `env:"LOG_LEVEL" env-default:"INFO"`
@@ -41,6 +42,7 @@ type Flags struct {
 	SearchMBID     string
 	RefreshOnly    bool
 	CleanDownloads bool
+	User           string // --user: a user id, or "all"
 }
 
 type ServerConfig struct {
@@ -79,6 +81,8 @@ type ClientConfig struct {
 	Creds           Credentials
 	AdminCreds      AdminCredentials
 	Subsonic        SubsonicConfig
+	ShareWith       []string `env:"PLAYLIST_SHARE_WITH"`
+	OwnerName       string   `env:"PLAYLIST_OWNER_NAME"`
 }
 
 type Credentials struct {

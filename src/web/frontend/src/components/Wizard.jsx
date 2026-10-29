@@ -9,11 +9,12 @@
  */
 
 import { useState } from 'react'
+import { useUsers } from '../lib/useUsers'
 import { wizardStep1, wizardStep2, wizardStep3, prefetchPlaylists } from '../lib/api'
 import QualityRange from './ui/QualityRange'
 import { ToggleRow } from './ui/Toggle'
 import { DirInput } from './ui/DirInput'
-import { TextField } from './ui/common'
+import { TextField, ManagedInUsers } from './ui/common'
 
 const inputCls = 'w-full bg-surface border border-ui-border text-white rounded-[6px] px-3 py-2.5 text-[15px] outline-none focus:border-accent disabled:opacity-45 disabled:cursor-not-allowed transition-colors'
 
@@ -46,10 +47,10 @@ const PLAYLISTS = [
   { value: 'daily-jams',         name: 'Daily Jams',         desc: '~25 tracks · refreshes daily' },
 ];
 
-function Step1({ fields, setField, envSources, onNext, saving }) {
+function Step1({ fields, setField, envSources, onNext, saving, multi }) {
   const { user, userToken, discoveryMode, checked } = fields
   const isLocked = key => envSources[key] === 'env'
-  const valid = user.trim() !== '' && userToken.trim() !== '' && (discoveryMode !== 'playlist' || Object.values(checked).some(Boolean))
+  const valid = (multi || (user.trim() !== '' && userToken.trim() !== '')) && (discoveryMode !== 'playlist' || Object.values(checked).some(Boolean))
 
   return (
     <div>
@@ -59,6 +60,12 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
       </p>
 
       <div className="flex flex-col gap-5">
+        {multi ? (
+          <>
+            <ManagedInUsers label="ListenBrainz username" />
+            <ManagedInUsers label="ListenBrainz user token" />
+          </>
+        ) : (<>
         <TextField label="ListenBrainz username" labelFor="lb-user"
           hint={<>Don't have an account?{' '}<a href="https://listenbrainz.org" target="_blank" rel="noreferrer" className="text-accent">Sign up free.</a></>}>
           <input id="lb-user" type="text" className={inputCls} placeholder="e.g. musiclover42"
@@ -72,6 +79,7 @@ function Step1({ fields, setField, envSources, onNext, saving }) {
             autoComplete="off" spellCheck={false} value={userToken} onChange={e => setField('userToken', e.target.value)}
             disabled={isLocked('LISTENBRAINZ_USER_TOKEN')} />
         </TextField>
+        </>)}
 
         <div className="flex flex-col gap-2">
           <label className="text-[13px] font-medium text-muted">Discovery mode</label>
@@ -150,7 +158,7 @@ const SYSTEMS = [
 const API_KEY_SYSTEMS = ["emby", "plex"];
 const ADMIN_SYSTEMS = ["plex", "subsonic"];
 
-function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
+function Step2({ fields, setField, envSources, onBack, onNext, saving, multi }) {
   const {
     system,
     systemUrl,
@@ -181,7 +189,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
     if (!systemUrl.trim()) return false;
     if (API_KEY_SYSTEMS.includes(system)) {
       if (authMethod === "apikey" && !apiKey.trim()) return false;
-      if (authMethod === "password" && (!systemUsername.trim() || !systemPassword.trim())) return false;
+      if (authMethod === "password" && ((!systemUsername.trim() && !(multi && system === "plex")) || !systemPassword.trim())) return false;
     }
     if (system === "jellyfin" && ( !systemUsername.trim() || !apiKey.trim() ) ) return false;
     if (system === "subsonic" && (!systemUsername.trim() || !systemPassword.trim()))  return false;
@@ -297,6 +305,9 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
               </TextField>
             ) : (
               <>
+                {multi && system === "plex" ? (
+                  <ManagedInUsers label="Username" />
+                ) : (
                 <TextField label="Username">
                   <input
                     type="text"
@@ -306,6 +317,7 @@ function Step2({ fields, setField, envSources, onBack, onNext, saving }) {
                     disabled={isLocked("SYSTEM_USERNAME")}
                   />
                 </TextField>
+                )}
 
                 <TextField label="Password">
                   <input
@@ -794,6 +806,8 @@ export default function Wizard({
   onBgLoad,
   onComplete,
 }) {
+  const users = useUsers();
+  const multi = users.length > 0;
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
 
@@ -863,8 +877,14 @@ export default function Wizard({
       const playlists = Object.entries(fields.checked)
         .filter(([, v]) => v)
         .map(([k]) => k);
-      await wizardStep1(fields.user.trim(), fields.userToken.trim(), playlists, fields.discoveryMode);
-      if (playlists.length > 0) {
+      // Multi-user: LB user/token are managed in Users, so omit them (backend keeps stored values).
+      await wizardStep1(
+        multi ? undefined : fields.user.trim(),
+        multi ? undefined : fields.userToken.trim(),
+        playlists,
+        fields.discoveryMode,
+      );
+      if (!multi && playlists.length > 0) {
         prefetchPlaylists(fields.user.trim(), playlists, {
           source: "wizard",
         }).catch(() => {});
@@ -887,7 +907,8 @@ export default function Wizard({
         auth_method: fields.authMethod,
 
         api_key: fields.apiKey,
-        username: fields.systemUsername,
+        // Omitted when read-only (plex password auth in multi-user mode); backend keeps the stored value.
+        username: multi && fields.system === "plex" && fields.authMethod === "password" ? undefined : fields.systemUsername,
         password: fields.systemPassword,
 
         admin_credentials: fields.adminCredentials,
@@ -996,6 +1017,7 @@ export default function Wizard({
               envSources={envSources}
               onNext={handleStep1}
               saving={saving}
+              multi={multi}
             />
           )}
           {step === 2 && (
@@ -1006,6 +1028,7 @@ export default function Wizard({
               onBack={() => setStep(1)}
               onNext={handleStep2}
               saving={saving}
+              multi={multi}
             />
           )}
           {step === 3 && (

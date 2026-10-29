@@ -13,6 +13,8 @@ var (
 	// ADMIN_SYSTEM_APIKEY=y. The separator class (not \b) matches after
 	// underscores while still not matching inside words like "monkey".
 	sensitiveValueRE = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9])(password|passwd|token|secret|credential|api[-_]?key|access[-_]?key|auth[-_]?key|private[-_]?key)\s*=\s*("[^"]*"|'[^']*'|\S+)`)
+	// Authorization: Token <value> (ListenBrainz API style).
+	authTokenHeaderRE = regexp.MustCompile(`(?i)(authorization\s*[:=]\s*"?token\s+)[^"\s]+`)
 	// Query strings: ?api_key=hunter2&x=1 or &token=abc.
 	secretQueryRE = regexp.MustCompile(`(?i)([?&][^=&\s]*?(?:token|key|secret|password|auth)[^=&\s]*?=)[^&\s]*`)
 )
@@ -20,6 +22,7 @@ var (
 // RedactLine masks secret values in one log line, preserving its shape.
 func RedactLine(line string) string {
 	line = sensitiveValueRE.ReplaceAllString(line, `$1$2=••••••••`)
+	line = authTokenHeaderRE.ReplaceAllString(line, `${1}••••••••`)
 	return secretQueryRE.ReplaceAllString(line, `${1}••••••••`)
 }
 
