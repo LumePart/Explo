@@ -18,7 +18,7 @@ import {
   saveReplacePlaylist,
   saveLocalOnly, saveCleanDownloads,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
-  generateDiagnosticsToken, revokeDiagnosticsToken,
+  generateDiagnosticsToken, revokeDiagnosticsToken, fetchUsers,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks, clearPlaylistCache } from '../lib/listenbrainz'
@@ -212,6 +212,9 @@ function HomeSection() {
   const [openTracklist, setOpenTracklist] = useState(null)
   const [customPlaylists, setCustomPlaylists] = useState([])
   const [showImportModal, setShowImportModal] = useState(false)
+  const [users, setUsers] = useState([])
+  const [viewUser, setViewUser] = useState('')
+  const [runUser, setRunUser] = useState('all')
 
   const [playlist, setPlaylist] = useState('weekly-exploration')
   const [dlmode, setDlmode] = useState('normal')
@@ -223,6 +226,17 @@ function HomeSection() {
   const logRef = useRef(null)
 
   const [refreshTick, setRefreshTick] = useState(0)
+
+  // Users (multi-user mode). On failure or when empty, Home behaves as single-user.
+  useEffect(() => {
+    fetchUsers().then(list => setUsers(Array.isArray(list) ? list : [])).catch(() => {})
+  }, [])
+  const multi = users.length > 0
+  const viewedUser = multi
+    ? (users.find(u => u.id === viewUser) ?? users.find(u => u.enabled) ?? users[0])
+    : null
+  const viewId = viewedUser?.id ?? ''
+  const tracklistLbUser = viewedUser ? (viewedUser.listenbrainz_user || '') : lbUser
 
   useEffect(() => {
     Promise.all([
@@ -357,7 +371,7 @@ function HomeSection() {
     setLogEntries([])
     setStatus('running…')
     try {
-      await startRun(playlist, dlmode, replacePlaylists[playlist] ?? true)
+      await startRun(playlist, dlmode, replacePlaylists[playlist] ?? true, multi ? runUser : '')
       connect()
     } catch (e) {
       if (e.conflict) { setStatus('already running'); setRunning(false); return }
@@ -378,7 +392,26 @@ function HomeSection() {
     <div>
       {/* Scheduled Playlists */}
       <div className="mt-6">
-        <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Scheduled Playlists</div>
+        {multi ? (
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3.5">
+            <div className="text-[16px] font-bold tracking-tight text-white">Scheduled Playlists</div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[12px] text-muted">Viewing</span>
+              {users.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => setViewUser(u.id)}
+                  className={`bg-transparent border rounded-full px-3 py-1 text-[12px] cursor-pointer transition-colors
+                    ${u.id === viewId ? 'border-accent text-accent' : 'border-ui-border text-muted hover:text-white hover:border-[#444]'}`}
+                >
+                  {u.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-[16px] font-bold tracking-tight text-white mb-3.5">Scheduled Playlists</div>
+        )}
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
           {PLAYLISTS.map((p, i) => (
             <PlaylistCard
@@ -391,16 +424,18 @@ function HomeSection() {
               tracklistOpen={openTracklist === p.value}
               onTracklistToggle={() => setOpenTracklist(v => v === p.value ? null : p.value)}
               refreshTick={refreshTick}
+              user={viewId}
             />
           ))}
         </div>
         <TracklistSlide show={openTracklist && PLAYLISTS.some(p => p.value === openTracklist)} slideKey={openTracklist}>
           <TracklistDropdown
-            lbUser={lbUser}
+            lbUser={tracklistLbUser}
             playlist={openTracklist}
             refreshTick={refreshTick}
+            user={viewId}
             onRun={async () => {
-              await startRun(openTracklist, 'normal', replacePlaylists[openTracklist] ?? true)
+              await startRun(openTracklist, 'normal', replacePlaylists[openTracklist] ?? true, viewId)
               setRunning(true)
               setStatus('running…')
               setLogEntries([])
@@ -489,6 +524,15 @@ function HomeSection() {
             {customPlaylists.length > 0 && <option disabled>---</option>}
             {customPlaylists.map(cp => <option key={cp.id} value={cp.id}>{cp.name}</option>)}
           </select>
+          {multi && (
+            <>
+              <label className="text-[12px] text-muted">User</label>
+              <select className={selectCls} value={runUser} onChange={e => setRunUser(e.target.value)}>
+                <option value="all">All users</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </>
+          )}
         </div>
         <div className="flex gap-2.5 items-center">
           <Button onClick={handleRun} disabled={running}>▶ Run</Button>

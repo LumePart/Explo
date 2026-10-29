@@ -129,11 +129,12 @@ export async function fetchBrowse(path) {
   return res.json()
 }
 
-export async function startRun(playlist, download_mode, replace = true) {
+export async function startRun(playlist, download_mode, replace = true, user = '') {
   const form = new FormData()
   form.set('playlist', playlist)
   form.set('download_mode', download_mode)
   form.set('replace_playlist', replace ? 'true' : 'false')
+  if (user) form.set('user', user)
   const res = await apiFetch('/api/ui/run', { method: 'POST', body: form })
   if (res.status === 409) throw Object.assign(new Error('already running'), { conflict: true })
   if (!res.ok) throw new Error(await res.text())
