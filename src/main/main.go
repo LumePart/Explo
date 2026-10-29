@@ -290,6 +290,9 @@ func main() {
 	} else {
 		slog.Info("playlist created successfully", "system", cfg.System, "playlistName", cfg.ClientCfg.PlaylistName, "notify", true)
 		uploadCustomPlaylistArtwork(&cfg, client)
+		if err := client.SharePlaylist(tracks); err != nil {
+			slog.Warn(err.Error())
+		}
 	}
 }
 
