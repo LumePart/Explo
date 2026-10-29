@@ -276,3 +276,15 @@ func TestUsersAPI_DeleteSucceedsEvenIfHooksFail(t *testing.T) {
 		t.Errorf("user still present: %+v", got)
 	}
 }
+
+func TestUsersAPI_CreateReservedAllRejected(t *testing.T) {
+	for _, name := range []string{"All", "all!"} {
+		mux, _, _ := newAPI(t)
+		rec := do(mux, http.MethodPost, "/api/ui/users", map[string]any{
+			"name": name, "listenbrainz_user": "lb", "plex_user": "p", "enabled": true,
+		})
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "reserved") {
+			t.Errorf("%q: status %d body %q", name, rec.Code, rec.Body.String())
+		}
+	}
+}

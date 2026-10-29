@@ -74,3 +74,14 @@ func TestApplyUser_UnknownAndDisabledErrorLeaveCfgUntouched(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyUser_ReservedAllRefused(t *testing.T) {
+	cfg := baseCfg()
+	all := []users.User{{ID: "all", Name: "All", ListenBrainzToken: "t", Enabled: true}}
+	if err := cfg.ApplyUser("all", all); err == nil {
+		t.Fatal("want error for reserved id")
+	}
+	if cfg.UserID != "" {
+		t.Error("cfg modified")
+	}
+}

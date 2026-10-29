@@ -10,6 +10,9 @@ import (
 // caller loads users with users.Load. An unknown or disabled id returns an
 // error and leaves cfg untouched.
 func (cfg *Config) ApplyUser(id string, all []users.User) error {
+	if users.IsReservedID(id) {
+		return fmt.Errorf("user id %q is reserved", id)
+	}
 	var target *users.User
 	for i := range all {
 		if all[i].ID == id {

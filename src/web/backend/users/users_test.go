@@ -173,3 +173,22 @@ func TestLoad_MissingIsEmptyCorruptIsError(t *testing.T) {
 		t.Error("corrupt file should error")
 	}
 }
+
+func TestValidate_ReservedIDAll(t *testing.T) {
+	for _, id := range []string{"all", Slug("All"), Slug("all!"), Slug("ALL")} {
+		u := User{ID: id, Name: "All", ListenBrainzUser: "lb", PlexUser: "p"}
+		err := Validate(u, nil, false)
+		if err == nil || !strings.Contains(err.Error(), "reserved") {
+			t.Errorf("id %q: err = %v, want reserved error", id, err)
+		}
+		if err := Validate(u, nil, true); err == nil {
+			t.Errorf("id %q editing: want error", id)
+		}
+	}
+}
+
+func TestIsReservedID(t *testing.T) {
+	if !IsReservedID("all") || !IsReservedID("ALL") || IsReservedID("alice") {
+		t.Error("IsReservedID wrong")
+	}
+}

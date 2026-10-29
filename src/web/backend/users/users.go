@@ -127,6 +127,13 @@ func (s *Store) save(list []User) error {
 	return os.Rename(tmpName, path(s.dir))
 }
 
+// ReservedID is the --user value meaning "every enabled user"; no stored user
+// may take it, or runs would recurse and the UI "All users" option would collide.
+const ReservedID = "all"
+
+// IsReservedID reports whether id is reserved (case-insensitive).
+func IsReservedID(id string) bool { return strings.EqualFold(id, ReservedID) }
+
 // Validate checks a user against the rules. When editing is false the ID must
 // not already exist in existing.
 func Validate(u User, existing []User, editing bool) error {
@@ -138,6 +145,9 @@ func Validate(u User, existing []User, editing bool) error {
 	}
 	if strings.TrimSpace(u.PlexUser) == "" {
 		return errors.New("plex user is required")
+	}
+	if IsReservedID(u.ID) {
+		return fmt.Errorf("user id %q is reserved; choose a different name", u.ID)
 	}
 	if !IDRe.MatchString(u.ID) {
 		return fmt.Errorf("invalid user id %q", u.ID)
