@@ -192,3 +192,15 @@ func TestIsReservedID(t *testing.T) {
 		t.Error("IsReservedID wrong")
 	}
 }
+
+func TestLoad_MissingShareWithIsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	raw := `[{"id":"a","name":"A","listenbrainz_user":"lb","listenbrainz_token":"","plex_user":"px","enabled":true}]`
+	if err := os.WriteFile(filepath.Join(dir, "users.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	if err != nil || len(got) != 1 || len(got[0].ShareWith) != 0 {
+		t.Fatalf("got %v, %v", got, err)
+	}
+}

@@ -2,8 +2,8 @@ package users
 
 import (
 	"bytes"
-	"errors"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -286,5 +286,93 @@ func TestUsersAPI_CreateReservedAllRejected(t *testing.T) {
 		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "reserved") {
 			t.Errorf("%q: status %d body %q", name, rec.Code, rec.Body.String())
 		}
+	}
+}
+
+func shareWith(t *testing.T, mux http.Handler, id string) []any {
+	t.Helper()
+	for _, u := range list(t, mux) {
+		if u["id"] == id {
+			sw, ok := u["share_with"].([]any)
+			if !ok {
+				t.Fatalf("share_with for %s not a list: %v", id, u["share_with"])
+			}
+			return sw
+		}
+	}
+	t.Fatalf("user %s not found", id)
+	return nil
+}
+
+func setupShare(t *testing.T) *http.ServeMux {
+	t.Helper()
+	mux, _, _ := newAPI(t)
+	do(mux, "POST", "/api/ui/users", m("Kelly"))
+	do(mux, "POST", "/api/ui/users", m("Gabe"))
+	upd := m("Gabe")
+	upd["share_with"] = []string{"kelly"}
+	if rec := do(mux, "PUT", "/api/ui/users/gabe", upd); rec.Code != 200 {
+		t.Fatalf("update: %d %s", rec.Code, rec.Body)
+	}
+	return mux
+}
+
+func TestUsersAPI_ShareWithRoundTrip(t *testing.T) {
+	mux := setupShare(t)
+	if got := shareWith(t, mux, "gabe"); len(got) != 1 || got[0] != "kelly" {
+		t.Errorf("gabe share_with = %v", got)
+	}
+	if got := shareWith(t, mux, "kelly"); len(got) != 0 {
+		t.Errorf("kelly share_with = %v", got)
+	}
+}
+
+func TestUsersAPI_UpdateWithoutShareWithKeepsIt(t *testing.T) {
+	mux := setupShare(t)
+	if rec := do(mux, "PUT", "/api/ui/users/gabe", m("Gabe")); rec.Code != 200 {
+		t.Fatalf("update: %d %s", rec.Code, rec.Body)
+	}
+	if got := shareWith(t, mux, "gabe"); len(got) != 1 || got[0] != "kelly" {
+		t.Errorf("gabe share_with = %v", got)
+	}
+}
+
+func TestUsersAPI_ShareWithRejectsSelfAndUnknown(t *testing.T) {
+	mux := setupShare(t)
+	for _, bad := range []string{"gabe", "nobody"} {
+		upd := m("Gabe")
+		upd["share_with"] = []string{bad}
+		rec := do(mux, "PUT", "/api/ui/users/gabe", upd)
+		if rec.Code != 400 {
+			t.Errorf("%s: code = %d, want 400", bad, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), bad) {
+			t.Errorf("%s: message %q does not name entry", bad, rec.Body)
+		}
+	}
+	if got := shareWith(t, mux, "gabe"); len(got) != 1 || got[0] != "kelly" {
+		t.Errorf("gabe share_with = %v", got)
+	}
+}
+
+func TestUsersAPI_ShareWithDuplicatesCollapsed(t *testing.T) {
+	mux := setupShare(t)
+	upd := m("Gabe")
+	upd["share_with"] = []string{"kelly", "kelly"}
+	if rec := do(mux, "PUT", "/api/ui/users/gabe", upd); rec.Code != 200 {
+		t.Fatalf("update: %d %s", rec.Code, rec.Body)
+	}
+	if got := shareWith(t, mux, "gabe"); len(got) != 1 {
+		t.Errorf("gabe share_with = %v", got)
+	}
+}
+
+func TestUsersAPI_DeleteRemovesFromShareLists(t *testing.T) {
+	mux := setupShare(t)
+	if rec := do(mux, "DELETE", "/api/ui/users/kelly", nil); rec.Code != 200 {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body)
+	}
+	if got := shareWith(t, mux, "gabe"); len(got) != 0 {
+		t.Errorf("gabe share_with = %v", got)
 	}
 }

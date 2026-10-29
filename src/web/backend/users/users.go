@@ -21,6 +21,8 @@ type User struct {
 	ListenBrainzToken string `json:"listenbrainz_token"`
 	PlexUser          string `json:"plex_user"`
 	Enabled           bool   `json:"enabled"`
+	// ShareWith lists IDs of users who may see this user's playlists.
+	ShareWith []string `json:"share_with"`
 }
 
 // IDRe is the shape every user ID must match.
@@ -159,7 +161,35 @@ func Validate(u User, existing []User, editing bool) error {
 			}
 		}
 	}
+	for _, sid := range u.ShareWith {
+		if sid == u.ID {
+			return fmt.Errorf("cannot share with yourself (%q)", sid)
+		}
+		found := false
+		for _, e := range existing {
+			if e.ID == sid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("share_with: unknown user %q", sid)
+		}
+	}
 	return nil
+}
+
+// dedupeIDs drops repeated entries, keeping first-seen order. Never returns nil.
+func dedupeIDs(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // Enabled returns the enabled users in their original order.

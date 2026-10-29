@@ -30,17 +30,19 @@ func NewHandlers(dataDir string, hooks Hooks) *Handlers {
 
 // userResponse never carries the ListenBrainz token.
 type userResponse struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	ListenBrainzUser string `json:"listenbrainz_user"`
-	TokenSet         bool   `json:"token_set"`
-	PlexUser         string `json:"plex_user"`
-	Enabled          bool   `json:"enabled"`
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	ListenBrainzUser string   `json:"listenbrainz_user"`
+	TokenSet         bool     `json:"token_set"`
+	PlexUser         string   `json:"plex_user"`
+	Enabled          bool     `json:"enabled"`
+	ShareWith        []string `json:"share_with"`
 }
 
 func toResponse(u User) userResponse {
 	return userResponse{
-		ID: u.ID, Name: u.Name, ListenBrainzUser: u.ListenBrainzUser,
+		ShareWith: dedupeIDs(u.ShareWith),
+		ID:        u.ID, Name: u.Name, ListenBrainzUser: u.ListenBrainzUser,
 		TokenSet: u.ListenBrainzToken != "", PlexUser: u.PlexUser, Enabled: u.Enabled,
 	}
 }
@@ -51,6 +53,8 @@ type userRequest struct {
 	ListenBrainzToken string `json:"listenbrainz_token"`
 	PlexUser          string `json:"plex_user"`
 	Enabled           bool   `json:"enabled"`
+	// ShareWith: nil (absent/null) keeps the stored list on update.
+	ShareWith *[]string `json:"share_with"`
 }
 
 // clientError marks errors that map to a 4xx response.
@@ -104,6 +108,9 @@ func (h *Handlers) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		ID: Slug(req.Name), Name: req.Name, ListenBrainzUser: req.ListenBrainzUser,
 		ListenBrainzToken: req.ListenBrainzToken, PlexUser: req.PlexUser, Enabled: req.Enabled,
 	}
+	if req.ShareWith != nil {
+		u.ShareWith = dedupeIDs(*req.ShareWith)
+	}
 	err := h.store.Update(func(list []User) ([]User, error) {
 		for _, e := range list {
 			if e.ID == u.ID {
@@ -140,6 +147,11 @@ func (h *Handlers) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 				ID: id, Name: req.Name, ListenBrainzUser: req.ListenBrainzUser,
 				ListenBrainzToken: req.ListenBrainzToken, PlexUser: req.PlexUser, Enabled: req.Enabled,
 			}
+			if req.ShareWith != nil {
+				u.ShareWith = dedupeIDs(*req.ShareWith)
+			} else {
+				u.ShareWith = list[i].ShareWith
+			}
 			if u.ListenBrainzToken == "" {
 				u.ListenBrainzToken = list[i].ListenBrainzToken
 			}
@@ -171,6 +183,7 @@ func (h *Handlers) HandleDelete(w http.ResponseWriter, r *http.Request) {
 				found = true
 				continue
 			}
+			u.ShareWith = removeID(u.ShareWith, id)
 			out = append(out, u)
 		}
 		if !found {
@@ -195,4 +208,15 @@ func (h *Handlers) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// removeID returns ids without id, as a fresh non-nil slice.
+func removeID(ids []string, id string) []string {
+	out := make([]string, 0, len(ids))
+	for _, s := range ids {
+		if s != id {
+			out = append(out, s)
+		}
+	}
+	return out
 }
