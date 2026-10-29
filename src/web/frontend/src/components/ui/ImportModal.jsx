@@ -51,7 +51,7 @@ function CoverThumb({ src, index, onLoaded }) {
   )
 }
 
-function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
+function SuccessPanel({ result, syncUser = '', onImported, onSync, onClose, onError }) {
   const unique = [...new Map((result.cover_urls ?? []).map(u => [u, u])).values()].slice(0, 6)
   const cols = unique.length <= 1 ? 1 : unique.length <= 4 ? 2 : 3
   const [loadedCount, setLoadedCount] = useState(0)
@@ -98,7 +98,7 @@ function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
         {onSync && (
           <button
             onClick={async () => {
-              try { await onSync(result.id); onImported(result); onClose() }
+              try { await onSync(result.id, syncUser); onImported(result); onClose() }
               catch (e) { onError(e.message || 'Sync failed') }
             }}
             className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
@@ -349,6 +349,7 @@ export function ImportModal({ onClose, onImported, onSync, users = [], defaultUs
                 result={result}
                 onImported={onImported}
                 onSync={onSync}
+                syncUser={multi ? (result?.user_id || userId) : ''}
                 onClose={onClose}
                 onError={msg => { setErrorMsg(msg); setPhase('error') }}
               />

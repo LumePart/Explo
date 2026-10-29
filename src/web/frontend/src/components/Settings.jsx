@@ -125,6 +125,11 @@ function TracklistSlide({ show, slideKey, children }) {
   )
 }
 
+// Owner of a custom playlist: explicit user_id, else the first user. '' with no users.
+function playlistOwner(cp, users) {
+  return users.length > 0 ? (cp?.user_id || users[0].id) : ''
+}
+
 function ReassignModal({ playlist, users, ownerId, onClose, onDone }) {
   const [target, setTarget] = useState(ownerId)
   const [busy, setBusy] = useState(false)
@@ -223,7 +228,7 @@ function CustomPlaylistsSection({
 }) {
   const multi = users.length > 0
   const [reassigning, setReassigning] = useState(null)
-  const ownerOf = cp => (multi ? (cp.user_id || users[0].id) : '')
+  const ownerOf = cp => playlistOwner(cp, users)
   const ownerName = cp => users.find(u => u.id === ownerOf(cp))?.name ?? ''
   const visible = multi && viewedUser
     ? customPlaylists.filter(cp => ownerOf(cp) === viewedUser.id)
@@ -580,9 +585,9 @@ function HomeSection() {
           }).catch(() => {})
           setShowImportModal(false)
         }}
-        onSync={async (id) => {
+        onSync={async (id, userId = '') => {
           const cp = customPlaylists.find(p => p.id === id)
-          const owner = multi && cp ? (cp.user_id || users[0].id) : ''
+          const owner = multi ? (userId || (cp ? playlistOwner(cp, users) : '')) : ''
           await startRun(id, 'normal', true, owner)
           setRunning(true)
           setStatus('running…')
