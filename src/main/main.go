@@ -215,7 +215,7 @@ func main() {
 	}
 	allTracks := append([]*models.Track(nil), tracks...)
 	if cfg.ServerCfg.WebDataDir != "" {
-		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist, allTracks, nil)
+		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, "", cfg.Flags.Playlist, allTracks, nil)
 		slog.Info("Saved playlist", "playlist", cfg.Flags.Playlist, "tracks", len(allTracks))
 	}
 

@@ -113,11 +113,11 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 	// Write cache with remote cover URLs synchronously so the response is fast,
 	// then download local copies of cover art in the background.
 	slog.Info("custom-playlists: writing cache", "id", id)
-	if !writePreliminaryCache(p.cfg.WebDataDir, id, tracks) {
+	if !writePreliminaryCache(p.cfg.WebDataDir, "", id, tracks) {
 		http.Error(w, "failed to write playlist cache", http.StatusInternalServerError)
 		return
 	}
-	go downloadAndCacheCovers(p.cfg.WebDataDir, id, tracks)
+	go downloadAndCacheCovers(p.cfg.WebDataDir, "", id, tracks)
 
 	// Cache the playlist's own artwork locally so we can later push it to the
 	// music app on first playlist creation. Apple Music imports have artwork;
@@ -231,11 +231,11 @@ func (p *Playlist) HandleRefreshCustomPlaylist(w http.ResponseWriter, r *http.Re
 	}
 	tracks := result.Tracks
 
-	if !writePreliminaryCache(p.cfg.WebDataDir, id, tracks) {
+	if !writePreliminaryCache(p.cfg.WebDataDir, "", id, tracks) {
 		http.Error(w, "failed to write playlist cache", http.StatusInternalServerError)
 		return
 	}
-	go downloadAndCacheCovers(p.cfg.WebDataDir, id, tracks)
+	go downloadAndCacheCovers(p.cfg.WebDataDir, "", id, tracks)
 
 	if err := updateCustomPlaylists(p.cfg.WebDataDir, func(current []CustomPlaylist) ([]CustomPlaylist, error) {
 		for i := range current {
@@ -403,7 +403,7 @@ func (p *Playlist) HandlePrefetchCovers(w http.ResponseWriter, r *http.Request) 
 				continue
 			}
 			slog.Info("prefetch: fetched tracks", "playlist", pt, "count", len(tracks))
-			writePrefetchCache(p.cfg.WebDataDir, pt, tracks)
+			writePrefetchCache(p.cfg.WebDataDir, "", pt, tracks)
 		}
 	}()
 }
