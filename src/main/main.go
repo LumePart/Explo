@@ -132,6 +132,13 @@ func main() {
 	}
 	cfg.ReadEnv()
 	cfg.MergeFlags()
+	if cfg.Flags.User == "all" {
+		if err := runAllUsers(cfg.ServerCfg.WebDataDir, cfg.Flags.Playlist, os.Args[1:], execSelf); err != nil {
+			slog.Error("multi-user run failed", "err", err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	// Must run before setup(): GenPlaylistDetails reads the ListenBrainz user,
 	// and discovery/client construction read the token and Plex creds.
 	// "all" is handled separately; an empty value leaves single-user mode as is.
@@ -151,6 +158,9 @@ func main() {
 		}
 	}
 	setup(&cfg)
+	if cfg.UserID != "" {
+		slog.SetDefault(slog.Default().With("user", cfg.UserID))
+	}
 
 	httpClient := initHttpClient()
 
@@ -234,7 +244,7 @@ func main() {
 	}
 	allTracks := append([]*models.Track(nil), tracks...)
 	if cfg.ServerCfg.WebDataDir != "" {
-		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, "", cfg.Flags.Playlist, allTracks, nil)
+		playlist.WritePlaylistCache(cfg.ServerCfg.WebDataDir, cfg.UserID, cfg.Flags.Playlist, allTracks, nil)
 		slog.Info("Saved playlist", "playlist", cfg.Flags.Playlist, "tracks", len(allTracks))
 	}
 
