@@ -35,7 +35,7 @@ account. A single admin manages everyone from the web UI.
 - Per-user schedules, playlist types, or filters. Schedules, enabled
   playlist types, download settings, and matching settings stay global.
 - Per-user logins to the web UI. There is one admin.
-- Non-Plex backends. Multi-user is Plex-only in v1; other backends keep the
+- Non-Plex backends (confirmed by owner). Multi-user is Plex-only in v1; other backends keep the
   single-user path.
 - Per-user download libraries or quality settings.
 
@@ -170,14 +170,19 @@ from scratch, so this is optional polish, not required.
 - Whether credential verification is on save or a separate button.
 - Exact UI layout, following the existing settings pages.
 
-## Open questions for the owner
+## Decisions from the owner
 
-1. Custom playlists (imported from Spotify, Apple Music and so on): my default
-   is that each belongs to the user who created it, and the Users/playlist UI
-   shows them under that user. The alternative is leaving them global,
-   attached to the first user. Which do you want?
-2. Should "all users" runs be allowed to run overlapping with a manual
-   single-user run, or should the instance refuse a second run while one is
-   active? (Default: refuse, as long as that is how runs behave today. The
-   builder confirms.)
-3. Is Plex-only for v1 acceptable?
+1. Custom playlists are user-specific. Importing one requires choosing the
+   user it belongs to (a required "user" field in the import flow). Its cache,
+   schedule entry, and Plex playlist all belong to that user, and it is created
+   only in that user's account (plus the shared copies for other users, as for
+   any playlist). Existing custom playlists, on first multi-user start, are
+   assigned to the first user created; the admin can reassign in the UI.
+   `custom-playlists.json` entries gain a `user_id` field.
+3. Plex only for v1. Confirmed.
+
+## Open question for the owner
+
+2. Overlapping runs: refuse a second run while one is active (recommended), or
+   queue it? Default until answered: refuse with a clear "run already in
+   progress" message. The builder confirms how runs behave today.
