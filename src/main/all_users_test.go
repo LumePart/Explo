@@ -158,7 +158,7 @@ func TestRunAllUsers_TokenlessUserSkippedWithoutFailing(t *testing.T) {
 	if !reflect.DeepEqual(r.calls, [][]string{{"--user", "b"}}) {
 		t.Errorf("calls: %v", r.calls)
 	}
-	if !strings.Contains(buf.String(), "level=WARN") || !strings.Contains(buf.String(), "a") {
+	if !strings.Contains(buf.String(), "level=WARN") || !strings.Contains(buf.String(), "user=a") {
 		t.Errorf("no warning: %s", buf.String())
 	}
 }
@@ -187,5 +187,42 @@ func TestOwnerLookupDefaultUsesPlaylistOwnership(t *testing.T) {
 	}
 	if got := ownerLookup(dir, "custom-2", nil); got != "alice" {
 		t.Errorf("legacy owner: got %q", got)
+	}
+}
+
+func TestRunAllUsers_ReservedAllUserNeverSpawned(t *testing.T) {
+	var buf bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(old)
+
+	r := &recorder{}
+	dir := writeUsers(t, `[{"id":"all","enabled":true,"listenbrainz_token":"t"},{"id":"b","enabled":true,"listenbrainz_token":"t"}]`)
+	err := runAllUsers(dir, "p", []string{"--user", "all"}, r.run)
+	if !reflect.DeepEqual(r.calls, [][]string{{"--user", "b"}}) {
+		t.Errorf("calls: %v", r.calls)
+	}
+	var ue *UserRunError
+	if !errors.As(err, &ue) || !reflect.DeepEqual(ue.Failed, []string{"all"}) {
+		t.Errorf("err = %v, want UserRunError{all}", err)
+	}
+	if !strings.Contains(buf.String(), "reserved") {
+		t.Errorf("no reserved log: %s", buf.String())
+	}
+}
+
+func TestRunAllUsers_SingleUserFallbackErrorNotMultiUser(t *testing.T) {
+	err := runAllUsers(writeUsers(t, ""), "p", nil, func([]string) error { return errors.New("boom") })
+	if err == nil || strings.Contains(err.Error(), "multi-user") || !strings.Contains(err.Error(), "single-user") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestCacheUserID(t *testing.T) {
+	if got := cacheUserID("custom-123", "alice"); got != "" {
+		t.Errorf("custom: %q", got)
+	}
+	if got := cacheUserID("weekly-exploration", "alice"); got != "alice" {
+		t.Errorf("builtin: %q", got)
 	}
 }

@@ -44,9 +44,23 @@ func rewriteUserArg(args []string, id string) []string {
 	return append(stripUserArgs(args), "--user", id)
 }
 
+// cacheUserID picks the cache owner for a run. Custom playlist ids are unique
+// across users and the UI reads them from the legacy cache/<id>.json path, so
+// they use "" there; built-in playlists keep the per-user path.
+func cacheUserID(playlistID, userID string) string {
+	if strings.HasPrefix(playlistID, "custom-") {
+		return ""
+	}
+	return userID
+}
+
 // execSelf re-runs this binary with args, inheriting stdio and env.
 func execSelf(args []string) error {
-	cmd := exec.Command(os.Args[0], args...)
+	self, err := os.Executable()
+	if err != nil {
+		self = os.Args[0]
+	}
+	cmd := exec.Command(self, args...)
 	cmd.Stdout, cmd.Stderr, cmd.Stdin = os.Stdout, os.Stderr, os.Stdin
 	return cmd.Run()
 }
@@ -59,7 +73,10 @@ func runAllUsers(dataDir, playlist string, args []string, run func(args []string
 		return fmt.Errorf("load users: %w", err)
 	}
 	if len(all) == 0 {
-		return run(stripUserArgs(args))
+		if err := run(stripUserArgs(args)); err != nil {
+			return fmt.Errorf("single-user run (no users configured): %w", err)
+		}
+		return nil
 	}
 	enabled := users.Enabled(all)
 	if len(enabled) == 0 {
@@ -83,6 +100,12 @@ func runAllUsers(dataDir, playlist string, args []string, run func(args []string
 
 	var failed []string
 	for _, u := range enabled {
+		if users.IsReservedID(u.ID) {
+			// Spawning "--user all" again would recurse forever.
+			slog.Error("user id is reserved, refusing to run; rename this user", "user", u.ID)
+			failed = append(failed, u.ID)
+			continue
+		}
 		if u.ListenBrainzToken == "" {
 			slog.Warn("user has no ListenBrainz token, skipping", "user", u.ID)
 			continue
