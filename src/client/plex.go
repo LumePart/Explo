@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -153,6 +154,8 @@ type Plex struct {
 	HttpClient  *util.HttpClient
 	AdminClient *Plex
 	Cfg         config.ClientConfig
+	// userSwitcher, when set, replaces AdminClient.SwitchUser (test seam).
+	userSwitcher func(username string) (*Plex, error)
 }
 
 func NewPlex(cfg config.ClientConfig, httpClient *util.HttpClient) *Plex {
@@ -760,4 +763,90 @@ func (c *Plex) addtoPlaylist(tracks []*models.Track) {
 			}
 		}
 	}
+}
+
+// switchTo returns a client scoped to username's Plex account.
+func (c *Plex) switchTo(username string) (*Plex, error) {
+	if c.userSwitcher != nil {
+		return c.userSwitcher(username)
+	}
+	c.AdminClient.machineID = c.machineID
+	return c.AdminClient.SwitchUser(username)
+}
+
+// SharePlaylist puts a copy of the playlist, titled after its owner, into each
+// user's account. With replace, the user's previous copy (exact title match
+// only) is deleted, and only after the new copy was created. Every request
+// for a user is sent with that user's own token. A failure for one user is
+// logged and returned but does not stop the others.
+func (c *Plex) SharePlaylist(tracks []*models.Track, owner string, users []string, replace bool) error {
+	if c.AdminClient == nil && c.userSwitcher == nil {
+		slog.Warn("plex playlist sharing needs an admin client; skipping")
+		return nil
+	}
+
+	var present []*models.Track
+	for _, t := range tracks {
+		if t.ID != "" {
+			present = append(present, t)
+		}
+	}
+	if len(present) == 0 {
+		slog.Info("no matched tracks to share")
+		return nil
+	}
+
+	title := ShareTitle(owner, c.Cfg.PlaylistName)
+	var errs []error
+	for _, user := range users {
+		if err := c.shareWith(user, title, present, replace); err != nil {
+			slog.Warn("failed to share playlist", "user", user, "err", err)
+			errs = append(errs, fmt.Errorf("share with %s: %w", user, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (c *Plex) shareWith(user, title string, tracks []*models.Track, replace bool) error {
+	recipient, err := c.switchTo(user)
+	if err != nil {
+		return fmt.Errorf("switch user: %w", err)
+	}
+	headers := recipient.cloneHeaders()
+
+	var oldKey string
+	if replace {
+		body, err := recipient.HttpClient.MakeRequest("GET", recipient.Cfg.URL+"/playlists", nil, headers)
+		if err != nil {
+			return fmt.Errorf("list playlists: %w", err)
+		}
+		var playlists PlexPlaylist
+		if err := util.ParseResp(body, &playlists); err != nil {
+			return fmt.Errorf("parse playlists: %w", err)
+		}
+		for _, p := range playlists.MediaContainer.Metadata {
+			if p.Title == title {
+				oldKey = p.RatingKey
+				break
+			}
+		}
+	}
+
+	newKey, err := c.createPlaylistAs(recipient, title, tracks)
+	if err != nil {
+		return err
+	}
+
+	summary := fmt.Sprintf("/playlists/%s?summary=%s", newKey, url.QueryEscape(c.Cfg.PlaylistDescr))
+	if _, err := recipient.HttpClient.MakeRequest("PUT", recipient.Cfg.URL+summary, nil, headers); err != nil {
+		slog.Warn("failed to set shared playlist summary", "user", user, "err", err)
+	}
+
+	if oldKey == "" || oldKey == newKey {
+		return nil
+	}
+	if _, err := recipient.HttpClient.MakeRequest("DELETE", recipient.Cfg.URL+"/playlists/"+oldKey, nil, headers); err != nil {
+		return fmt.Errorf("delete old copy %s: %w", oldKey, err)
+	}
+	return nil
 }
