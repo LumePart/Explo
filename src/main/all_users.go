@@ -1,6 +1,7 @@
 package main
 
 import (
+	"explo/src/web/backend/playlist"
 	"explo/src/web/backend/users"
 	"fmt"
 	"log/slog"
@@ -16,13 +17,10 @@ func (e *UserRunError) Error() string {
 	return "runs failed for users: " + strings.Join(e.Failed, ", ")
 }
 
-// ownerLookup resolves which enabled user owns a custom playlist. Until
-// playlist ownership exists it returns the first enabled user.
-var ownerLookup = func(dataDir, playlistID string, enabled []users.User) string {
-	if len(enabled) == 0 {
-		return ""
-	}
-	return enabled[0].ID
+// ownerLookup resolves which user owns a custom playlist. It is a variable
+// so tests can substitute it.
+var ownerLookup = func(dataDir, playlistID string, _ []users.User) string {
+	return playlist.OwnerOf(dataDir, playlistID)
 }
 
 // stripUserArgs removes every --user <v> / --user=<v> (also single-dash).

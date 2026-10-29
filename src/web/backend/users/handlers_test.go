@@ -2,6 +2,7 @@ package users
 
 import (
 	"bytes"
+	"errors"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -255,5 +256,23 @@ func TestUsersAPI_OnUserDeletedHook(t *testing.T) {
 	do(mux, "DELETE", "/u/kelly", nil)
 	if gotID != "kelly" || len(gotRemaining) != 1 || gotRemaining[0].ID != "bob" {
 		t.Errorf("hook got %q %+v", gotID, gotRemaining)
+	}
+}
+
+func TestUsersAPI_DeleteSucceedsEvenIfHooksFail(t *testing.T) {
+	dir := t.TempDir()
+	h := NewHandlers(dir, Hooks{
+		RemoveCache:   func(_, _ string) error { return errors.New("boom") },
+		OnUserDeleted: func(_, _ string, _ []User) error { return errors.New("boom") },
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /u", h.HandleCreate)
+	mux.HandleFunc("DELETE /u/{id}", h.HandleDelete)
+	do(mux, "POST", "/u", m("Kelly"))
+	if rec := do(mux, "DELETE", "/u/kelly", nil); rec.Code != http.StatusOK {
+		t.Errorf("code = %d, want 200 (record is already gone)", rec.Code)
+	}
+	if got, _ := Load(dir); len(got) != 0 {
+		t.Errorf("user still present: %+v", got)
 	}
 }

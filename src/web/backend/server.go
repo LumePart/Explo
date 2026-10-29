@@ -91,7 +91,7 @@ func NewServer(cfg config.ServerConfig) *Server {
 		customPlaylist: customPlaylist,
 		users: users.NewHandlers(webCfg.WebDataDir, users.Hooks{
 			RemoveCache: playlist.RemoveUserCache,
-			// OnUserDeleted is wired in Task 6 (custom playlist reassignment).
+			OnUserDeleted: playlist.OnUserDeleted,
 		}),
 		apiTokens:      auth.NewAPITokens(auth.DefaultTokenPath(webCfg.WebDataDir)),
 		startedAt:      time.Now(),

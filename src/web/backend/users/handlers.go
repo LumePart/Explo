@@ -185,16 +185,13 @@ func (h *Handlers) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.hooks.RemoveCache != nil {
 		if err := h.hooks.RemoveCache(h.dataDir, id); err != nil {
+			// The record is already gone, which is what the caller asked for.
 			slog.Error("users: failed to remove user cache", "user", id, "err", err)
-			http.Error(w, "user removed but cache cleanup failed: "+err.Error(), http.StatusInternalServerError)
-			return
 		}
 	}
 	if h.hooks.OnUserDeleted != nil {
 		if err := h.hooks.OnUserDeleted(h.dataDir, id, remaining); err != nil {
 			slog.Error("users: post-delete hook failed", "user", id, "err", err)
-			http.Error(w, "user removed but follow-up cleanup failed: "+err.Error(), http.StatusInternalServerError)
-			return
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

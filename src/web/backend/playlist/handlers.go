@@ -2,6 +2,7 @@ package playlist
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"explo/src/util"
 	"explo/src/web/backend/defs"
+	"explo/src/web/backend/users"
 	"explo/src/web"
 
 	"golang.org/x/text/cases"
@@ -60,10 +62,24 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		URL         string `json:"url"`
 		Source      string `json:"source"` // "listenbrainz" | "apple_music"
 		RefreshDays int    `json:"refresh_days"`
+		UserID      string `json:"user_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// A user is required only when users.json has at least one user.
+	owner := ""
+	if all, err := users.Load(p.cfg.WebDataDir); err != nil {
+		http.Error(w, "failed to load users: "+err.Error(), http.StatusInternalServerError)
+		return
+	} else if len(all) > 0 {
+		if !userExists(all, body.UserID) {
+			http.Error(w, "user_id is required and must be an existing user", http.StatusBadRequest)
+			return
+		}
+		owner = body.UserID
 	}
 
 	existing := loadCustomPlaylists(p.cfg.WebDataDir)
@@ -85,7 +101,7 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	result, err := fetchCustomPlaylistTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL})
+	result, err := fetchTracks(CustomPlaylist{Source: body.Source, SourceURL: body.URL})
 	if err != nil {
 		slog.Error("custom-playlists: fetch failed", "source", body.Source, "err", err)
 		http.Error(w, "failed to fetch playlist: "+err.Error(), http.StatusBadGateway)
@@ -147,6 +163,7 @@ func (p *Playlist) HandleImportCustomPlaylist(w http.ResponseWriter, r *http.Req
 		RefreshDays: body.RefreshDays,
 		ColorIndex:  len(existing),
 		LastFetched: time.Now().UTC(),
+		UserID:      owner,
 	}
 	if err := updateCustomPlaylists(p.cfg.WebDataDir, func(current []CustomPlaylist) ([]CustomPlaylist, error) {
 		cp.ColorIndex = len(current)
@@ -423,4 +440,59 @@ func (p *Playlist) HandleBackgroundArt(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(map[string]string{"url": url}); err != nil {
 		slog.Error("background-art: failed to write response", "err", err.Error())
 	}
+}
+func userExists(all []users.User, id string) bool {
+	if !users.IDRe.MatchString(id) {
+		return false
+	}
+	for _, u := range all {
+		if u.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// HandleReassignCustomPlaylist changes which user owns a custom playlist.
+func (p *Playlist) HandleReassignCustomPlaylist(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !defs.CustomIDRe.MatchString(id) {
+		http.Error(w, "invalid playlist id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	all, err := users.Load(p.cfg.WebDataDir)
+	if err != nil {
+		http.Error(w, "failed to load users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !userExists(all, body.UserID) {
+		http.Error(w, "unknown user_id", http.StatusBadRequest)
+		return
+	}
+	err = updateCustomPlaylists(p.cfg.WebDataDir, func(list []CustomPlaylist) ([]CustomPlaylist, error) {
+		for i := range list {
+			if list[i].ID == id {
+				list[i].UserID = body.UserID
+				return list, nil
+			}
+		}
+		return nil, errPlaylistNotFound
+	})
+	if errors.Is(err, errPlaylistNotFound) {
+		http.Error(w, "playlist not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "failed to save: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }

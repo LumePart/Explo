@@ -176,12 +176,16 @@ func TestRunAllUsers_CustomPlaylistRunsOwnerOnly(t *testing.T) {
 	}
 }
 
-func TestOwnerLookupDefaultIsFirstEnabled(t *testing.T) {
-	en := []users.User{{ID: "alice"}, {ID: "bob"}}
-	if got := ownerLookup("", "custom-1", en); got != "alice" {
-		t.Errorf("got %q", got)
+func TestOwnerLookupDefaultUsesPlaylistOwnership(t *testing.T) {
+	dir := writeUsers(t, twoUsers)
+	raw := `[{"id":"custom-1","user_id":"bob"},{"id":"custom-2"}]`
+	if err := os.WriteFile(filepath.Join(dir, "custom-playlists.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if got := ownerLookup("", "custom-1", nil); got != "" {
-		t.Errorf("got %q", got)
+	if got := ownerLookup(dir, "custom-1", nil); got != "bob" {
+		t.Errorf("explicit owner: got %q", got)
+	}
+	if got := ownerLookup(dir, "custom-2", nil); got != "alice" {
+		t.Errorf("legacy owner: got %q", got)
 	}
 }
