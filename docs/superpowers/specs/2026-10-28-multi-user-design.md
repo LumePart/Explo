@@ -131,7 +131,8 @@ from scratch, so this is optional polish, not required.
   disable, delete. Delete asks for confirmation and removes only the user
   record and that user's cache directory, never anything in Plex.
 - A user picker on the playlist view when more than one user exists.
-- "Run now" offers "all users" and a single user.
+- "Run now" offers "all users" and a single user (both go through the existing
+  single manual-run guard).
 - The settings UI and defs mechanism in `src/web/backend/defs` stays for global
   settings; users are a separate resource and a separate API.
 
@@ -181,8 +182,9 @@ from scratch, so this is optional polish, not required.
    `custom-playlists.json` entries gain a `user_id` field.
 3. Plex only for v1. Confirmed.
 
-## Open question for the owner
-
-2. Overlapping runs: refuse a second run while one is active (recommended), or
-   queue it? Default until answered: refuse with a clear "run already in
-   progress" message. The builder confirms how runs behave today.
+2. Overlapping runs: add nothing. Today a second manual run is refused (409
+   "a run is already in progress", `src/web/backend/run`), scheduled jobs take a
+   per-job lock (`docker/explo-run.sh`), and a manual run can overlap a
+   scheduled one (not handled today). The all-users loop runs inside one
+   manual run or one scheduled job, so the existing guards cover it. Multi-user
+   adds no new locking and does not try to fix the manual-vs-scheduled overlap.
