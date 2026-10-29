@@ -205,7 +205,6 @@ export function Users() {
   }
 
   const list = users ?? []
-  const enabledUsers = list.filter(u => u.enabled)
 
   return (
     <div>
@@ -237,8 +236,6 @@ export function Users() {
         ) : (
           <div className="flex flex-col gap-3 mt-3">
             {list.map(u => {
-              const others = enabledUsers.filter(o => o.id !== u.id)
-              const sharing = u.enabled && enabledUsers.length > 1
               return (
                 <div key={u.id} className="bg-surface border border-ui-border rounded-[6px] px-4 py-3.5 flex items-center gap-3.5 flex-wrap">
                   <div className="flex-1 min-w-[200px]">
@@ -249,11 +246,6 @@ export function Users() {
                     <div className="text-[12px] text-muted mt-0.5">
                       ListenBrainz {u.listenbrainz_user} &middot; token{' '}
                       {u.token_set ? 'set' : <span className="text-danger">not set</span>} &middot; Plex {u.plex_user}
-                    </div>
-                    <div className="text-[12px] text-[#565656] mt-0.5">
-                      {sharing
-                        ? `Copies shared with ${others.map(o => o.name).join(', ')}`
-                        : 'Sharing needs two or more enabled users'}
                     </div>
                   </div>
                   <span className="text-[12px] text-muted">Enabled</span>
@@ -276,7 +268,7 @@ export function Users() {
           <UserForm
             key="form"
             user={form === 'new' ? null : form}
-            prefill={form === 'new' && list.length === 0 ? legacy : null}
+            prefill={form === 'new' && users !== null && users.length === 0 ? legacy : null}
             onClose={() => setForm(null)}
             onSaved={() => { setForm(null); load() }}
           />
