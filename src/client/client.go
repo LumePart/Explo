@@ -44,8 +44,6 @@ type Client struct {
 	System string
 	Cfg    *config.ClientConfig
 	API    APIClient
-	// Replace mirrors Config.ReplacePlaylist: shared copies replace older ones.
-	Replace bool
 }
 
 type APIClient interface {
@@ -104,9 +102,8 @@ type ArtworkUploader interface {
 // NewClient initializes a client and sets up authentication
 func NewClient(cfg *config.Config) (*Client, error) {
 	c := &Client{
-		System:  cfg.System,
-		Cfg:     &cfg.ClientCfg,
-		Replace: cfg.ReplacePlaylist,
+		System: cfg.System,
+		Cfg:    &cfg.ClientCfg,
 	}
 	// Create http client with timeout
 	httpClient := util.NewHttp(util.HttpClientConfig{
@@ -333,7 +330,7 @@ func rankResult(track NormalisedTrack, r SearchResult) int {
 // PlaylistSharer is an optional capability for clients that can put a copy of
 // a playlist into other users' accounts.
 type PlaylistSharer interface {
-	SharePlaylist(tracks []*models.Track, owner string, users []string, replace bool) error
+	SharePlaylist(tracks []*models.Track, owner string, users []string) error
 }
 
 // SharePlaylist copies the playlist to every user on Cfg.ShareWith. It is a
@@ -347,5 +344,5 @@ func (c *Client) SharePlaylist(tracks []*models.Track) error {
 		slog.Warn("playlist sharing is not supported by this system; skipping", "system", c.System)
 		return nil
 	}
-	return sharer.SharePlaylist(tracks, c.Cfg.OwnerName, c.Cfg.ShareWith, c.Replace)
+	return sharer.SharePlaylist(tracks, c.Cfg.OwnerName, c.Cfg.ShareWith)
 }

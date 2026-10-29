@@ -179,7 +179,7 @@ func deletes(reqs []shareReq) []string {
 func TestSharePlaylist_CreatesCopyThenDeletesOld(t *testing.T) {
 	rs := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err != nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}); err != nil {
 		t.Fatalf("SharePlaylist() = %v", err)
 	}
 	reqs := rs.requests()
@@ -195,7 +195,7 @@ func TestSharePlaylist_CreatesCopyThenDeletesOld(t *testing.T) {
 func TestSharePlaylist_KeepsUnrelatedPlaylists(t *testing.T) {
 	rs := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err != nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}); err != nil {
 		t.Fatalf("SharePlaylist() = %v", err)
 	}
 	if d := deletes(rs.requests()); len(d) != 1 || d[0] != "/playlists/7" {
@@ -203,18 +203,17 @@ func TestSharePlaylist_KeepsUnrelatedPlaylists(t *testing.T) {
 	}
 }
 
-func TestSharePlaylist_ReplaceOffDeletesNothing(t *testing.T) {
+func TestClientSharePlaylist_ReplacesEvenWithReplacePlaylistOff(t *testing.T) {
 	rs := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, false); err != nil {
+	cfg := &config.Config{ReplacePlaylist: false}
+	cfg.ClientCfg = config.ClientConfig{ShareWith: []string{"ana"}, OwnerName: "Gabe"}
+	c := &Client{Cfg: &cfg.ClientCfg, API: plex}
+	if err := c.SharePlaylist(shareTracks); err != nil {
 		t.Fatalf("SharePlaylist() = %v", err)
 	}
-	reqs := rs.requests()
-	if indexOf(reqs, "GET", "/playlists") >= 0 || len(deletes(reqs)) != 0 {
-		t.Errorf("replace=false sent GET or DELETE: %+v", reqs)
-	}
-	if indexOf(reqs, "POST", "/playlists") < 0 {
-		t.Errorf("no copy created: %+v", reqs)
+	if d := deletes(rs.requests()); len(d) != 1 || d[0] != "/playlists/7" {
+		t.Errorf("deletes = %v, want /playlists/7 replaced", d)
 	}
 }
 
@@ -222,7 +221,7 @@ func TestSharePlaylist_CreateFailureKeepsOldAndContinues(t *testing.T) {
 	bad := newRecipientServer(t, existingCopies, true)
 	good := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ana": bad, "ben": good})
-	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"}, true)
+	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"})
 	if err == nil || !strings.Contains(err.Error(), "ana") {
 		t.Fatalf("err = %v, want one naming ana", err)
 	}
@@ -237,7 +236,7 @@ func TestSharePlaylist_CreateFailureKeepsOldAndContinues(t *testing.T) {
 func TestSharePlaylist_UnknownUserSkipped(t *testing.T) {
 	rs := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ben": rs})
-	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ghost", "ben"}, true)
+	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ghost", "ben"})
 	if err == nil || !strings.Contains(err.Error(), "ghost") {
 		t.Errorf("err = %v, want one naming ghost", err)
 	}
@@ -250,7 +249,7 @@ func TestSharePlaylist_UsesRecipientToken(t *testing.T) {
 	a := newRecipientServer(t, existingCopies, false)
 	b := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ana": a, "ben": b})
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"}, true); err != nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"}); err != nil {
 		t.Fatalf("SharePlaylist() = %v", err)
 	}
 	for name, rs := range map[string]*recipientServer{"ana": a, "ben": b} {
@@ -273,7 +272,7 @@ func TestSharePlaylist_OwnerAccountRecipient(t *testing.T) {
 	plex := NewPlex(testConfig(rs.url, ""), hc)
 	plex.AdminClient = admin
 	plex.userSwitcher = func(string) (*Plex, error) { cp := *admin; return &cp, nil }
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"owner"}, true); err != nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"owner"}); err != nil {
 		t.Fatalf("SharePlaylist() = %v", err)
 	}
 	if indexOf(rs.requests(), "POST", "/playlists") < 0 {
@@ -284,7 +283,7 @@ func TestSharePlaylist_OwnerAccountRecipient(t *testing.T) {
 func TestSharePlaylist_NoAdminClient(t *testing.T) {
 	rs := newRecipientServer(t, existingCopies, false)
 	plex := NewPlex(testConfig(rs.url, ""), util.NewHttp(util.HttpClientConfig{Timeout: 5}))
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err != nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}); err != nil {
 		t.Errorf("err = %v, want nil", err)
 	}
 	if n := len(rs.requests()); n != 0 {
@@ -306,7 +305,7 @@ type recordingSharer struct {
 	calls int
 }
 
-func (r *recordingSharer) SharePlaylist([]*models.Track, string, []string, bool) error {
+func (r *recordingSharer) SharePlaylist([]*models.Track, string, []string) error {
 	r.calls++
 	return nil
 }
@@ -322,7 +321,7 @@ func TestClientSharePlaylist_EmptyListIsNoOp(t *testing.T) {
 func TestSharePlaylist_AllAddsFailKeepsOldCopy(t *testing.T) {
 	rs := newFaultyRecipientServer(t, existingCopies, serverFaults{adds: true})
 	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
-	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true)
+	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"})
 	if err == nil || !strings.Contains(err.Error(), "ana") {
 		t.Errorf("err = %v, want one naming ana", err)
 	}
@@ -334,7 +333,7 @@ func TestSharePlaylist_AllAddsFailKeepsOldCopy(t *testing.T) {
 func TestSharePlaylist_EmptyRatingKeyIsCreateFailure(t *testing.T) {
 	rs := newFaultyRecipientServer(t, existingCopies, serverFaults{emptyKey: true})
 	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err == nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}); err == nil {
 		t.Error("err = nil, want create failure")
 	}
 	for _, r := range rs.requests() {
@@ -347,7 +346,7 @@ func TestSharePlaylist_EmptyRatingKeyIsCreateFailure(t *testing.T) {
 func TestSharePlaylist_ListFailureCreatesNothing(t *testing.T) {
 	rs := newFaultyRecipientServer(t, existingCopies, serverFaults{list: true})
 	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
-	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err == nil {
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}); err == nil {
 		t.Error("err = nil, want list failure")
 	}
 	if indexOf(rs.requests(), "POST", "/playlists") >= 0 {
@@ -359,11 +358,25 @@ func TestSharePlaylist_DeleteFailureReportedAndContinues(t *testing.T) {
 	bad := newFaultyRecipientServer(t, existingCopies, serverFaults{del: true})
 	good := newRecipientServer(t, existingCopies, false)
 	plex := sharingPlex(map[string]*recipientServer{"ana": bad, "ben": good})
-	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"}, true)
+	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"})
 	if err == nil || !strings.Contains(err.Error(), "ana") {
 		t.Errorf("err = %v, want one naming ana", err)
 	}
 	if indexOf(good.requests(), "DELETE", "/playlists/7") < 0 {
 		t.Errorf("ben not processed: %+v", good.requests())
+	}
+}
+
+func TestSharePlaylist_BlankOwnerSkipped(t *testing.T) {
+	for _, owner := range []string{"", "   "} {
+		rs := newRecipientServer(t, existingCopies, false)
+		plex := sharingPlex(map[string]*recipientServer{"ana": rs})
+		plex.Cfg.PlaylistName = "Gabe's Weekly-Exploration"
+		if err := plex.SharePlaylist(shareTracks, owner, []string{"ana"}); err != nil {
+			t.Errorf("owner %q: err = %v, want nil", owner, err)
+		}
+		if n := len(rs.requests()); n != 0 {
+			t.Errorf("owner %q: %d requests, want 0", owner, n)
+		}
 	}
 }

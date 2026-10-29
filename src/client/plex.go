@@ -795,11 +795,17 @@ func (c *Plex) switchTo(username string) (*Plex, error) {
 }
 
 // SharePlaylist puts a copy of the playlist, titled after its owner, into each
-// user's account. With replace, the user's previous copy (exact title match
-// only) is deleted, and only after the new copy was created. Every request
+// user's account, replacing the user's previous copy (exact title match
+// only), which is deleted only after the new copy has at least one track. Every request
 // for a user is sent with that user's own token. A failure for one user is
 // logged and returned but does not stop the others.
-func (c *Plex) SharePlaylist(tracks []*models.Track, owner string, users []string, replace bool) error {
+func (c *Plex) SharePlaylist(tracks []*models.Track, owner string, users []string) error {
+	if strings.TrimSpace(owner) == "" {
+		// Without an owner the copy title is the bare playlist name, which is
+		// the recipient's own Explo playlist; replacing it would delete it.
+		slog.Warn("playlist sharing needs PLAYLIST_OWNER_NAME; skipping")
+		return nil
+	}
 	if c.AdminClient == nil && c.userSwitcher == nil {
 		slog.Warn("plex playlist sharing needs an admin client; skipping")
 		return nil
@@ -819,7 +825,7 @@ func (c *Plex) SharePlaylist(tracks []*models.Track, owner string, users []strin
 	title := ShareTitle(owner, c.Cfg.PlaylistName)
 	var errs []error
 	for _, user := range users {
-		if err := c.shareWith(user, title, present, replace); err != nil {
+		if err := c.shareWith(user, title, present); err != nil {
 			slog.Warn("failed to share playlist", "user", user, "err", err)
 			errs = append(errs, fmt.Errorf("share with %s: %w", user, err))
 		}
@@ -827,7 +833,7 @@ func (c *Plex) SharePlaylist(tracks []*models.Track, owner string, users []strin
 	return errors.Join(errs...)
 }
 
-func (c *Plex) shareWith(user, title string, tracks []*models.Track, replace bool) error {
+func (c *Plex) shareWith(user, title string, tracks []*models.Track) error {
 	recipient, err := c.switchTo(user)
 	if err != nil {
 		return fmt.Errorf("switch user: %w", err)
@@ -835,20 +841,18 @@ func (c *Plex) shareWith(user, title string, tracks []*models.Track, replace boo
 	headers := recipient.cloneHeaders()
 
 	var oldKey string
-	if replace {
-		body, err := recipient.HttpClient.MakeRequest("GET", recipient.Cfg.URL+"/playlists", nil, headers)
-		if err != nil {
-			return fmt.Errorf("list playlists: %w", err)
-		}
-		var playlists PlexPlaylist
-		if err := util.ParseResp(body, &playlists); err != nil {
-			return fmt.Errorf("parse playlists: %w", err)
-		}
-		for _, p := range playlists.MediaContainer.Metadata {
-			if p.Title == title {
-				oldKey = p.RatingKey
-				break
-			}
+	body, err := recipient.HttpClient.MakeRequest("GET", recipient.Cfg.URL+"/playlists", nil, headers)
+	if err != nil {
+		return fmt.Errorf("list playlists: %w", err)
+	}
+	var playlists PlexPlaylist
+	if err := util.ParseResp(body, &playlists); err != nil {
+		return fmt.Errorf("parse playlists: %w", err)
+	}
+	for _, p := range playlists.MediaContainer.Metadata {
+		if p.Title == title {
+			oldKey = p.RatingKey
+			break
 		}
 	}
 
