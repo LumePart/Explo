@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"explo/src/web/backend/users"
 	"fmt"
 	"io"
 	"log/slog"
@@ -402,11 +403,21 @@ func (s *Settings) HandleSaveCleanDownloads(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
+// hasUsers reports whether multi-user mode is active (users.json has users).
+func (s *Settings) hasUsers() (bool, error) {
+	list, err := users.Load(s.cfg.WebDataDir)
+	if err != nil {
+		return false, err
+	}
+
+	return len(list) > 0, nil
+}
+
 // handleWizardStep1 saves discovery settings (username + enabled playlists with default schedules).
 func (s *Settings) HandleWizardStep1(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		User          string   `json:"user"`
-		UserToken     string   `json:"userToken"`
+		User          *string  `json:"user"`
+		UserToken     *string  `json:"userToken"`
 		Playlists     []string `json:"playlists"`
 		DiscoveryMode string   `json:"discovery_mode"`
 	}
@@ -414,7 +425,13 @@ func (s *Settings) HandleWizardStep1(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if body.User == "" {
+	// With users configured, absent user/userToken keys mean "keep the stored value".
+	multi, err := s.hasUsers()
+	if err != nil {
+		http.Error(w, "loading users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if (body.User == nil && !multi) || (body.User != nil && *body.User == "") {
 		http.Error(w, "user is required", http.StatusBadRequest)
 		return
 	}
@@ -425,9 +442,13 @@ func (s *Settings) HandleWizardStep1(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updates := map[string]string{
-		"LISTENBRAINZ_USER":       body.User,
-		"LISTENBRAINZ_USER_TOKEN": body.UserToken,
-		"LISTENBRAINZ_DISCOVERY":  body.DiscoveryMode,
+		"LISTENBRAINZ_DISCOVERY": body.DiscoveryMode,
+	}
+	if body.User != nil {
+		updates["LISTENBRAINZ_USER"] = *body.User
+	}
+	if body.UserToken != nil {
+		updates["LISTENBRAINZ_USER_TOKEN"] = *body.UserToken
 	}
 	for name, def := range defs.PlaylistDefs {
 		if enabled[name] {
@@ -462,17 +483,17 @@ func (s *Settings) HandleWizardStep1(w http.ResponseWriter, r *http.Request) {
 // handleWizardStep2 saves media system configuration.
 func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		System              string `json:"system"`
-		URL                 string `json:"url"`
-		APIKey              string `json:"api_key"`
-		LibraryName         string `json:"library_name"`
-		Username            string `json:"username"`
-		Password            string `json:"password"`
-		PlaylistDir         string `json:"playlist_dir"`
-		Sleep               string `json:"sleep"`
-		AdminAPIKey         string `json:"admin_api_key"`
-		AdminSystemUsername string `json:"admin_system_username"`
-		AdminSystemPassword string `json:"admin_system_password"`
+		System              string  `json:"system"`
+		URL                 string  `json:"url"`
+		APIKey              string  `json:"api_key"`
+		LibraryName         string  `json:"library_name"`
+		Username            *string `json:"username"`
+		Password            string  `json:"password"`
+		PlaylistDir         string  `json:"playlist_dir"`
+		Sleep               string  `json:"sleep"`
+		AdminAPIKey         string  `json:"admin_api_key"`
+		AdminSystemUsername string  `json:"admin_system_username"`
+		AdminSystemPassword string  `json:"admin_system_password"`
 
 		PublicPlaylist bool `json:"public_playlist"`
 	}
@@ -487,6 +508,13 @@ func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// With users configured, an absent username key means "keep SYSTEM_USERNAME".
+	multi, err := s.hasUsers()
+	if err != nil {
+		http.Error(w, "loading users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	publicPlaylist := ""
 	if body.PublicPlaylist {
 		publicPlaylist = "true"
@@ -496,7 +524,6 @@ func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"SYSTEM_URL":            body.URL,
 		"API_KEY":               body.APIKey,
 		"LIBRARY_NAME":          body.LibraryName,
-		"SYSTEM_USERNAME":       body.Username,
 		"SYSTEM_PASSWORD":       body.Password,
 		"PLAYLIST_DIR":          body.PlaylistDir,
 		"SLEEP":                 body.Sleep,
@@ -504,6 +531,12 @@ func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"ADMIN_SYSTEM_USERNAME": body.AdminSystemUsername,
 		"ADMIN_SYSTEM_PASSWORD": body.AdminSystemPassword,
 		"ADMIN_API_KEY":         body.AdminAPIKey,
+	}
+	switch {
+	case body.Username != nil:
+		updates["SYSTEM_USERNAME"] = *body.Username
+	case !multi:
+		updates["SYSTEM_USERNAME"] = ""
 	}
 
 	if err := s.UpdateEnvKeys(updates, web.SampleEnv); err != nil {

@@ -18,7 +18,7 @@ import {
   saveReplacePlaylist,
   saveLocalOnly, saveCleanDownloads,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
-  generateDiagnosticsToken, revokeDiagnosticsToken, fetchUsers,
+  generateDiagnosticsToken, revokeDiagnosticsToken,
 } from '../lib/api'
 import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks, clearPlaylistCache } from '../lib/listenbrainz'
@@ -339,9 +339,6 @@ function HomeSection() {
   const [refreshTick, setRefreshTick] = useState(0)
 
   // Users (multi-user mode). On failure or when empty, Home behaves as single-user.
-  useEffect(() => {
-    fetchUsers().then(list => setUsers(Array.isArray(list) ? list : [])).catch(() => {})
-  }, [])
   const multi = users.length > 0
   const viewedUser = multi
     ? (users.find(u => u.id === viewUser) ?? users.find(u => u.enabled) ?? users[0])
@@ -1195,7 +1192,7 @@ function LogsSection() {
       <div className="flex items-center justify-between mb-3.5">
         <SectionLabel className="">Log</SectionLabel>
         {multi && (
-          <select className={selectCls} value={logUser} onChange={e => setLogUser(e.target.value)}>
+          <select aria-label="Filter by user" className={selectCls} value={logUser} onChange={e => setLogUser(e.target.value)}>
             <option value="all">All users</option>
             {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>

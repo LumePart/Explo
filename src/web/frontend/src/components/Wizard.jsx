@@ -877,8 +877,14 @@ export default function Wizard({
       const playlists = Object.entries(fields.checked)
         .filter(([, v]) => v)
         .map(([k]) => k);
-      await wizardStep1(fields.user.trim(), fields.userToken.trim(), playlists, fields.discoveryMode);
-      if (playlists.length > 0) {
+      // Multi-user: LB user/token are managed in Users, so omit them (backend keeps stored values).
+      await wizardStep1(
+        multi ? undefined : fields.user.trim(),
+        multi ? undefined : fields.userToken.trim(),
+        playlists,
+        fields.discoveryMode,
+      );
+      if (!multi && playlists.length > 0) {
         prefetchPlaylists(fields.user.trim(), playlists, {
           source: "wizard",
         }).catch(() => {});
@@ -901,7 +907,8 @@ export default function Wizard({
         auth_method: fields.authMethod,
 
         api_key: fields.apiKey,
-        username: fields.systemUsername,
+        // Omitted when read-only (plex password auth in multi-user mode); backend keeps the stored value.
+        username: multi && fields.system === "plex" && fields.authMethod === "password" ? undefined : fields.systemUsername,
         password: fields.systemPassword,
 
         admin_credentials: fields.adminCredentials,
