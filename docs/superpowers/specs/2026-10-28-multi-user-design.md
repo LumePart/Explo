@@ -98,11 +98,24 @@ accept a new value on update). They are added to the log redaction in
   config, then runs exactly the existing single-user flow.
 - Without `--user`, behaviour is exactly today's, which is the single-user
   path and the path non-Plex installs use.
-- The scheduler and manual run, when the user store has at least one enabled
-  user and the system is Plex, start one `explo --user <id>` process per
-  enabled user, one after another (not in parallel: shared library, shared
-  downloader limits, shared Plex scan). A non-zero exit for one user is logged
-  and the loop continues.
+- `--user all` makes the binary loop over the enabled users itself: for each
+  one it runs `explo --user <id>` (same other flags) as a child process, one
+  after another (not in parallel: shared library, shared downloader limits,
+  shared Plex scan). A failure for one user is logged and the loop continues;
+  the overall exit code is non-zero if any user failed.
+- Rules for `--user all`:
+  - `users.json` absent or empty: run the single-user path exactly as today.
+    This makes it safe to add `--user all` to every cron line and manual run.
+  - `users.json` unreadable or corrupt: error and run nothing. Silently falling
+    back would run under the wrong (env) account.
+  - Users exist but none enabled: run nothing and log a warning, for the same
+    reason.
+  - A custom playlist (`custom-*`) runs only for the user it belongs to.
+- Docker cron: the per-playlist cron lines in `docker/start.sh` gain `--user all`
+  in their flags. The user list is read at run time, so adding a user needs no
+  container restart. The existing per-job flock covers the whole all-users run.
+- Manual run: the existing manual-run endpoint accepts an optional user
+  (`all` or an id) and passes `--user` to the child.
 - Playlist cache files become per user when `--user` is used:
   `cache/<user-id>/<playlist-type>.json`. The playlist view in the web UI
   reads the cache for the user being viewed. Single-user installs keep the
@@ -125,14 +138,35 @@ the instance to multi-user. The UI may offer a one-click "import current
 settings as the first user" button; the owner said they will probably set up
 from scratch, so this is optional polish, not required.
 
+### Setup wizard
+
+Unchanged on a fresh install: steps 1 and 2 create the single-user setup and
+the admin credentials multi-user needs; users are added afterwards in the Users
+tab. Two small changes:
+
+- The first user form in the Users tab pre-fills from the existing
+  `LISTENBRAINZ_USER`, `LISTENBRAINZ_USER_TOKEN` (shown as "set") and
+  `SYSTEM_USERNAME` when no users exist yet.
+- When users exist, re-running the wizard shows the ListenBrainz username and
+  token (step 1) and the Plex user (step 2) as read-only "Managed in Users"
+  text, since those env values are ignored in multi-user mode. Everything else
+  in the wizard stays editable.
+
 ### Web UI
 
 - A "Users" page, admin-only like every other page: list, add, edit, enable or
   disable, delete. Delete asks for confirmation and removes only the user
   record and that user's cache directory, never anything in Plex.
-- A user picker on the playlist view when more than one user exists.
-- "Run now" offers "all users" and a single user (both go through the existing
-  single manual-run guard).
+- Home keeps today's layout. Additions only appear once a user exists: a
+  "Viewing" user switcher next to the Scheduled Playlists title, a User select
+  next to Playlist in Manual Run ("All users" or one user), the owner's name in
+  the top-left tag of custom playlist cards, and a required "For user" field
+  in the import form. Both manual-run choices go through the existing single
+  manual-run guard.
+- Output and log lines are prefixed with the user's name; the Logs tab gets a
+  user filter.
+- The Settings tab shows "Managed in Users" in place of the single
+  ListenBrainz fields once a user exists.
 - The settings UI and defs mechanism in `src/web/backend/defs` stays for global
   settings; users are a separate resource and a separate API.
 
