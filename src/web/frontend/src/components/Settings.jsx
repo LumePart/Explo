@@ -24,7 +24,8 @@ import { parseSlogLine, cronToFields, highlightEnv } from '../lib/utils'
 import { fetchPlaylistTracks, clearPlaylistCache } from '../lib/listenbrainz'
 import { motion, AnimatePresence } from 'motion/react'
 import { Toggle } from './ui/Toggle'
-import { Button, SectionLabel, Panel, LogRow } from './ui/common'
+import { Button, SectionLabel, Panel, LogRow, ManagedInUsers } from './ui/common'
+import { useUsers } from '../lib/useUsers'
 import { PlaylistCard, TracklistDropdown } from './ui/PlaylistCard'
 import { Users } from './Users'
 import { ImportModal } from './ui/ImportModal'
@@ -129,6 +130,9 @@ function TracklistSlide({ show, slideKey, children }) {
 function playlistOwner(cp, users) {
   return users.length > 0 ? (cp?.user_id || users[0].id) : ''
 }
+
+// Name resolver for log lines: display name, falling back to the id.
+const userNameFn = users => id => users.find(u => u.id === id)?.name || id
 
 function ReassignModal({ playlist, users, ownerId, onClose, onDone }) {
   const [target, setTarget] = useState(ownerId)
@@ -672,7 +676,7 @@ function HomeSection() {
           {logEntries.map((e, i) => (
             rawLog
               ? <div key={i} className="font-mono text-[11px] text-accent whitespace-pre-wrap break-all py-px">{e.raw}</div>
-              : <LogRow key={i} entry={e} />
+              : <LogRow key={i} entry={e} userName={multi ? userNameFn(users) : undefined} />
           ))}
         </Panel>
       </div>
@@ -1059,7 +1063,8 @@ function DownloadPathSection() {
 // Raw .env file viewer/editor, plus wizard re-run and full reset actions.
 // Fetches its own raw config text from the API.
 
-function ConfigSection({ onWizard }) {
+function ConfigSection({ onWizard, onOpenUsers }) {
+  const users = useUsers()
   const [rawConfig, setRawConfig] = useState('')
   const [editing, setEditing] = useState(false)
   const [saveStatus, setSaveStatus] = useState('')
@@ -1127,6 +1132,13 @@ function ConfigSection({ onWizard }) {
         )}
       </div>
 
+      {users.length > 0 && (
+        <div className="mt-6">
+          <SectionLabel>ListenBrainz</SectionLabel>
+          <ManagedInUsers label="Username and token" onOpenUsers={onOpenUsers} />
+        </div>
+      )}
+
       <DownloadPathSection />
 
       <DiagnosticsTokenSection />
@@ -1156,6 +1168,9 @@ function ConfigSection({ onWizard }) {
 // Displays the full server log file. Fetches its own log data from the API.
 
 function LogsSection() {
+  const users = useUsers()
+  const multi = users.length > 0
+  const [logUser, setLogUser] = useState('all')
   const [logFileEntries, setLogFileEntries] = useState([])
   const panelRef = useRef(null)
 
@@ -1171,10 +1186,20 @@ function LogsSection() {
     if (panelRef.current) panelRef.current.scrollTop = panelRef.current.scrollHeight
   }, [logFileEntries])
 
+  const shown = multi && logUser !== 'all'
+    ? logFileEntries.filter(e => !e.extras?.user || e.extras.user === logUser)
+    : logFileEntries
+
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-3.5">
         <SectionLabel className="">Log</SectionLabel>
+        {multi && (
+          <select className={selectCls} value={logUser} onChange={e => setLogUser(e.target.value)}>
+            <option value="all">All users</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        )}
         <button
           onClick={loadLog}
           className="bg-transparent border-none text-muted text-[11px] cursor-pointer p-0 hover:text-white transition-colors"
@@ -1187,7 +1212,7 @@ function LogsSection() {
         <p className="text-[12px] text-muted py-1">No log output yet.</p>
       ) : (
         <Panel ref={panelRef} className="h-[400px]">
-          {logFileEntries.map((e, i) => <LogRow key={i} entry={e} />)}
+          {shown.map((e, i) => <LogRow key={i} entry={e} userName={multi ? userNameFn(users) : undefined} />)}
         </Panel>
       )}
     </div>
@@ -1275,7 +1300,7 @@ export default function Settings({ authDisabled, onWizard, onLogout }) {
 
           {activeTab === 'run' && <HomeSection />}
           {activeTab === 'users' && <Users />}
-          {activeTab === 'config' && <ConfigSection onWizard={onWizard} />}
+          {activeTab === 'config' && <ConfigSection onWizard={onWizard} onOpenUsers={() => setActiveTab('users')} />}
           {activeTab === 'logs' && <LogsSection />}
         </div>
       </div>
