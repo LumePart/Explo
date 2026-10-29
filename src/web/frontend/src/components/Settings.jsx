@@ -323,7 +323,7 @@ function HomeSection() {
   const [openTracklist, setOpenTracklist] = useState(null)
   const [customPlaylists, setCustomPlaylists] = useState([])
   const [showImportModal, setShowImportModal] = useState(false)
-  const [users, setUsers] = useState([])
+  const users = useUsers()
   const [viewUser, setViewUser] = useState('')
   const [runUser, setRunUser] = useState('all')
 
