@@ -62,3 +62,16 @@ func TestRedactWriter_FragmentsAndLines(t *testing.T) {
 		t.Errorf("writer output = %q", got)
 	}
 }
+
+func TestRedact_ListenBrainzToken(t *testing.T) {
+	for _, in := range []string{
+		`LISTENBRAINZ_USER_TOKEN=abc123xyz`,
+		`msg="cfg" LISTENBRAINZ_TOKEN=abc123xyz user=kelly`,
+		`Authorization: Token abc123xyz-0000-1111`,
+	} {
+		got := RedactLine(in)
+		if strings.Contains(got, "abc123xyz") {
+			t.Errorf("token survived: %q -> %q", in, got)
+		}
+	}
+}
