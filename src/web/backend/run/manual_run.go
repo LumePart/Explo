@@ -79,7 +79,7 @@ func (mr *ManualRun) startRun(args []string) error {
 	// run is refused until someone stops it by hand. The timeout kills the
 	// child, which lets cmd.Wait return and clears the guard on its own.
 	ctx, cancel := runContext(mr.cfg.RunTimeout)
-	cmd := exec.CommandContext(ctx, mr.cfg.ExploPath, args...)
+	cmd := newRunCommand(ctx, mr.cfg.ExploPath, args...)
 	// Strip WEB_UI from env so the child process runs normally, not as web server.
 	env := make([]string, 0, len(os.Environ()))
 	for _, e := range os.Environ() {
@@ -329,4 +329,14 @@ func runContext(timeout time.Duration) (context.Context, context.CancelFunc) {
 		return context.WithCancel(context.Background())
 	}
 	return context.WithTimeout(context.Background(), timeout)
+}
+
+// newRunCommand builds the explo child for a manual run. Cancellation (Stop or
+// the run timeout) kills the whole process tree where supported.
+func newRunCommand(ctx context.Context, path string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, path, args...)
+	// Bound how long Wait blocks on pipes held by stray descendants after kill.
+	cmd.WaitDelay = 5 * time.Second
+	setProcessGroup(cmd)
+	return cmd
 }
