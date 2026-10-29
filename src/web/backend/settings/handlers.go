@@ -44,8 +44,19 @@ func (s *Settings) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Admin credentials are not in AllConfigKeys (they are secrets), so the UI
+	// only learns whether they are present, never their values.
+	lookup := func(key string) string {
+		if v := fileValues[key]; v != "" {
+			return v
+		}
+		return os.Getenv(key)
+	}
+	adminConfigured := lookup("ADMIN_API_KEY") != "" ||
+		(lookup("ADMIN_SYSTEM_USERNAME") != "" && lookup("ADMIN_SYSTEM_PASSWORD") != "")
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(ConfigResponse{Values: values, Sources: sources}); err != nil {
+	if err := json.NewEncoder(w).Encode(ConfigResponse{Values: values, Sources: sources, AdminConfigured: adminConfigured}); err != nil {
 		slog.Error("failed encoding config to http", "msg", err.Error())
 	}
 }
@@ -492,7 +503,7 @@ func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST":       publicPlaylist,
 		"ADMIN_SYSTEM_USERNAME": body.AdminSystemUsername,
 		"ADMIN_SYSTEM_PASSWORD": body.AdminSystemPassword,
-		"ADMIN_SYSTEM_APIKEY":   body.AdminAPIKey,
+		"ADMIN_API_KEY":         body.AdminAPIKey,
 	}
 
 	if err := s.UpdateEnvKeys(updates, web.SampleEnv); err != nil {

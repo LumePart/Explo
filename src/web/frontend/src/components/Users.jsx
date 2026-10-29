@@ -173,10 +173,9 @@ export function Users() {
 
   useEffect(() => {
     load()
-    fetchConfig().then(({ values }) => {
-      const v = values ?? {}
-      const hasAdmin = !!v.ADMIN_API_KEY || (!!v.ADMIN_SYSTEM_USERNAME && !!v.ADMIN_SYSTEM_PASSWORD)
-      setAdminMissing(!hasAdmin)
+    // Only an explicit false shows the banner; absent or failed means unknown.
+    fetchConfig().then(cfg => {
+      setAdminMissing(cfg.admin_configured === false)
     }).catch(() => {})
   }, [load])
 

@@ -15,6 +15,8 @@ import (
 type ConfigResponse struct {
 	Values  map[string]string `json:"values"`
 	Sources map[string]string `json:"sources"` // "env" | "file"
+	// AdminConfigured reports whether media-server admin credentials are set.
+	AdminConfigured bool `json:"admin_configured"`
 }
 
 type Settings struct {
