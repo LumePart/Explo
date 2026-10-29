@@ -32,12 +32,12 @@ function Modal({ onClose, busy, children }) {
   )
 }
 
-function UserForm({ user, onClose, onSaved }) {
+function UserForm({ user, prefill, onClose, onSaved }) {
   const editing = !!user
   const [name, setName] = useState(user?.name ?? '')
-  const [lbUser, setLbUser] = useState(user?.listenbrainz_user ?? '')
-  const [token, setToken] = useState('')
-  const [plexUser, setPlexUser] = useState(user?.plex_user ?? '')
+  const [lbUser, setLbUser] = useState(user?.listenbrainz_user ?? prefill?.lbUser ?? '')
+  const [token, setToken] = useState(prefill?.token ?? '')
+  const [plexUser, setPlexUser] = useState(user?.plex_user ?? prefill?.plexUser ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -77,6 +77,7 @@ function UserForm({ user, onClose, onSaved }) {
         </button>
       </div>
       <div className="px-5 pt-5 pb-5 flex flex-col gap-4">
+        {prefill && <p className="text-[12px] text-muted -mt-1">Pre-filled from your current settings.</p>}
         <TextField
           label="Display name"
           labelFor="user-name"
@@ -164,6 +165,7 @@ export function Users() {
   const [adminMissing, setAdminMissing] = useState(false)
   const [form, setForm] = useState(null)       // null | 'new' | user
   const [deleting, setDeleting] = useState(null)
+  const [legacy, setLegacy] = useState(null)   // single-user settings, used to pre-fill the first user
 
   const load = useCallback(() => {
     return fetchUsers()
@@ -176,6 +178,13 @@ export function Users() {
     // Only an explicit false shows the banner; absent or failed means unknown.
     fetchConfig().then(cfg => {
       setAdminMissing(cfg.admin_configured === false)
+      const v = cfg.values ?? {}
+      const found = {
+        lbUser: v.LISTENBRAINZ_USER || '',
+        token: v.LISTENBRAINZ_USER_TOKEN || '',
+        plexUser: v.SYSTEM_USERNAME || '',
+      }
+      setLegacy(found.lbUser || found.token || found.plexUser ? found : null)
     }).catch(() => {})
   }, [load])
 
@@ -267,6 +276,7 @@ export function Users() {
           <UserForm
             key="form"
             user={form === 'new' ? null : form}
+            prefill={form === 'new' && list.length === 0 ? legacy : null}
             onClose={() => setForm(null)}
             onSaved={() => { setForm(null); load() }}
           />
