@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"explo/src/web/backend/users"
 )
@@ -27,12 +28,26 @@ func (cfg *Config) ApplyUser(id string, all []users.User) error {
 		return fmt.Errorf("user %q is disabled", id)
 	}
 
-	// Typed PLAYLIST_SHARE_WITH is deliberately ignored.
-	var share []string
+	// Typed PLAYLIST_SHARE_WITH is deliberately ignored. The share list is the
+	// target's ShareWith IDs resolved to Plex usernames; unknown, disabled,
+	// self, no-PlexUser, duplicate and own-name entries are dropped silently.
+	byID := make(map[string]users.User, len(all))
 	for _, u := range all {
-		if u.ID != id && u.Enabled {
-			share = append(share, u.PlexUser)
+		byID[u.ID] = u
+	}
+	seen := map[string]bool{strings.ToLower(target.PlexUser): true}
+	var share []string
+	for _, sid := range target.ShareWith {
+		u, ok := byID[sid]
+		if !ok || sid == id || !u.Enabled || u.PlexUser == "" {
+			continue
 		}
+		key := strings.ToLower(u.PlexUser)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		share = append(share, u.PlexUser)
 	}
 
 	cfg.DiscoveryCfg.Listenbrainz.User = target.ListenBrainzUser

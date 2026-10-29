@@ -53,13 +53,60 @@ func TestApplyUser_OverlaysOnlyUserFields(t *testing.T) {
 	}
 }
 
-func TestApplyUser_ComputesShareList(t *testing.T) {
+func TestApplyUser_ShareWithResolvesIDs(t *testing.T) {
+	all := []users.User{
+		{ID: "gabe", Name: "Gabe", PlexUser: "gabep", Enabled: true, ShareWith: []string{"kelly", "ghost"}},
+		{ID: "kelly", Name: "Kelly", PlexUser: "kellyp", Enabled: true},
+	}
+	cfg := baseCfg()
+	if err := cfg.ApplyUser("gabe", all); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"kellyp"}; !reflect.DeepEqual(cfg.ClientCfg.ShareWith, want) {
+		t.Errorf("ShareWith = %v, want %v", cfg.ClientCfg.ShareWith, want)
+	}
+	if cfg.ClientCfg.OwnerName != "Gabe" {
+		t.Errorf("OwnerName = %q", cfg.ClientCfg.OwnerName)
+	}
+}
+
+func TestApplyUser_ShareWithDefaultsEmpty(t *testing.T) {
 	cfg := baseCfg()
 	if err := cfg.ApplyUser("alice", sampleUsers()); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"carol-plex"}; !reflect.DeepEqual(cfg.ClientCfg.ShareWith, want) {
+	if len(cfg.ClientCfg.ShareWith) != 0 {
+		t.Errorf("ShareWith = %v, want empty", cfg.ClientCfg.ShareWith)
+	}
+}
+
+func TestApplyUser_ShareWithSkipsDisabledAndSelf(t *testing.T) {
+	all := []users.User{
+		{ID: "gabe", Name: "Gabe", PlexUser: "gabep", Enabled: true, ShareWith: []string{"gabe", "kelly", "sam", "noplex"}},
+		{ID: "kelly", Name: "Kelly", PlexUser: "kellyp", Enabled: false},
+		{ID: "sam", Name: "Sam", PlexUser: "samp", Enabled: true},
+		{ID: "noplex", Name: "NoPlex", Enabled: true},
+	}
+	cfg := baseCfg()
+	if err := cfg.ApplyUser("gabe", all); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"samp"}; !reflect.DeepEqual(cfg.ClientCfg.ShareWith, want) {
 		t.Errorf("ShareWith = %v, want %v", cfg.ClientCfg.ShareWith, want)
+	}
+}
+
+func TestApplyUser_ShareWithDropsSamePlexName(t *testing.T) {
+	all := []users.User{
+		{ID: "gabe", Name: "Gabe", PlexUser: "GabeP", Enabled: true, ShareWith: []string{"alt"}},
+		{ID: "alt", Name: "Alt", PlexUser: "gabep", Enabled: true},
+	}
+	cfg := baseCfg()
+	if err := cfg.ApplyUser("gabe", all); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.ClientCfg.ShareWith) != 0 {
+		t.Errorf("ShareWith = %v, want empty", cfg.ClientCfg.ShareWith)
 	}
 }
 
