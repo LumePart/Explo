@@ -381,6 +381,8 @@ export function PlaylistCard({
   sourceUrl,
   refreshTick = 0,
   user = '',
+  tag,
+  onReassign,
 }) {
   const { value, name } = playlist
   // trackFetchId: use real playlist ID (custom playlists) if provided, else fall back to value
@@ -394,7 +396,8 @@ export function PlaylistCard({
     preset = customMatch ? CUSTOM_PRESETS[Number(customMatch[1]) % CUSTOM_PRESETS.length] : FALLBACK
   }
   const bg = gradientOverride ?? preset.background
-  const { accent, label } = preset
+  const { accent } = preset
+  const label = tag ?? preset.label
 
   // Split gradient string into radial layers + solid base color so album art can sit between them.
   const bgLines = bg.trim().split('\n').map(l => l.trim()).filter(Boolean)
@@ -454,7 +457,7 @@ export function PlaylistCard({
   const [localOnlyInfoOpen, setLocalOnlyInfoOpen] = useState(false)
   const menuBtnRef = useRef(null)
   const canEdit = !fixedSchedule && !!onToggleEdit
-  const hasMenu = canEdit || !!onDelete || !!sourceUrl || !!onReplaceToggle || !!onLocalOnlyToggle
+  const hasMenu = canEdit || !!onDelete || !!onReassign || !!sourceUrl || !!onReplaceToggle || !!onLocalOnlyToggle
 
   useEffect(() => {
     if (!menuOpen) { setConfirmDelete(false); setDeleteTracksChecked(false); return }
@@ -745,6 +748,21 @@ export function PlaylistCard({
                 </span>
               )}
             </div>
+          )}
+          {onReassign && (
+            <button
+              onClick={e => { e.stopPropagation(); setMenuOpen(false); onReassign() }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                background: 'none', border: 'none',
+                padding: '8px 14px', fontSize: 13, color: '#c0c0c0',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1a1a1a' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+            >
+              Reassign
+            </button>
           )}
           {onDelete && !confirmDelete && (
             <button

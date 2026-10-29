@@ -195,15 +195,27 @@ export async function fetchCustomPlaylists() {
   return res.json()
 }
 
-export async function importCustomPlaylist(url, source, refresh_days) {
+export async function importCustomPlaylist(url, source, refresh_days, user_id = '') {
+  const body = { url, source, refresh_days }
+  if (user_id) body.user_id = user_id
   const res = await apiFetch('/api/ui/custom-playlists', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, source, refresh_days }),
+    body: JSON.stringify(body),
   })
   if (res.status === 409) throw Object.assign(new Error('already imported'), { duplicate: true })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
+}
+
+export async function reassignCustomPlaylist(id, userId) {
+  const res = await apiFetch(`/api/ui/custom-playlists/${encodeURIComponent(id)}/user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json().catch(() => ({}))
 }
 
 export async function deleteCustomPlaylist(id, { deleteTracks = false } = {}) {

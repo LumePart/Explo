@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchConfig, fetchConfigRaw, saveConfig, resetConfig,
   saveSchedule, startRun, stopRun, fetchRunStatus, fetchLogs,
-  fetchCustomPlaylists, deleteCustomPlaylist, savePathTemplate, saveEnrichMetadata, saveAlbumsOnly,
+  fetchCustomPlaylists, deleteCustomPlaylist, reassignCustomPlaylist, savePathTemplate, saveEnrichMetadata, saveAlbumsOnly,
   saveReplacePlaylist,
   saveLocalOnly, saveCleanDownloads,
   fetchPathTemplatePresets, addPathTemplatePreset, deletePathTemplatePreset,
@@ -125,7 +125,89 @@ function TracklistSlide({ show, slideKey, children }) {
   )
 }
 
+function ReassignModal({ playlist, users, ownerId, onClose, onDone }) {
+  const [target, setTarget] = useState(ownerId)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const save = async () => {
+    if (!target || busy) return
+    if (target === ownerId) return onClose()
+    setBusy(true)
+    setError('')
+    try {
+      await reassignCustomPlaylist(playlist.id, target)
+      onDone()
+    } catch (e) {
+      setError(e.message || 'Reassign failed.')
+      setBusy(false)
+    }
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      onClick={busy ? undefined : onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0, 0, 0, 0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.97 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-[420px] mx-4 border border-ui-border rounded-lg overflow-hidden"
+        style={{ background: '#0d0d0df0', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', boxShadow: '0 24px 64px #00000099' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ui-border">
+          <h2 className="text-[15px] font-semibold text-white leading-none">Reassign playlist</h2>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-muted hover:text-white transition-colors text-[18px] leading-none p-0 bg-transparent border-none cursor-pointer disabled:opacity-40"
+          >
+            &times;
+          </button>
+        </div>
+        <div className="px-5 pt-5 pb-5 flex flex-col gap-4">
+          <div className="text-[13px] text-muted">Move <span className="text-white">{playlist.name}</span> to:</div>
+          <select
+            value={target}
+            onChange={e => setTarget(e.target.value)}
+            disabled={busy}
+            className="bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] cursor-pointer outline-none focus:border-accent transition-colors disabled:opacity-50"
+          >
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          {error && <div className="text-[12px] text-[#e05050]">{error}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 pb-5">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="bg-transparent border border-ui-border text-muted rounded-full px-4 py-1.5 text-[13px] cursor-pointer hover:text-white hover:border-[#444] transition-colors disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={busy || !target}
+            className="bg-[var(--brand)] text-black border-none rounded-full px-5 py-1.5 text-[13px] font-semibold cursor-pointer disabled:opacity-50"
+          >
+            {busy ? 'Saving\u2026' : 'Reassign'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 function CustomPlaylistsSection({
+  users = [],
+  viewedUser = null,
+  onReassigned,
   customPlaylists,
   schedules,
   scheduleProps,
@@ -139,10 +221,17 @@ function CustomPlaylistsSection({
   setShowImportModal,
   refreshTick = 0,
 }) {
+  const multi = users.length > 0
+  const [reassigning, setReassigning] = useState(null)
+  const ownerOf = cp => (multi ? (cp.user_id || users[0].id) : '')
+  const ownerName = cp => users.find(u => u.id === ownerOf(cp))?.name ?? ''
+  const visible = multi && viewedUser
+    ? customPlaylists.filter(cp => ownerOf(cp) === viewedUser.id)
+    : customPlaylists
   return (
     <div className="mt-6">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists</div>
+        <div className="text-[16px] font-bold tracking-tight text-white">Custom Playlists{multi && viewedUser && <span className="text-[12px] font-normal text-muted ml-2">for {viewedUser.name}</span>}</div>
         <button
           onClick={() => setShowImportModal(true)}
           className="bg-transparent border border-ui-border text-muted rounded-full px-3 py-1 text-[12px] cursor-pointer hover:text-white hover:border-[#444] transition-colors"
@@ -151,13 +240,13 @@ function CustomPlaylistsSection({
         </button>
       </div>
 
-      {customPlaylists.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="text-[12px] text-muted mt-3">
           No custom playlists yet. Import one from ListenBrainz, Apple Music or Spotify.
         </p>
       ) : (
         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 min-[720px]:grid-cols-4 gap-3 mt-3">
-          {customPlaylists.map((cp, i) => {
+          {visible.map((cp, i) => {
             if (!schedules[cp.id]) return null
             return (
               <PlaylistCard
@@ -174,6 +263,8 @@ function CustomPlaylistsSection({
                 onTracklistToggle={() => setOpenTracklist(v => v === cp.id ? null : cp.id)}
                 sourceUrl={cp.source_url || undefined}
                 onDelete={(opts) => onDelete(cp.id, opts)}
+                tag={multi ? ownerName(cp).toUpperCase() : undefined}
+                onReassign={multi ? () => setReassigning(cp) : undefined}
                 refreshTick={refreshTick}
               />
             )
@@ -196,6 +287,17 @@ function CustomPlaylistsSection({
             onClose={() => setShowImportModal(false)}
             onImported={onImportedRefresh}
             onSync={onSync}
+            users={users}
+            defaultUserId={viewedUser?.id ?? ''}
+          />
+        )}
+        {reassigning && (
+          <ReassignModal
+            playlist={reassigning}
+            users={users}
+            ownerId={ownerOf(reassigning)}
+            onClose={() => setReassigning(null)}
+            onDone={() => { setReassigning(null); onReassigned?.() }}
           />
         )}
       </AnimatePresence>
@@ -448,6 +550,9 @@ function HomeSection() {
 
       {/* Custom Playlists */}
       <CustomPlaylistsSection
+        users={users}
+        viewedUser={viewedUser}
+        onReassigned={() => { fetchCustomPlaylists().then(setCustomPlaylists).catch(() => {}) }}
         customPlaylists={customPlaylists}
         refreshTick={refreshTick}
         schedules={schedules}
@@ -476,7 +581,9 @@ function HomeSection() {
           setShowImportModal(false)
         }}
         onSync={async (id) => {
-          await startRun(id, 'normal')
+          const cp = customPlaylists.find(p => p.id === id)
+          const owner = multi && cp ? (cp.user_id || users[0].id) : ''
+          await startRun(id, 'normal', true, owner)
           setRunning(true)
           setStatus('running…')
           setLogEntries([])

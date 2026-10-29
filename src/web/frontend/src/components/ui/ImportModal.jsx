@@ -117,7 +117,7 @@ function SuccessPanel({ result, onImported, onSync, onClose, onError }) {
   )
 }
 
-export function ImportModal({ onClose, onImported, onSync }) {
+export function ImportModal({ onClose, onImported, onSync, users = [], defaultUserId = '' }) {
   const [source, setSource] = useState(null)   // 'listenbrainz' | 'apple_music'
   const [url, setUrl] = useState('')
   const [refreshDays, setRefreshDays] = useState(0)
@@ -125,14 +125,18 @@ export function ImportModal({ onClose, onImported, onSync }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const multi = users.length > 0
+  const [userId, setUserId] = useState(
+    multi ? (users.find(u => u.id === defaultUserId)?.id ?? users.find(u => u.enabled)?.id ?? '') : ''
+  )
 
   const sourceCfg = SOURCES.find(s => s.key === source)
 
   const handleImport = async () => {
-    if (!url.trim() || loading) return
+    if (!url.trim() || loading || (multi && !userId)) return
     setLoading(true)
     try {
-      const data = await importCustomPlaylist(url.trim(), source, refreshDays)
+      const data = await importCustomPlaylist(url.trim(), source, refreshDays, multi ? userId : '')
       setResult(data)
       setPhase('success')
     } catch (e) {
@@ -143,7 +147,7 @@ export function ImportModal({ onClose, onImported, onSync }) {
     }
   }
 
-  const canSubmit = url.trim() && !loading
+  const canSubmit = url.trim() && !loading && (!multi || !!userId)
 
   return (
     <motion.div
@@ -275,6 +279,21 @@ export function ImportModal({ onClose, onImported, onSync }) {
                     className="w-full bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] outline-none placeholder:text-[#444] focus:border-[var(--brand)] transition-colors disabled:opacity-50"
                   />
                 </div>
+
+                {multi && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-muted">For user</label>
+                    <select
+                      value={userId}
+                      onChange={e => setUserId(e.target.value)}
+                      disabled={loading}
+                      className="bg-well border border-ui-border text-white rounded-lg px-3 py-2 text-[13px] cursor-pointer outline-none focus:border-[var(--brand)] transition-colors disabled:opacity-50"
+                    >
+                      <option value="" disabled>Select a user…</option>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-medium text-muted">
