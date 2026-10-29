@@ -23,6 +23,11 @@ func (mr *ManualRun) HandleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid user", http.StatusBadRequest)
 		return
 	}
+	user, err := mr.resolveRunUser(user)
+	if err != nil {
+		http.Error(w, "loading users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	args := buildArgs(r.FormValue("playlist"), r.FormValue("download_mode"), mr.cfg.WebEnvPath, replacePlaylist, user)
 
 	if err := mr.startRun(args); err != nil {
@@ -128,4 +133,19 @@ func (mr *ManualRun) HandleRunEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+// resolveRunUser maps an empty user to "all" when users are configured, so a
+// manual run never silently uses the env account in multi-user mode.
+func (mr *ManualRun) resolveRunUser(user string) (string, error) {
+	if user != "" {
+		return user, nil
+	}
+	list, err := users.Load(mr.cfg.WebDataDir)
+	if err != nil {
+		return "", err
+	}
+	if len(list) > 0 {
+		return users.ReservedID, nil
+	}
+	return "", nil
 }
