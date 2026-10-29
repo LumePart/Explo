@@ -32,14 +32,17 @@ function Modal({ onClose, busy, children }) {
   )
 }
 
-function UserForm({ user, prefill, onClose, onSaved }) {
+function UserForm({ user, users, prefill, onClose, onSaved }) {
   const editing = !!user
   const [name, setName] = useState(user?.name ?? '')
   const [lbUser, setLbUser] = useState(user?.listenbrainz_user ?? prefill?.lbUser ?? '')
   const [token, setToken] = useState(prefill?.token ?? '')
   const [plexUser, setPlexUser] = useState(user?.plex_user ?? prefill?.plexUser ?? '')
+  const [shareWith, setShareWith] = useState(user?.share_with ?? [])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const others = (users ?? []).filter(o => o.id !== user?.id)
+  const toggleShare = id => setShareWith(cur => cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id])
 
   const save = async () => {
     const body = {
@@ -48,6 +51,7 @@ function UserForm({ user, prefill, onClose, onSaved }) {
       listenbrainz_token: token.trim(),
       plex_user: plexUser.trim(),
       enabled: user?.enabled ?? true,
+      share_with: shareWith,
     }
     if (!body.name) return setError('Name is required.')
     if (!body.listenbrainz_user) return setError('ListenBrainz username is required.')
@@ -107,6 +111,24 @@ function UserForm({ user, prefill, onClose, onSaved }) {
         <TextField label="Plex username" labelFor="user-plex">
           <input id="user-plex" className={inputCls} value={plexUser} onChange={e => setPlexUser(e.target.value)} disabled={saving} />
         </TextField>
+        {others.length > 0 && (
+          <TextField label="Share my playlists with">
+            <div className="flex flex-col gap-2">
+              {others.map(o => (
+                <label key={o.id} className="flex items-center gap-2 text-[13px] text-white cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={shareWith.includes(o.id)}
+                    onChange={() => toggleShare(o.id)}
+                    disabled={saving}
+                    className="accent-accent"
+                  />
+                  {o.name}
+                </label>
+              ))}
+            </div>
+          </TextField>
+        )}
         {error && <p className="text-[12px] text-danger">{error}</p>}
       </div>
       <div className="flex justify-end gap-2 px-5 pb-5">
@@ -197,6 +219,7 @@ export function Users() {
         listenbrainz_token: '',
         plex_user: u.plex_user,
         enabled: !u.enabled,
+        share_with: u.share_with ?? [],
       })
       await load()
     } catch (e) {
@@ -268,6 +291,7 @@ export function Users() {
           <UserForm
             key="form"
             user={form === 'new' ? null : form}
+            users={list}
             prefill={form === 'new' && users !== null && users.length === 0 ? legacy : null}
             onClose={() => setForm(null)}
             onSaved={() => { setForm(null); load() }}
