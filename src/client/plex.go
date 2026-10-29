@@ -582,6 +582,18 @@ func (c *Plex) CreatePlaylist(tracks []*models.Track) error {
 // createPlaylistAs creates a playlist titled title as userClient, adds tracks
 // with userClient's token, and returns the new rating key.
 func (c *Plex) createPlaylistAs(userClient *Plex, title string, tracks []*models.Track) (string, error) {
+	if _, err := c.postPlaylistAs(userClient, title); err != nil {
+		return "", err
+	}
+
+	userClient.addtoPlaylist(tracks)
+
+	return userClient.Cfg.PlaylistID, nil
+}
+
+// postPlaylistAs creates an empty playlist titled title as userClient, records
+// its rating key in userClient.Cfg.PlaylistID and returns it.
+func (c *Plex) postPlaylistAs(userClient *Plex, title string) (string, error) {
 	metadataURI := fmt.Sprintf(
 		"server://%s/com.plexapp.plugins.library/%s",
 		userClient.machineID,
@@ -616,8 +628,6 @@ func (c *Plex) createPlaylistAs(userClient *Plex, title string, tracks []*models
 	}
 
 	userClient.Cfg.PlaylistID = playlist.MediaContainer.Metadata[0].RatingKey
-
-	userClient.addtoPlaylist(tracks)
 
 	return userClient.Cfg.PlaylistID, nil
 }
@@ -754,15 +764,25 @@ func (c *Plex) getPlexMBID(ratingKey string) string {
 }
 
 func (c *Plex) addtoPlaylist(tracks []*models.Track) {
+	c.addTracksCounted(tracks)
+}
+
+// addTracksCounted adds tracks to c.Cfg.PlaylistID, logging failures, and
+// returns how many were added.
+func (c *Plex) addTracksCounted(tracks []*models.Track) int {
+	added := 0
 	for _, track := range tracks {
 		if track.ID != "" {
 			params := fmt.Sprintf("/playlists/%s/items?uri=server://%s/com.plexapp.plugins.library%s", c.Cfg.PlaylistID, c.machineID, track.ID)
 
 			if _, err := c.HttpClient.MakeRequest("PUT", c.Cfg.URL+params, nil, c.Cfg.Creds.Headers); err != nil {
 				slog.Warn("failed to add to playlist", "title", track.Title, "err", err)
+				continue
 			}
+			added++
 		}
 	}
+	return added
 }
 
 // switchTo returns a client scoped to username's Plex account.
@@ -832,9 +852,15 @@ func (c *Plex) shareWith(user, title string, tracks []*models.Track, replace boo
 		}
 	}
 
-	newKey, err := c.createPlaylistAs(recipient, title, tracks)
+	newKey, err := c.postPlaylistAs(recipient, title)
 	if err != nil {
 		return err
+	}
+	if newKey == "" {
+		return fmt.Errorf("playlist create returned no rating key")
+	}
+	if recipient.addTracksCounted(tracks) == 0 {
+		return fmt.Errorf("no tracks added to new copy %s; old copy kept", newKey)
 	}
 
 	summary := fmt.Sprintf("/playlists/%s?summary=%s", newKey, url.QueryEscape(c.Cfg.PlaylistDescr))

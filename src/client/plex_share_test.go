@@ -88,6 +88,16 @@ func (r *recipientServer) requests() []shareReq {
 // body of GET /playlists; failCreate makes POST /playlists return 500.
 func newRecipientServer(t *testing.T, playlistsJSON string, failCreate bool) *recipientServer {
 	t.Helper()
+	return newFaultyRecipientServer(t, playlistsJSON, serverFaults{create: failCreate})
+}
+
+// serverFaults selects which requests a fake recipient server fails.
+type serverFaults struct {
+	create, adds, list, del, emptyKey bool
+}
+
+func newFaultyRecipientServer(t *testing.T, playlistsJSON string, f serverFaults) *recipientServer {
+	t.Helper()
 	rs := &recipientServer{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rs.mu.Lock()
@@ -96,9 +106,19 @@ func newRecipientServer(t *testing.T, playlistsJSON string, failCreate bool) *re
 		body := `{}`
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/playlists":
+			if f.list {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 			body = playlistsJSON
+		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/items") && f.adds,
+			r.Method == http.MethodDelete && f.del:
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		case r.Method == http.MethodPost && r.URL.Path == "/playlists" && f.emptyKey:
+			body = `{"MediaContainer":{"Metadata":[{"ratingKey":""}]}}`
 		case r.Method == http.MethodPost && r.URL.Path == "/playlists":
-			if failCreate {
+			if f.create {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -296,5 +316,54 @@ func TestClientSharePlaylist_EmptyListIsNoOp(t *testing.T) {
 	c := &Client{Cfg: &config.ClientConfig{}, API: api}
 	if err := c.SharePlaylist(shareTracks); err != nil || api.calls != 0 {
 		t.Errorf("err = %v, calls = %d; want nil, 0", err, api.calls)
+	}
+}
+
+func TestSharePlaylist_AllAddsFailKeepsOldCopy(t *testing.T) {
+	rs := newFaultyRecipientServer(t, existingCopies, serverFaults{adds: true})
+	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
+	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true)
+	if err == nil || !strings.Contains(err.Error(), "ana") {
+		t.Errorf("err = %v, want one naming ana", err)
+	}
+	if d := deletes(rs.requests()); len(d) != 0 {
+		t.Errorf("deletes = %v, want none", d)
+	}
+}
+
+func TestSharePlaylist_EmptyRatingKeyIsCreateFailure(t *testing.T) {
+	rs := newFaultyRecipientServer(t, existingCopies, serverFaults{emptyKey: true})
+	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err == nil {
+		t.Error("err = nil, want create failure")
+	}
+	for _, r := range rs.requests() {
+		if r.Method == http.MethodDelete || r.Method == http.MethodPut {
+			t.Errorf("unexpected %s %s after empty rating key", r.Method, r.Path)
+		}
+	}
+}
+
+func TestSharePlaylist_ListFailureCreatesNothing(t *testing.T) {
+	rs := newFaultyRecipientServer(t, existingCopies, serverFaults{list: true})
+	plex := sharingPlex(map[string]*recipientServer{"ana": rs})
+	if err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana"}, true); err == nil {
+		t.Error("err = nil, want list failure")
+	}
+	if indexOf(rs.requests(), "POST", "/playlists") >= 0 {
+		t.Errorf("copy created despite failed list: %+v", rs.requests())
+	}
+}
+
+func TestSharePlaylist_DeleteFailureReportedAndContinues(t *testing.T) {
+	bad := newFaultyRecipientServer(t, existingCopies, serverFaults{del: true})
+	good := newRecipientServer(t, existingCopies, false)
+	plex := sharingPlex(map[string]*recipientServer{"ana": bad, "ben": good})
+	err := plex.SharePlaylist(shareTracks, "Gabe", []string{"ana", "ben"}, true)
+	if err == nil || !strings.Contains(err.Error(), "ana") {
+		t.Errorf("err = %v, want one naming ana", err)
+	}
+	if indexOf(good.requests(), "DELETE", "/playlists/7") < 0 {
+		t.Errorf("ben not processed: %+v", good.requests())
 	}
 }
