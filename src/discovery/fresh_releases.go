@@ -171,9 +171,8 @@ func typeRank(t string) int {
 }
 
 func (c *ListenBrainz) tracksFromRelease(rel freshRelease) ([]*models.Track, error) {
-	body, err := c.HttpClient.MakeRequest("GET",
-		"https://musicbrainz.org/ws/2/release/"+url.PathEscape(rel.ReleaseMbid)+"?inc=recordings+artists&fmt=json",
-		nil, nil)
+	cleanMBID := url.PathEscape(rel.ReleaseMbid)
+	body, err := c.mbRequest(fmt.Sprintf("release/%s?inc=recordings+artists&fmt=json", cleanMBID))
 	if err != nil {
 		return nil, err
 	}
