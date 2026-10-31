@@ -206,13 +206,21 @@ func NewListenBrainz(cfg cfg.DiscoveryConfig, httpClient *util.HttpClient) *List
 	}
 }
 func (c *ListenBrainz) QueryTracks() ([]*models.Track, error) {
-	// Stats-based playlists bypass the discovery mode switch
-	if c.cfg.ImportPlaylist == "on-repeat" {
-		tracks, err := c.getTopRecordings(c.cfg.User)
+	// on-repeat and fresh-releases skip the discovery mode switch
+	if c.cfg.ImportPlaylist == "on-repeat" || c.cfg.ImportPlaylist == "fresh-releases" {
+		var tracks []*models.Track
+		var err error
+		if c.cfg.ImportPlaylist == "on-repeat" {
+			tracks, err = c.getTopRecordings(c.cfg.User)
+		} else {
+			// Fresh releases already expand full tracklists via MusicBrainz.
+			tracks, err = c.getFreshReleaseTracks(c.cfg.User)
+		}
 		if err != nil {
 			return nil, err
 		}
-		if c.cfg.EnrichTrackMetadata && len(tracks) > 0 {
+		// Skip enrich for fresh-releases: tracksFromRelease already populated MB fields.
+		if c.cfg.ImportPlaylist == "on-repeat" && c.cfg.EnrichTrackMetadata && len(tracks) > 0 {
 			enrichedTracks, err := c.enrichTracks(tracks, c.cfg.SingleArtist)
 			if err != nil {
 				slog.Warn("failed to enrich playlist metadata", "error", err)
@@ -483,61 +491,61 @@ func (c *ListenBrainz) enrichTracks(tracks []*models.Track, singleArtist bool) (
 		mbReleaseTrackID := ""
 		releaseType := ""
 
-		var mbData *MBRecording
+		var mbData MBRecording
 		var mbErr error
 		for attempt := 1; attempt <= 3; attempt++ {
 
 			if attempt <= 3 {
 				time.Sleep(time.Duration(waitTime) * time.Second)
 			}
-			mbData, mbErr = c.mbRequest(fmt.Sprintf("recording/%s?inc=media+releases+artist-credits+release-groups&fmt=json", track.MusicBrainzTrackID))
-			if mbErr == nil && mbData != nil {
-				break
+			mbBody, mbErr := c.mbRequest(fmt.Sprintf("recording/%s?inc=media+releases+artist-credits+release-groups&fmt=json", track.MusicBrainzTrackID))
+			if mbErr == nil && mbBody != nil {
+				if mbErr = util.ParseResp(mbBody, &mbData); mbErr == nil {
+					break
+				}
 			}
 		}
 
-		if mbData != nil {
-			if len(mbData.Releases) > 0 {
-				// Find best matching release
-				bestRelease := mbData.Releases[0]
-				if track.MusicBrainzAlbumID != "" {
-					for _, rel := range mbData.Releases {
-						if rel.ID == track.MusicBrainzAlbumID {
-							bestRelease = rel
-							break
-						}
+		if len(mbData.Releases) > 0 {
+			// Find best matching release
+			bestRelease := mbData.Releases[0]
+			if track.MusicBrainzAlbumID != "" {
+				for _, rel := range mbData.Releases {
+					if rel.ID == track.MusicBrainzAlbumID {
+						bestRelease = rel
+						break
 					}
 				}
+			}
 
-				if bestRelease.Country != "" {
-					releaseCountry = bestRelease.Country
-				}
-				if bestRelease.Status != "" {
-					releaseStatus = bestRelease.Status
-				}
-				if bestRelease.ReleaseGroup.ID != "" {
-					mbReleaseGroupID = bestRelease.ReleaseGroup.ID
-				}
-				if bestRelease.ReleaseGroup.PrimaryType != "" {
-					releaseType = bestRelease.ReleaseGroup.PrimaryType
-				}
-				if len(bestRelease.ArtistCredit) > 0 {
-					mbAlbumArtistID = bestRelease.ArtistCredit[0].Artist.ID
-					artistSort = bestRelease.ArtistCredit[0].Artist.SortName
-				}
+			if bestRelease.Country != "" {
+				releaseCountry = bestRelease.Country
+			}
+			if bestRelease.Status != "" {
+				releaseStatus = bestRelease.Status
+			}
+			if bestRelease.ReleaseGroup.ID != "" {
+				mbReleaseGroupID = bestRelease.ReleaseGroup.ID
+			}
+			if bestRelease.ReleaseGroup.PrimaryType != "" {
+				releaseType = bestRelease.ReleaseGroup.PrimaryType
+			}
+			if len(bestRelease.ArtistCredit) > 0 {
+				mbAlbumArtistID = bestRelease.ArtistCredit[0].Artist.ID
+				artistSort = bestRelease.ArtistCredit[0].Artist.SortName
+			}
 
-				discTotal = len(bestRelease.Media)
-				if len(bestRelease.Media) > 0 {
-					firstMedia := bestRelease.Media[0]
-					media = firstMedia.Format
-					discNumber = firstMedia.Position
-					trackTotal = firstMedia.TrackCount
+			discTotal = len(bestRelease.Media)
+			if len(bestRelease.Media) > 0 {
+				firstMedia := bestRelease.Media[0]
+				media = firstMedia.Format
+				discNumber = firstMedia.Position
+				trackTotal = firstMedia.TrackCount
 
-					if len(firstMedia.Tracks) > 0 {
-						firstTrack := firstMedia.Tracks[0]
-						trackNumber = firstTrack.Position
-						mbReleaseTrackID = firstTrack.ID
-					}
+				if len(firstMedia.Tracks) > 0 {
+					firstTrack := firstMedia.Tracks[0]
+					trackNumber = firstTrack.Position
+					mbReleaseTrackID = firstTrack.ID
 				}
 			}
 		} else {
@@ -785,7 +793,7 @@ func (c *ListenBrainz) lbRequest(path string) ([]byte, error) {
 	return body, nil
 }
 
-func (c *ListenBrainz) mbRequest(path string) (*MBRecording, error) {
+func (c *ListenBrainz) mbRequest(path string) ([]byte, error) {
 	reqURL := fmt.Sprintf("https://musicbrainz.org/ws/2/%s", path)
 	body, err := c.HttpClient.MakeRequest("GET", reqURL, nil, nil)
 	if err != nil {
@@ -801,7 +809,7 @@ func (c *ListenBrainz) mbRequest(path string) (*MBRecording, error) {
 		return nil, fmt.Errorf("failed to parse MusicBrainz response: %s", err)
 	}
 
-	return &recording, nil
+	return body, nil
 }
 
 type LBTag struct {
