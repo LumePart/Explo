@@ -9,6 +9,7 @@ import (
 
 
 func Init(cfg *config.Config) {
+	configureRedaction(cfg)
 	baseHandler := slog.NewTextHandler( os.Stdout, &slog.HandlerOptions{
 		Level: getLogLevel(cfg.LogLevel), 
 	})
@@ -19,10 +20,11 @@ func Init(cfg *config.Config) {
 	}
 	
 
-	handler := &notifyHandler{
+	notifyHandler := &notifyHandler{
 		handler:   baseHandler,
 		notify: notifyClient,
 	}
+	handler := newRedactingHandler(notifyHandler)
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 }

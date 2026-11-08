@@ -6,13 +6,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"explo/src/config"
-	"explo/src/logging"
 )
 
 type HttpClientConfig struct {
@@ -36,7 +36,7 @@ func NewHttp(cfg HttpClientConfig) *HttpClient {
 func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest(method, url, payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize request: %s", err.Error())
+		return nil, fmt.Errorf("failed to initialize %s request to %s", method, requestEndpoint(url))
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
@@ -48,7 +48,7 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %s", err.Error())
+		return nil, fmt.Errorf("failed to make %s request to %s", method, requestEndpoint(url))
 	}
 
 	defer func() {
@@ -63,17 +63,27 @@ func (c *HttpClient) MakeRequest(method, url string, payload io.Reader, headers 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slog.Debug("response info", logging.RuntimeAttr(string(body)))
-		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("got %d from %s", resp.StatusCode, requestEndpoint(url))
 	}
 
 	return body, nil
 }
 
+func requestEndpoint(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "remote endpoint"
+	}
+	u.User = nil
+	u.RawQuery = ""
+	u.ForceQuery = false
+	u.Fragment = ""
+	return u.String()
+}
+
 func ParseResp[T any](body []byte, target *T) error {
 
 	if err := json.Unmarshal(body, target); err != nil {
-		slog.Debug("response info", logging.RuntimeAttr(string(body)))
 		return fmt.Errorf("error unmarshaling response body: %s", err.Error())
 	}
 	return nil
@@ -93,7 +103,7 @@ func DownloadFile(url, destPath string) (string, error) {
 	}
 	resp, err := http.Get(url) //nolint:noctx
 	if err != nil {
-		return "", fmt.Errorf("get: %w", err)
+		return "", fmt.Errorf("failed to download from %s", requestEndpoint(url))
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
@@ -101,7 +111,7 @@ func DownloadFile(url, destPath string) (string, error) {
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status %d from %s", resp.StatusCode, url)
+		return "", fmt.Errorf("status %d from %s", resp.StatusCode, requestEndpoint(url))
 	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
