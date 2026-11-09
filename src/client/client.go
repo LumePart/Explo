@@ -260,10 +260,12 @@ func BestMatch(track *models.Track, results []SearchResult, minScore int) (Searc
 		CleanTitle: util.NormalizeTitle(track.CleanTitle),
 		MainArtist: track.MainArtist,
 		Album: track.Album,
-		File: filepath.Base(track.File),
 		Duration: track.Duration,
 		MBTrackID: track.MusicBrainzTrackID,
 		MBReleaseTrackID: track.MusicBrainzReleaseTrackID}
+	if track.File != "" { // filepath.Base("") is ".", which would equal a result with no path
+		nmTrack.File = filepath.Base(track.File)
+	}
 
 	for _, r := range results {
 		score := rankResult(nmTrack, r)
@@ -296,15 +298,20 @@ func rankResult(track NormalisedTrack, r SearchResult) int {
 	} else if len(track.CleanTitle) > 3 && (strings.Contains(resultTitle, track.CleanTitle) || strings.Contains(track.CleanTitle, resultTitle)) {
 		score += 25
 	}
-	if strings.EqualFold(track.Album, r.Album) {
-		score += 20
-	} else if util.ContainsFold(track.Album, r.Album) || util.ContainsFold(r.Album, track.Album) {
-		score += 15
+	// An empty string equals/is contained in anything, so only score fields both sides have
+	if track.Album != "" && r.Album != "" {
+		if strings.EqualFold(track.Album, r.Album) {
+			score += 20
+		} else if util.ContainsFold(track.Album, r.Album) || util.ContainsFold(r.Album, track.Album) {
+			score += 15
+		}
 	}
-	if strings.EqualFold(track.MainArtist, r.Artist) || (len(r.Artists) > 0 && strings.EqualFold(r.Artists[0], track.MainArtist)) {
-		score += 30
-	} else if (util.ContainsFold(track.MainArtist, r.Artist) || util.ContainsFold(r.Artist, track.MainArtist)) || (len(r.Artists) > 0 && util.ContainsFold(r.Artists[0], track.MainArtist)) {
-		score += 15
+	if track.MainArtist != "" {
+		if strings.EqualFold(track.MainArtist, r.Artist) || (len(r.Artists) > 0 && strings.EqualFold(r.Artists[0], track.MainArtist)) {
+			score += 30
+		} else if (r.Artist != "" && (util.ContainsFold(track.MainArtist, r.Artist) || util.ContainsFold(r.Artist, track.MainArtist))) || (len(r.Artists) > 0 && util.ContainsFold(r.Artists[0], track.MainArtist)) {
+			score += 15
+		}
 	}
 
 	resultFile := filepath.Base(r.Path)
