@@ -416,7 +416,7 @@ func (s *Settings) HandleWizardStep2(w http.ResponseWriter, r *http.Request) {
 		"PUBLIC_PLAYLIST":       publicPlaylist,
 		"ADMIN_SYSTEM_USERNAME": body.AdminSystemUsername,
 		"ADMIN_SYSTEM_PASSWORD": body.AdminSystemPassword,
-		"ADMIN_SYSTEM_APIKEY":   body.AdminAPIKey,
+		"ADMIN_API_KEY":         body.AdminAPIKey,
 	}
 
 	if err := s.UpdateEnvKeys(updates, web.SampleEnv); err != nil {

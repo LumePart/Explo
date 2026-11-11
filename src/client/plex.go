@@ -250,7 +250,9 @@ func (c *Plex) AddHeader() error {
 		c.Cfg.Creds.Headers = make(map[string]string)
 		c.Cfg.Creds.Headers["X-Plex-Client-Identifier"] = c.Cfg.ClientID
 
-		return nil
+		if c.Cfg.Creds.APIKey == "" { // token comes later from GetAuth
+			return nil
+		}
 	}
 	if c.Cfg.Creds.APIKey != "" {
 		c.Cfg.Creds.Headers["X-Plex-Token"] = c.Cfg.Creds.APIKey
